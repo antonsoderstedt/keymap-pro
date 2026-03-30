@@ -14,7 +14,121 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analyses: {
+        Row: {
+          created_at: string
+          id: string
+          options: Json
+          project_id: string
+          result_json: Json | null
+          scan_data_json: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          options?: Json
+          project_id: string
+          result_json?: Json | null
+          scan_data_json?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          options?: Json
+          project_id?: string
+          result_json?: Json | null
+          scan_data_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analyses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          domain: string | null
+          frequency: string | null
+          id: string
+          industry: string | null
+          name: string
+          products: string | null
+          project_id: string
+          revenue: string | null
+          sni: string | null
+        }
+        Insert: {
+          domain?: string | null
+          frequency?: string | null
+          id?: string
+          industry?: string | null
+          name: string
+          products?: string | null
+          project_id: string
+          revenue?: string | null
+          sni?: string | null
+        }
+        Update: {
+          domain?: string | null
+          frequency?: string | null
+          id?: string
+          industry?: string | null
+          name?: string
+          products?: string | null
+          project_id?: string
+          revenue?: string | null
+          sni?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          company: string
+          created_at: string
+          domain: string | null
+          id: string
+          known_segments: string | null
+          market: string
+          name: string
+          products: string | null
+          user_id: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          domain?: string | null
+          id?: string
+          known_segments?: string | null
+          market?: string
+          name: string
+          products?: string | null
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          domain?: string | null
+          id?: string
+          known_segments?: string | null
+          market?: string
+          name?: string
+          products?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
