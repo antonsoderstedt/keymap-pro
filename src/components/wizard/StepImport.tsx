@@ -93,6 +93,12 @@ export default function StepImport({ customers, setCustomers }: StepImportProps)
             <FileSpreadsheet className="h-4 w-4" />
             Ladda exempeldata
           </Button>
+          {customers.length > 0 && (
+            <Button variant="destructive" onClick={() => setCustomers([])} className="gap-2">
+              <X className="h-4 w-4" />
+              Rensa alla
+            </Button>
+          )}
         </div>
       </div>
 
