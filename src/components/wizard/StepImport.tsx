@@ -25,7 +25,7 @@ const COLUMN_MAP: Record<string, keyof CustomerRow> = {
   "företag": "name", "company": "name", "namn": "name", "name": "name",
   "bransch": "industry", "industry": "industry",
   "sni": "sni", "sni-kod": "sni",
-  "domän": "domain", "domain": "domain", "hemsida": "domain", "website": "domain",
+  "domän": "domain", "domain": "domain", "hemsida": "domain", "website": "domain", "url": "domain", "webbplats": "domain", "webb": "domain",
   "omsättning": "revenue", "revenue": "revenue",
   "orderfrekvens": "frequency", "frekvens": "frequency", "frequency": "frequency",
   "produkter": "products", "produkter köpta": "products", "products": "products",
