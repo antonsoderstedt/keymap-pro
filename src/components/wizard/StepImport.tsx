@@ -31,12 +31,16 @@ const COLUMN_MAP: Record<string, keyof CustomerRow> = {
   "produkter": "products", "produkter köpta": "products", "products": "products",
 };
 
+function normalizeDomain(v: string): string {
+  return v.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].trim().toLowerCase();
+}
+
 function parseInput(raw: string): CustomerRow[] {
   const lines = raw.trim().split("\n");
   if (lines.length < 2) return [];
 
   const sep = lines[0].includes("\t") ? "\t" : ",";
-  const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase());
+  const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
 
   const mapping: (keyof CustomerRow | null)[] = headers.map((h) => COLUMN_MAP[h] || null);
 
@@ -46,6 +50,7 @@ function parseInput(raw: string): CustomerRow[] {
     mapping.forEach((key, i) => {
       if (key && cols[i]) row[key] = cols[i];
     });
+    if (row.domain) row.domain = normalizeDomain(row.domain);
     return row;
   }).filter((r) => r.name);
 }
