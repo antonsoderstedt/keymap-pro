@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { X, FileSpreadsheet } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { X, FileSpreadsheet, Hash } from "lucide-react";
 import { SAMPLE_CUSTOMERS } from "@/lib/types";
 
 export interface CustomerRow {
@@ -55,14 +56,43 @@ function parseInput(raw: string): CustomerRow[] {
   }).filter((r) => r.name);
 }
 
+function parseSniInput(raw: string): CustomerRow[] {
+  const lines = raw.trim().split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
+  return lines.map((line) => {
+    const match = line.match(/^(\d{2,5})\s*[-–—:]?\s*(.*)$/);
+    if (!match) return null;
+    const sni = match[1];
+    const industry = match[2] || "";
+    return {
+      name: industry ? `${sni} – ${industry}` : `SNI ${sni}`,
+      industry,
+      sni,
+      domain: "",
+      revenue: "",
+      frequency: "",
+      products: "",
+    } as CustomerRow;
+  }).filter(Boolean) as CustomerRow[];
+}
+
 export default function StepImport({ customers, setCustomers }: StepImportProps) {
   const [rawInput, setRawInput] = useState("");
+  const [sniInput, setSniInput] = useState("");
+  const [mode, setMode] = useState<string>("customers");
 
   const handleParse = () => {
     const parsed = parseInput(rawInput);
     if (parsed.length > 0) {
       setCustomers([...customers, ...parsed]);
       setRawInput("");
+    }
+  };
+
+  const handleSniParse = () => {
+    const parsed = parseSniInput(sniInput);
+    if (parsed.length > 0) {
+      setCustomers([...customers, ...parsed]);
+      setSniInput("");
     }
   };
 
@@ -80,41 +110,71 @@ export default function StepImport({ customers, setCustomers }: StepImportProps)
     <div className="space-y-6">
       <div>
         <h2 className="font-serif text-2xl mb-1">Importera kunddata</h2>
-        <p className="text-sm text-muted-foreground">Klistra in kunddata från Google Sheets eller Excel (tab- eller kommaseparerat)</p>
+        <p className="text-sm text-muted-foreground">Lägg till kunddata eller SNI-koder för analys</p>
       </div>
 
-      <div className="space-y-2">
-        <Label>Klistra in kunddata</Label>
-        <Textarea
-          value={rawInput}
-          onChange={(e) => setRawInput(e.target.value)}
-          placeholder={"Företag\tBransch\tSNI\tDomän\tOmsättning\tOrderfrekvens\tProdukter köpta\nAlfa Mekanik AB\tTillverkning\t25620\talfamekanik.se\t45 MSEK\tMånatlig\tKabelgenomföring plåt"}
-          rows={6}
-          className="font-mono text-xs"
-        />
-        <div className="flex gap-2">
-          <Button onClick={handleParse} disabled={!rawInput.trim()}>Importera</Button>
-          <Button variant="outline" onClick={loadSample} className="gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            Ladda exempeldata
-          </Button>
-          {customers.length > 0 && (
-            <Button variant="destructive" onClick={() => setCustomers([])} className="gap-2">
-              <X className="h-4 w-4" />
-              Rensa alla
-            </Button>
-          )}
-        </div>
-      </div>
+      <Tabs value={mode} onValueChange={setMode}>
+        <TabsList>
+          <TabsTrigger value="customers" className="gap-2">
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Kunddata
+          </TabsTrigger>
+          <TabsTrigger value="sni" className="gap-2">
+            <Hash className="h-3.5 w-3.5" />
+            Enbart SNI-koder
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="customers" className="space-y-4">
+          <div className="space-y-2">
+            <Label>Klistra in kunddata</Label>
+            <Textarea
+              value={rawInput}
+              onChange={(e) => setRawInput(e.target.value)}
+              placeholder={"Företag\tBransch\tSNI\tDomän\tOmsättning\tOrderfrekvens\tProdukter köpta\nAlfa Mekanik AB\tTillverkning\t25620\talfamekanik.se\t45 MSEK\tMånatlig\tKabelgenomföring plåt"}
+              rows={6}
+              className="font-mono text-xs"
+            />
+            <div className="flex gap-2">
+              <Button onClick={handleParse} disabled={!rawInput.trim()}>Importera</Button>
+              <Button variant="outline" onClick={loadSample} className="gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                Ladda exempeldata
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sni" className="space-y-4">
+          <div className="space-y-2">
+            <Label>SNI-koder</Label>
+            <p className="text-xs text-muted-foreground">Ange en SNI-kod per rad, med valfri beskrivning. T.ex. "25620 - Tillverkning av lås"</p>
+            <Textarea
+              value={sniInput}
+              onChange={(e) => setSniInput(e.target.value)}
+              placeholder={"25620 - Tillverkning av lås\n41200 - Byggverksamhet\n62010 - Dataprogrammering"}
+              rows={6}
+              className="font-mono text-xs"
+            />
+            <Button onClick={handleSniParse} disabled={!sniInput.trim()}>Lägg till SNI-koder</Button>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {customers.length > 0 && (
         <div className="space-y-2">
-          <Label>{customers.length} kunder importerade</Label>
+          <div className="flex items-center justify-between">
+            <Label>{customers.length} poster importerade</Label>
+            <Button variant="destructive" size="sm" onClick={() => setCustomers([])} className="gap-2">
+              <X className="h-3.5 w-3.5" />
+              Rensa alla
+            </Button>
+          </div>
           <div className="rounded-md border border-border overflow-auto max-h-80">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Företag</TableHead>
+                  <TableHead>Namn / SNI</TableHead>
                   <TableHead>Bransch</TableHead>
                   <TableHead>SNI</TableHead>
                   <TableHead>Domän</TableHead>
