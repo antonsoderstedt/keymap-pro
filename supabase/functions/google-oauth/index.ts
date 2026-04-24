@@ -17,6 +17,7 @@ const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-oauth/callback`;
 const SCOPES = [
   "https://www.googleapis.com/auth/webmasters.readonly",
   "https://www.googleapis.com/auth/analytics.readonly",
+  "https://www.googleapis.com/auth/adwords",
   "openid",
   "email",
 ].join(" ");
