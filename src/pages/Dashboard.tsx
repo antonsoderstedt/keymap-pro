@@ -22,9 +22,41 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
+
   useEffect(() => {
     loadProjects();
+    checkGoogle();
+    // Toast on return from OAuth
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google") === "connected") {
+      toast({ title: "Google ansluten", description: "GA4 + Search Console är nu kopplade." });
+      window.history.replaceState({}, "", "/dashboard");
+    }
   }, []);
+
+  const checkGoogle = async () => {
+    const { data } = await supabase.functions.invoke("google-oauth/status");
+    setGoogleConnected(!!(data as any)?.connected);
+  };
+
+  const connectGoogle = async () => {
+    const { data, error } = await supabase.functions.invoke("google-oauth/start");
+    if (error || !(data as any)?.url) {
+      toast({ title: "Fel", description: error?.message || "Kunde inte starta Google-inloggning", variant: "destructive" });
+      return;
+    }
+    // Append origin so callback can redirect back to current host
+    const url = new URL((data as any).url);
+    // Encode origin in state already; we redirect from callback to a fixed origin via query param too
+    window.location.href = `${(data as any).url}`;
+  };
+
+  const disconnectGoogle = async () => {
+    await supabase.functions.invoke("google-oauth/disconnect");
+    setGoogleConnected(false);
+    toast({ title: "Google frånkopplad" });
+  };
 
   const loadProjects = async () => {
     const { data: projectsData, error: pError } = await supabase
