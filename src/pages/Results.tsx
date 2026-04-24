@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Download, FileText, Presentation, FileType, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Presentation, FileType, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ResultsSidebar } from "@/components/results/ResultsSidebar";
@@ -25,14 +25,19 @@ export default function Results() {
   const [projectName, setProjectName] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pptx" | "pdf" | null>(null);
+  const [analysisPending, setAnalysisPending] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setIsRefreshing(true);
+
     const { data: project } = await supabase.from("projects").select("name").eq("id", id!).single();
     if (project) setProjectName((project as any).name);
 
@@ -47,13 +52,23 @@ export default function Results() {
     if (error || !data) {
       toast({ title: "Inga resultat", description: "Ingen analys hittad för projektet.", variant: "destructive" });
       setLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
+    const nextResult = ((data as any).result_json ?? null) as AnalysisResult | null;
+    const pending = !nextResult;
+    const failureMessage = nextResult && typeof nextResult === "object" && "__error" in nextResult
+      ? String((nextResult as any).__error || "")
+      : null;
+
     setAnalysisId((data as any).id);
-    setResult((data as any).result_json as AnalysisResult);
+    setResult(failureMessage ? null : nextResult);
     setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
+    setAnalysisPending(pending);
+    setAnalysisError(failureMessage || null);
     setLoading(false);
+    setIsRefreshing(false);
   };
 
   const downloadCSV = (rows: string[][], filename: string) => {
@@ -118,6 +133,24 @@ export default function Results() {
     }
   };
 
+  const canExport = !!analysisId && !!result && !analysisPending;
+
+  const statusText = useMemo(() => {
+    if (analysisPending) return "Analysen körs i bakgrunden. Resultatet uppdateras automatiskt.";
+    if (analysisError) return `Analysen avbröts: ${analysisError}`;
+    return null;
+  }, [analysisError, analysisPending]);
+
+  useEffect(() => {
+    if (!analysisPending || !id) return;
+
+    const interval = window.setInterval(() => {
+      void load(true);
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [analysisPending, id]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -128,9 +161,18 @@ export default function Results() {
 
   if (!result) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
-        <p className="text-muted-foreground">Inga resultat hittade.</p>
-        <Button onClick={() => navigate(`/project/${id}`)} variant="outline">Tillbaka till projektet</Button>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <p className="text-muted-foreground">
+          {analysisPending ? "Analysen håller på att bli klar." : analysisError ? analysisError : "Inga resultat hittade."}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {analysisPending && (
+            <Button onClick={() => void load(true)} variant="outline" className="gap-2" disabled={isRefreshing}>
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} /> Uppdatera
+            </Button>
+          )}
+          <Button onClick={() => navigate(`/project/${id}`)} variant="outline">Tillbaka till projektet</Button>
+        </div>
       </div>
     );
   }
@@ -166,7 +208,7 @@ export default function Results() {
                 <DropdownMenuLabel className="text-xs">Presentation (rekommenderas)</DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={() => exportPresentation("pptx")}
-                  disabled={!!exporting}
+                  disabled={!!exporting || !canExport}
                   className="cursor-pointer gap-3"
                 >
                   {exporting === "pptx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Presentation className="h-4 w-4 text-primary" />}
@@ -177,7 +219,7 @@ export default function Results() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => exportPresentation("pdf")}
-                  disabled={!!exporting}
+                  disabled={!!exporting || !canExport}
                   className="cursor-pointer gap-3"
                 >
                   {exporting === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileType className="h-4 w-4 text-primary" />}
@@ -190,7 +232,7 @@ export default function Results() {
                 <DropdownMenuLabel className="text-xs">Rådata</DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={() => universe && exportUniverseCsv(universe.keywords)}
-                  disabled={!universe}
+                  disabled={!universe || analysisPending}
                   className="cursor-pointer gap-3"
                 >
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -201,6 +243,23 @@ export default function Results() {
           </div>
         </div>
       </header>
+
+      <div className="mx-auto max-w-[1400px] px-6 pt-6">
+        {statusText && (
+          <section className="rounded-xl border border-border bg-card/70 p-4 shadow-card">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{analysisPending ? "Analysen bearbetas" : "Analysen behöver ses över"}</p>
+                <p className="text-sm text-muted-foreground">{statusText}</p>
+              </div>
+              <Button onClick={() => void load(true)} variant="outline" className="gap-2 self-start" disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                {analysisPending ? "Hämta status" : "Försök igen"}
+              </Button>
+            </div>
+          </section>
+        )}
+      </div>
 
       <div className="mx-auto flex max-w-[1400px] gap-8 px-6 py-8">
         <ResultsSidebar />
