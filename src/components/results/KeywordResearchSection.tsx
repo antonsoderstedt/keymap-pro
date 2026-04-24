@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -33,8 +35,14 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
   const [filterIntent, setFilterIntent] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterUsage, setFilterUsage] = useState("all");
-  const [sortKey, setSortKey] = useState<SortKey>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [hideZero, setHideZero] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("volume");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const hasRealData = useMemo(
+    () => clusters.some((c) => c.keywords?.some((k) => k.dataSource === "real")),
+    [clusters],
+  );
 
   const totalKeywords = useMemo(
     () => clusters.reduce((s, c) => s + (c.keywords?.length || 0), 0),
@@ -65,10 +73,11 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
       if (filterIntent !== "all" && k.intent !== filterIntent) return false;
       if (filterCategory !== "all" && k.category !== filterCategory) return false;
       if (filterUsage !== "all" && k.usage !== filterUsage) return false;
+      if (hideZero && k.dataSource === "real" && (k.realVolume || 0) === 0) return false;
       if (search && !k.keyword.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [flat, filterSegment, filterChannel, filterIntent, filterCategory, filterUsage, search]);
+  }, [flat, filterSegment, filterChannel, filterIntent, filterCategory, filterUsage, search, hideZero]);
 
   // Group filtered by cluster
   const groupedByCluster = useMemo(() => {
