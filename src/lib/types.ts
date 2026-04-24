@@ -38,6 +38,33 @@ export interface AnalysisOptions {
   adsStructure: boolean;
   quickWins: boolean;
   webscan: boolean;
+  keywordResearch: boolean;
+}
+
+export type ResearchCategory = "Produkt" | "Tjänst" | "Geo" | "Pris" | "Fråga";
+export type ResearchChannel = "SEO" | "Ads" | "Båda";
+export type ResearchVolume = "<100" | "100-500" | "500-2000" | "2000+";
+export type ResearchCpc = "Låg" | "Medium" | "Hög";
+export type ResearchIntent = "Köp" | "Info" | "Nav";
+export type ResearchUsage = "Landningssida" | "Blogg" | "Ads-grupp";
+
+export interface ResearchKeyword {
+  keyword: string;
+  category: ResearchCategory;
+  channel: ResearchChannel;
+  volume: ResearchVolume;
+  cpc: ResearchCpc;
+  intent: ResearchIntent;
+  usage: ResearchUsage;
+}
+
+export interface ResearchCluster {
+  cluster: string;
+  segment: string;
+  recommendedH1: string;
+  metaDescription: string;
+  urlSlug: string;
+  keywords: ResearchKeyword[];
 }
 
 export interface ScanData {
@@ -57,6 +84,7 @@ export interface AnalysisResult {
   expansion: ExpansionSegment[];
   adsStructure: AdsCampaign[];
   quickWins: QuickWin[];
+  keywordResearch?: ResearchCluster[];
 }
 
 export interface Segment {

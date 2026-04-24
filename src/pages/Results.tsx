@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe, FileText, Megaphone as MegaIcon, LayoutTemplate } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { AnalysisResult, ScanData } from "@/lib/types";
+import KeywordResearchSection from "@/components/results/KeywordResearchSection";
+import type { AnalysisResult, ScanData, ResearchCluster, ResearchKeyword } from "@/lib/types";
 
 export default function Results() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +20,7 @@ export default function Results() {
   const [scanData, setScanData] = useState<ScanData[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [projectName, setProjectName] = useState("");
+  const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadResults();
@@ -71,6 +74,62 @@ export default function Results() {
     downloadCSV(rows, "keymap-ads-structure.csv");
   };
 
+  // === Keyword Research exports ===
+  const cpcToMaxBid = (cpc: string) => cpc === "Hög" ? "50" : cpc === "Medium" ? "25" : "10";
+
+  const getResearchKeywords = (): { cluster: ResearchCluster; keyword: ResearchKeyword; clusterIdx: number; rowIdx: number }[] => {
+    if (!result?.keywordResearch) return [];
+    const all: any[] = [];
+    result.keywordResearch.forEach((c, ci) => {
+      c.keywords.forEach((k, ki) => all.push({ cluster: c, keyword: k, clusterIdx: ci, rowIdx: ki }));
+    });
+    if (selectedKeywords.size > 0) {
+      return all.filter((x) => selectedKeywords.has(`${x.clusterIdx}::${x.rowIdx}`));
+    }
+    return all;
+  };
+
+  const exportSeoCSV = () => {
+    const items = getResearchKeywords();
+    if (items.length === 0) {
+      toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
+      return;
+    }
+    const rows = [["Sökord", "Kluster", "Kategori", "Intent", "Volym", "Rekommenderad sidtitel"]];
+    items.forEach(({ cluster, keyword }) => {
+      rows.push([keyword.keyword, cluster.cluster, keyword.category, keyword.intent, keyword.volume, cluster.recommendedH1]);
+    });
+    downloadCSV(rows, "keymap-seo.csv");
+    toast({ title: "SEO-export klar", description: `${items.length} sökord exporterade` });
+  };
+
+  const exportAdsResearchCSV = () => {
+    const items = getResearchKeywords();
+    if (items.length === 0) {
+      toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
+      return;
+    }
+    const rows = [["Kampanj", "Annonsgrupp", "Sökord", "Match Type", "Max CPC (SEK)"]];
+    items.forEach(({ cluster, keyword }) => {
+      rows.push([cluster.segment, cluster.cluster, keyword.keyword, "Phrase", cpcToMaxBid(keyword.cpc)]);
+    });
+    downloadCSV(rows, "keymap-google-ads.csv");
+    toast({ title: "Ads-export klar", description: `${items.length} sökord exporterade` });
+  };
+
+  const exportLandingCSV = () => {
+    if (!result?.keywordResearch?.length) {
+      toast({ title: "Inga kluster", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
+      return;
+    }
+    const rows = [["Kluster", "Segment", "H1", "Meta description", "URL-slug", "Antal sökord"]];
+    result.keywordResearch.forEach((c) => {
+      rows.push([c.cluster, c.segment, c.recommendedH1, c.metaDescription, c.urlSlug, String(c.keywords?.length || 0)]);
+    });
+    downloadCSV(rows, "keymap-landningssidor.csv");
+    toast({ title: "Landningssidor-export klar", description: `${result.keywordResearch.length} kluster exporterade` });
+  };
+
   const downloadCSV = (rows: string[][], filename: string) => {
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -119,15 +178,49 @@ export default function Results() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={exportKeywordsCSV} className="gap-2">
-              <Download className="h-3 w-3" />Keywords CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportAdsCSV} className="gap-2">
-              <Download className="h-3 w-3" />Ads CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={copyJSON} className="gap-2">
-              <Copy className="h-3 w-3" />JSON
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="gap-2">
+                  <Download className="h-3 w-3" />
+                  Exportera
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="text-xs">Keyword Research</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportSeoCSV} className="gap-2 cursor-pointer">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="text-sm">SEO Export</div>
+                    <div className="text-xs text-muted-foreground">Sökord, kluster, sidtitel</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportAdsResearchCSV} className="gap-2 cursor-pointer">
+                  <MegaIcon className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="text-sm">Google Ads Export</div>
+                    <div className="text-xs text-muted-foreground">Kampanj, annonsgrupp, max CPC</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportLandingCSV} className="gap-2 cursor-pointer">
+                  <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="text-sm">Landningssidor Export</div>
+                    <div className="text-xs text-muted-foreground">H1, meta, slug per kluster</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Klassisk</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportKeywordsCSV} className="gap-2 cursor-pointer">
+                  <Download className="h-3.5 w-3.5" /><span className="text-sm">Keywords CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportAdsCSV} className="gap-2 cursor-pointer">
+                  <Download className="h-3.5 w-3.5" /><span className="text-sm">Ads-struktur CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyJSON} className="gap-2 cursor-pointer">
+                  <Copy className="h-3.5 w-3.5" /><span className="text-sm">Kopiera JSON</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -202,6 +295,17 @@ export default function Results() {
                 </Card>
               ))}
             </div>
+
+            {/* Keyword Research section under segment cards */}
+            {result.keywordResearch && result.keywordResearch.length > 0 && (
+              <div className="mt-6">
+                <KeywordResearchSection
+                  clusters={result.keywordResearch}
+                  selectedKeywords={selectedKeywords}
+                  setSelectedKeywords={setSelectedKeywords}
+                />
+              </div>
+            )}
           </TabsContent>
 
           {/* Keywords */}
