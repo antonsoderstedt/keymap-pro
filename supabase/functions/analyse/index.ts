@@ -57,7 +57,7 @@ function extractJson(raw: string): any {
   while (stack.length) repaired += stack.pop();
   return JSON.parse(repaired);
 }
-
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
