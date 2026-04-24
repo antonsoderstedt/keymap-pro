@@ -133,9 +133,15 @@ export default function Dashboard() {
           <h1 className="font-serif text-2xl text-primary">KEYMAP</h1>
           <div className="flex items-center gap-3">
             {googleConnected ? (
-              <Button variant="outline" size="sm" onClick={disconnectGoogle}>
-                Google ansluten ✓
-              </Button>
+              <>
+                <span className="text-xs text-muted-foreground">Google ansluten ✓</span>
+                <Button variant="outline" size="sm" onClick={connectGoogle} title="Logga in igen för att uppdatera behörigheter (t.ex. Google Ads)">
+                  Återanslut Google
+                </Button>
+                <Button variant="ghost" size="sm" onClick={disconnectGoogle}>
+                  Koppla från
+                </Button>
+              </>
             ) : (
               <Button variant="outline" size="sm" onClick={connectGoogle}>
                 Anslut Google
