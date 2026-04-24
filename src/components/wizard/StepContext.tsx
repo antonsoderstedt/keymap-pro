@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,11 +15,14 @@ interface StepContextProps {
   setProducts: (v: string) => void;
   knownSegments: string;
   setKnownSegments: (v: string) => void;
+  competitors: string;
+  setCompetitors: (v: string) => void;
 }
 
 export default function StepContext({
   company, setCompany, domain, setDomain, market, setMarket,
   products, setProducts, knownSegments, setKnownSegments,
+  competitors, setCompetitors,
 }: StepContextProps) {
   return (
     <div className="space-y-6">
@@ -72,6 +74,18 @@ export default function StepContext({
           placeholder="Ex: Tillverkningsindustri, Bygg, Energi, Marin..."
           rows={3}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="competitors">Konkurrenter (valfritt)</Label>
+        <Textarea
+          id="competitors"
+          value={competitors}
+          onChange={(e) => setCompetitors(e.target.value)}
+          placeholder="Kommaseparerat: konkurrent A, konkurrent B, konkurrent C..."
+          rows={2}
+        />
+        <p className="text-xs text-muted-foreground">Används för att generera konkurrent- och alternativsökord.</p>
       </div>
     </div>
   );
