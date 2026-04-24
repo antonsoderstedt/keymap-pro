@@ -130,7 +130,16 @@ export default function Dashboard() {
       <header className="border-b border-border px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <h1 className="font-serif text-2xl text-primary">KEYMAP</h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {googleConnected ? (
+              <Button variant="outline" size="sm" onClick={disconnectGoogle}>
+                Google ansluten ✓
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={connectGoogle}>
+                Anslut Google
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">{user?.email}</span>
             <Button variant="ghost" size="icon" onClick={signOut}>
               <LogOut className="h-4 w-4" />
