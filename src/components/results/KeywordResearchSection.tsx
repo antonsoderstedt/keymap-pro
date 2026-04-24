@@ -246,9 +246,15 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
             </Select>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{filtered.length} av {totalKeywords} sökord visas</span>
-            <div className="flex gap-2">
+          <div className="flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
+            <span>{filtered.length} av {totalKeywords} sökord visas{hasRealData && " · verklig data från Google Sverige"}</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              {hasRealData && (
+                <div className="flex items-center gap-2">
+                  <Switch id="hide-zero" checked={hideZero} onCheckedChange={setHideZero} />
+                  <Label htmlFor="hide-zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                </div>
+              )}
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs">Rensa filter</Button>
               <Button variant="ghost" size="sm" onClick={expandAllClusters} className="h-7 text-xs">Expandera alla</Button>
               <Button variant="ghost" size="sm" onClick={collapseAllClusters} className="h-7 text-xs">Kollapsa alla</Button>
@@ -262,10 +268,12 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                 <TableRow className="bg-muted/30">
                   <TableHead className="w-10"></TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort("keyword")}>Sökord<SortIcon k="keyword" /></TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("category")}>Kategori<SortIcon k="category" /></TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("channel")}>Kanal<SortIcon k="channel" /></TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort("volume")}>Volym<SortIcon k="volume" /></TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort("volume")}>Volym/mån<SortIcon k="volume" /></TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort("cpc")}>CPC<SortIcon k="cpc" /></TableHead>
+                  {hasRealData && (
+                    <TableHead className="cursor-pointer" onClick={() => handleSort("competition" as SortKey)}>Konkurrens<SortIcon k={"competition" as SortKey} /></TableHead>
+                  )}
+                  <TableHead className="cursor-pointer" onClick={() => handleSort("category")}>Kategori<SortIcon k="category" /></TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort("intent")}>Intent<SortIcon k="intent" /></TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort("usage")}>Användning<SortIcon k="usage" /></TableHead>
                 </TableRow>
@@ -276,6 +284,8 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                   const ids = g.keywords.map(kwId);
                   const allSelected = ids.length > 0 && ids.every((id) => selectedKeywords.has(id));
                   const someSelected = ids.some((id) => selectedKeywords.has(id));
+                  const totalVolume = g.keywords.reduce((s, k) => s + (k.realVolume || 0), 0);
+                  const headerColSpan = hasRealData ? 8 : 7;
                   return (
                     <Collapsible key={g.clusterIdx} open={isOpen} onOpenChange={() => toggleCluster(g.clusterIdx)} asChild>
                       <>
@@ -287,13 +297,16 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                               aria-label="Markera kluster"
                             />
                           </TableCell>
-                          <TableCell colSpan={7} className="py-2">
+                          <TableCell colSpan={headerColSpan} className="py-2">
                             <CollapsibleTrigger asChild>
-                              <button className="flex items-center gap-2 w-full text-left">
+                              <button className="flex items-center gap-2 w-full text-left flex-wrap">
                                 {isOpen ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-primary" />}
                                 <span className="font-serif text-sm font-medium">{g.cluster.cluster}</span>
                                 <Badge variant="outline" className="font-mono text-xs">{g.keywords.length} sökord</Badge>
                                 <Badge variant="secondary" className="text-xs">{g.cluster.segment}</Badge>
+                                {hasRealData && totalVolume > 0 && (
+                                  <Badge variant="outline" className="font-mono text-xs text-primary border-primary/40">{totalVolume.toLocaleString("sv-SE")}/mån</Badge>
+                                )}
                                 {someSelected && !allSelected && (
                                   <Badge className="text-xs">{ids.filter((id) => selectedKeywords.has(id)).length} valda</Badge>
                                 )}
@@ -306,14 +319,33 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                             {g.keywords.map((k) => {
                               const id = kwId(k);
                               const sel = selectedKeywords.has(id);
+                              const isReal = k.dataSource === "real";
+                              const volDisplay = isReal
+                                ? `${(k.realVolume || 0).toLocaleString("sv-SE")}`
+                                : k.volume;
+                              const cpcDisplay = isReal && k.realCpc != null
+                                ? `${k.realCpc.toFixed(2).replace(".", ",")} kr`
+                                : k.cpc;
+                              const compLabel = k.competition == null ? "—"
+                                : k.competition < 0.34 ? "Låg"
+                                : k.competition < 0.67 ? "Medel" : "Hög";
                               return (
                                 <TableRow key={id} className={sel ? "bg-primary/5" : ""}>
                                   <TableCell><Checkbox checked={sel} onCheckedChange={() => toggleKeyword(k)} /></TableCell>
-                                  <TableCell className="font-mono text-xs">{k.keyword}</TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span>{k.keyword}</span>
+                                      {!isReal && hasRealData && (
+                                        <Badge variant="outline" className="text-[10px] py-0 px-1 opacity-60">Uppskattad</Badge>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">{volDisplay}</TableCell>
+                                  <TableCell className="font-mono text-xs">{cpcDisplay}</TableCell>
+                                  {hasRealData && (
+                                    <TableCell className="text-xs">{compLabel}</TableCell>
+                                  )}
                                   <TableCell><Badge variant="outline" className="text-xs">{k.category}</Badge></TableCell>
-                                  <TableCell className="text-xs">{k.channel}</TableCell>
-                                  <TableCell className="font-mono text-xs">{k.volume}</TableCell>
-                                  <TableCell className="text-xs">{k.cpc}</TableCell>
                                   <TableCell><Badge variant="secondary" className="text-xs">{k.intent}</Badge></TableCell>
                                   <TableCell className="text-xs">{k.usage}</TableCell>
                                 </TableRow>
@@ -327,7 +359,7 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                 })}
                 {groupedByCluster.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">Inga sökord matchar filtret</TableCell>
+                    <TableCell colSpan={hasRealData ? 9 : 8} className="text-center text-muted-foreground py-8">Inga sökord matchar filtret</TableCell>
                   </TableRow>
                 )}
               </TableBody>
