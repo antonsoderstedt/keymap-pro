@@ -36,6 +36,47 @@ export default function WorkspaceOverview() {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Google connection status
+  const [googleStatus, setGoogleStatus] = useState<{
+    loading: boolean;
+    connected: boolean;
+    scope?: string;
+    expires_at?: string;
+  }>({ loading: true, connected: false });
+
+  const hasAdsScope = !!googleStatus.scope?.includes("adwords");
+
+  const refreshGoogleStatus = async () => {
+    setGoogleStatus((s) => ({ ...s, loading: true }));
+    const { data } = await supabase.functions.invoke("google-oauth/status");
+    const d = (data as any) || {};
+    setGoogleStatus({
+      loading: false,
+      connected: !!d.connected,
+      scope: d.scope,
+      expires_at: d.expires_at,
+    });
+  };
+
+  const connectGoogle = async () => {
+    const { data, error } = await supabase.functions.invoke("google-oauth/start");
+    if (error || !(data as any)?.url) {
+      toast({ title: "Fel", description: error?.message || "Kunde inte starta Google-inloggning", variant: "destructive" });
+      return;
+    }
+    window.location.href = (data as any).url;
+  };
+
+  const disconnectGoogle = async () => {
+    await supabase.functions.invoke("google-oauth/disconnect");
+    toast({ title: "Google frånkopplad" });
+    refreshGoogleStatus();
+  };
+
+  useEffect(() => {
+    refreshGoogleStatus();
+  }, []);
+
   useEffect(() => {
     if (!id) return;
     (async () => {
