@@ -109,12 +109,16 @@ export default function KeywordUniversePage() {
       toast({ title: "Inga sökord", description: "Filtret matchar inga sökord.", variant: "destructive" });
       return;
     }
-    const rows = [["Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal", "Volym/mån", "CPC (SEK)", "Konkurrens", "Datakälla", "Landningssida", "Annonsgrupp", "Contentidé", "Negativt"]];
+    const rows = [["Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal", "Volym/mån", "CPC (SEK)", "Konkurrens", "KD%", "Konkurrent-gap", "SERP features", "Top domäner", "Datakälla", "Landningssida", "Annonsgrupp", "Contentidé", "Negativt"]];
     filtered.forEach((k) => {
       rows.push([
         k.keyword, k.cluster, DIMENSION_LABELS[k.dimension] || k.dimension,
         INTENT_LABELS[k.intent] || k.intent, k.funnelStage, k.priority, k.channel,
         k.searchVolume?.toString() ?? "", k.cpc?.toFixed(2) ?? "", k.competition?.toFixed(2) ?? "",
+        k.kd != null ? Math.round(k.kd).toString() : "",
+        k.competitorGap ? "Ja" : "",
+        (k.serpFeatures || []).join("; "),
+        (k.topRankingDomains || []).join("; "),
         k.dataSource === "real" ? "DataForSEO" : "Uppskattad",
         k.recommendedLandingPage ?? "", k.recommendedAdGroup ?? "", k.contentIdea ?? "",
         k.isNegative ? "Ja" : "",
