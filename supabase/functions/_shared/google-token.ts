@@ -13,13 +13,11 @@ export async function getGoogleAccessToken(authHeader: string | null): Promise<s
   const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!jwt) throw new Error("Not authenticated");
 
-  const supa = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
+  const supa = createClient(SUPABASE_URL, SERVICE_ROLE);
   const { data: { user }, error: userError } = await supa.auth.getUser(jwt);
   if (userError || !user) throw new Error("Not authenticated");
 
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const admin = supa;
   const { data: row, error } = await admin
     .from("google_tokens")
     .select("*")
