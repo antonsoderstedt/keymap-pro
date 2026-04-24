@@ -45,7 +45,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
       title: "Kanaler",
       items: [
         { to: `${base}/seo`, label: "SEO", icon: TrendingUp },
-        { to: `${base}/google-ads`, label: "Google Ads", icon: Sparkles, badge: "snart" },
+        { to: `${base}/google-ads`, label: "Google Ads", icon: Sparkles, badge: "preview" },
         { to: `${base}/ga4`, label: "GA4", icon: LayoutDashboard },
         { to: `${base}/paid-vs-organic`, label: "Paid vs Organic", icon: Layers },
       ],
@@ -61,8 +61,8 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
       title: "Action & uppföljning",
       items: [
         { to: `${base}/actions`, label: "Action Tracker", icon: ListChecks },
-        { to: `${base}/audit`, label: "SEO Audit", icon: ShieldCheck, badge: "snart" },
-        { to: `${base}/alerts`, label: "Alerts", icon: Bell, badge: "snart" },
+        { to: `${base}/audit`, label: "SEO Audit", icon: ShieldCheck },
+        { to: `${base}/alerts`, label: "Alerts", icon: Bell },
       ],
     },
     {
