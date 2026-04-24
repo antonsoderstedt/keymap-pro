@@ -159,10 +159,46 @@ export default function KeywordUniversePage() {
 
   if (!universe) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4 px-6 text-center">
         <p className="text-muted-foreground">Inget Keyword Universe hittat för detta projekt.</p>
-        <p className="text-xs text-muted-foreground">Kör en ny analys med modulen "Keyword Universe (skalad)" aktiverad.</p>
-        <Button onClick={() => navigate(`/project/${id}/results`)} variant="outline">Tillbaka till resultat</Button>
+        <p className="text-xs text-muted-foreground">Kör en ny analys eller generera direkt nedan (rekommenderas om analysen redan är klar).</p>
+        <div className="flex gap-2">
+          <Button
+            onClick={async () => {
+              setLoading(true);
+              try {
+                const { data: latest } = await supabase
+                  .from("analyses")
+                  .select("id, universe_scale")
+                  .eq("project_id", id!)
+                  .order("created_at", { ascending: false })
+                  .limit(1)
+                  .single();
+                const scale = (latest as any)?.universe_scale || "focused";
+                const { data, error } = await supabase.functions.invoke("keyword-universe", {
+                  body: { project_id: id, scale },
+                });
+                if (error) throw error;
+                const uni = (data as any)?.universe;
+                if (!uni) throw new Error("Ingen universe-data returnerades");
+                if ((latest as any)?.id) {
+                  await supabase
+                    .from("analyses")
+                    .update({ keyword_universe_json: uni, universe_scale: scale })
+                    .eq("id", (latest as any).id);
+                }
+                toast({ title: "Klart", description: `${uni.totalKeywords || 0} sökord genererade.` });
+                await load();
+              } catch (e: any) {
+                toast({ title: "Misslyckades", description: e.message || "Försök igen.", variant: "destructive" });
+                setLoading(false);
+              }
+            }}
+          >
+            Kör Keyword Universe nu
+          </Button>
+          <Button onClick={() => navigate(`/project/${id}/results`)} variant="outline">Tillbaka till resultat</Button>
+        </div>
       </div>
     );
   }
