@@ -214,9 +214,13 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
       if (!data?.accounts?.length) toast.info("Inga Ads-konton hittades — kontrollera att du auktoriserat med Ads-scope.");
     } catch (e: any) {
       const message = e.context?.error || e.message || "Kunde inte hämta Ads-konton";
-      toast.error(message.includes("MISSING_ADS_SCOPE")
-        ? "Google Ads-behörighet saknas. Klicka på Återanslut Google i Dashboard."
-        : message);
+      if (message === "Google not connected" || message.includes("GOOGLE_NOT_CONNECTED")) {
+        toast.error("Google är inte ansluten. Gå till Översikt och klicka 'Anslut Google'.");
+      } else if (message.includes("MISSING_ADS_SCOPE")) {
+        toast.error("Google Ads-behörighet saknas. Gå till Översikt → 'Bevilja Google Ads-behörighet'.");
+      } else {
+        toast.error(message);
+      }
     } finally { setLoading(false); }
   };
 
