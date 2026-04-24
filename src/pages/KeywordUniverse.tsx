@@ -186,11 +186,26 @@ export default function KeywordUniversePage() {
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={() => exportFiltered()} className="gap-2">
-            <Download className="h-3 w-3" /> Exportera ({filtered.length})
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => exportFiltered()} className="gap-2">
+              <Download className="h-3 w-3" /> CSV ({filtered.length})
+            </Button>
+            <Button size="sm" onClick={() => setAdsModalOpen(true)} className="gap-2">
+              <Megaphone className="h-3 w-3" /> Google Ads Editor
+            </Button>
+          </div>
         </div>
       </header>
+
+      {analysisId && (
+        <AdsExportModal
+          open={adsModalOpen}
+          onClose={() => setAdsModalOpen(false)}
+          universe={universe}
+          projectId={id!}
+          analysisId={analysisId}
+        />
+      )}
 
       <main className="mx-auto max-w-7xl px-6 py-6 space-y-6">
         {/* Stats */}
@@ -211,6 +226,7 @@ export default function KeywordUniversePage() {
             <TabsTrigger value="content" className="gap-1"><FileText className="h-3 w-3" />Content</TabsTrigger>
             <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal</TabsTrigger>
             <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa</TabsTrigger>
+            <TabsTrigger value="strategy" className="gap-1"><Target className="h-3 w-3" />Strategi</TabsTrigger>
           </TabsList>
 
           {/* Universe — full filtered table */}
@@ -229,13 +245,21 @@ export default function KeywordUniversePage() {
                 <FilterSelect label="Dimension" value={dimension} onChange={setDimension} options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
                 <FilterSelect label="Kanal" value={channel} onChange={setChannel} options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
                 <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"]]} />
-                <div className="flex items-center gap-2 md:col-span-2">
+                <div>
+                  <Label className="text-xs">KD max</Label>
+                  <Input type="number" min={0} max={100} value={maxKd} onChange={(e) => setMaxKd(e.target.value)} className="h-9" />
+                </div>
+                <div className="flex items-center gap-2">
                   <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
                   <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
                 </div>
-                <div className="flex items-center gap-2 md:col-span-2">
+                <div className="flex items-center gap-2">
                   <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
                   <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                  <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
                 </div>
               </CardContent>
             </Card>
@@ -249,6 +273,9 @@ export default function KeywordUniversePage() {
           <TabsContent value="content"><KeywordTable items={contentOpps} /></TabsContent>
           <TabsContent value="local"><KeywordTable items={localOpps} /></TabsContent>
           <TabsContent value="negatives"><KeywordTable items={negatives} /></TabsContent>
+          <TabsContent value="strategy">
+            {analysisId && <StrategyTab projectId={id!} analysisId={analysisId} />}
+          </TabsContent>
         </Tabs>
       </main>
     </div>
