@@ -384,22 +384,37 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
     // === Keyword Universe (skalad sökordsanalys) ===
     let keywordUniverse: any = null;
     if (options?.keywordUniverse) {
-      try {
-        console.log(`[analyse] running keyword-universe (scale=${options.universeScale || "broad"})`);
-        const uniRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ project_id, scale: options.universeScale || "broad" }),
-        });
-        if (uniRes.ok) {
-          const j = await uniRes.json();
-          keywordUniverse = j.universe || null;
-          console.log(`[analyse] universe: ${keywordUniverse?.totalKeywords} kw, ${keywordUniverse?.totalEnriched} berikade`);
-        } else {
-          console.error("[analyse] universe failed", uniRes.status, await uniRes.text());
+      const scale = options.universeScale || "broad";
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          console.log(`[analyse] running keyword-universe (scale=${scale}) attempt ${attempt}/${maxAttempts}`);
+          const uniRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ project_id, scale }),
+          });
+          if (uniRes.ok) {
+            const j = await uniRes.json();
+            keywordUniverse = j.universe || null;
+            console.log(`[analyse] universe: ${keywordUniverse?.totalKeywords} kw, ${keywordUniverse?.totalEnriched} berikade`);
+            break;
+          }
+          const txt = await uniRes.text();
+          console.error(`[analyse] universe failed (attempt ${attempt})`, uniRes.status, txt);
+          // Retry on transient errors
+          if ([429, 500, 502, 503, 504].includes(uniRes.status) && attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 2000 * attempt));
+            continue;
+          }
+          break;
+        } catch (e) {
+          console.error(`[analyse] universe error (attempt ${attempt})`, e);
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 2000 * attempt));
+            continue;
+          }
         }
-      } catch (e) {
-        console.error("[analyse] universe error", e);
       }
     }
 
