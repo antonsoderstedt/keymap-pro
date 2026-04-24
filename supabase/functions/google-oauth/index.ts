@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const CLIENT_ID = requireEnv("GOOGLE_OAUTH_CLIENT_ID");
@@ -31,15 +31,10 @@ Deno.serve(async (req) => {
   try {
     // ---- START: build auth URL ----
     if (path === "start") {
-      const auth = req.headers.get("Authorization");
-      if (!auth) return json({ error: "Not authenticated" }, 401);
-      const supa = createClient(SUPABASE_URL, ANON_KEY, {
-        global: { headers: { Authorization: auth } },
-      });
-      const { data: { user } } = await supa.auth.getUser();
-      if (!user) return json({ error: "Not authenticated" }, 401);
+      const userId = await getUserId(req);
+      if (!userId) return json({ error: "Not authenticated" }, 401);
 
-      const state = btoa(JSON.stringify({ uid: user.id, ts: Date.now() }));
+      const state = btoa(JSON.stringify({ uid: userId, ts: Date.now() }));
       const params = new URLSearchParams({
         client_id: CLIENT_ID,
         redirect_uri: REDIRECT_URI,
@@ -99,29 +94,19 @@ Deno.serve(async (req) => {
 
     // ---- STATUS: is the current user connected? ----
     if (path === "status") {
-      const auth = req.headers.get("Authorization");
-      if (!auth) return json({ connected: false });
-      const supa = createClient(SUPABASE_URL, ANON_KEY, {
-        global: { headers: { Authorization: auth } },
-      });
-      const { data: { user } } = await supa.auth.getUser();
-      if (!user) return json({ connected: false });
+      const userId = await getUserId(req);
+      if (!userId) return json({ connected: false });
       const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-      const { data } = await admin.from("google_tokens").select("scope, expires_at").eq("user_id", user.id).maybeSingle();
+      const { data } = await admin.from("google_tokens").select("scope, expires_at").eq("user_id", userId).maybeSingle();
       return json({ connected: !!data, scope: data?.scope, expires_at: data?.expires_at });
     }
 
     // ---- DISCONNECT ----
     if (path === "disconnect") {
-      const auth = req.headers.get("Authorization");
-      if (!auth) return json({ error: "Not authenticated" }, 401);
-      const supa = createClient(SUPABASE_URL, ANON_KEY, {
-        global: { headers: { Authorization: auth } },
-      });
-      const { data: { user } } = await supa.auth.getUser();
-      if (!user) return json({ error: "Not authenticated" }, 401);
+      const userId = await getUserId(req);
+      if (!userId) return json({ error: "Not authenticated" }, 401);
       const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-      await admin.from("google_tokens").delete().eq("user_id", user.id);
+      await admin.from("google_tokens").delete().eq("user_id", userId);
       return json({ ok: true });
     }
 
