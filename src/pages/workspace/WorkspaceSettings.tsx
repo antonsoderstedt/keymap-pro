@@ -208,12 +208,25 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ads-list-customers", { body: {} });
-      if (error) throw error;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Du behöver vara inloggad för att hämta Ads-konton.");
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-list-customers`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.code || data?.error || "Kunde inte hämta Ads-konton");
       setAccounts(data?.accounts || []);
       if (!data?.accounts?.length) toast.info("Inga Ads-konton hittades — kontrollera att du auktoriserat med Ads-scope.");
     } catch (e: any) {
-      const message = e.context?.error || e.message || "Kunde inte hämta Ads-konton";
+      const message = e.message || "Kunde inte hämta Ads-konton";
       if (message === "Google not connected" || message.includes("GOOGLE_NOT_CONNECTED")) {
         toast.error("Google är inte ansluten. Gå till Översikt och klicka 'Anslut Google'.");
       } else if (message.includes("MISSING_ADS_SCOPE")) {
@@ -278,9 +291,9 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Gå till Dashboard och klicka Återanslut Google.
+          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Gå till Översikt och klicka Återanslut Google.
         </p>
-        <Button size="sm" variant="ghost" onClick={() => navigate("/dashboard")}>Gå till Dashboard</Button>
+        <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${projectId}/overview`)}>Gå till Översikt</Button>
       </CardContent>
     </Card>
   );
