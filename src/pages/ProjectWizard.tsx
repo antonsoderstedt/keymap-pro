@@ -31,6 +31,7 @@ export default function ProjectWizard() {
   const [options, setOptions] = useState<AnalysisOptions>({
     segmentAnalysis: true,
     keywordClusters: true,
+    keywordResearch: true,
     expansion: true,
     adsStructure: true,
     quickWins: true,
