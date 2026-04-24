@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import ProjectWizard from "./pages/ProjectWizard";
 import Results from "./pages/Results";
+import KeywordUniverse from "./pages/KeywordUniverse";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/project/:id" element={<ProtectedRoute><ProjectWizard /></ProtectedRoute>} />
           <Route path="/project/:id/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+          <Route path="/project/:id/results/universe" element={<ProtectedRoute><KeywordUniverse /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
