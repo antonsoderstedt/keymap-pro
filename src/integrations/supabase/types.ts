@@ -293,6 +293,54 @@ export type Database = {
         }
         Relationships: []
       }
+      brand_kits: {
+        Row: {
+          created_at: string
+          fonts: Json
+          icon_url: string | null
+          id: string
+          image_style: string | null
+          layout_template: string
+          logo_dark_url: string | null
+          logo_url: string | null
+          palette: Json
+          project_id: string
+          tone: string
+          updated_at: string
+          voice_guidelines: string | null
+        }
+        Insert: {
+          created_at?: string
+          fonts?: Json
+          icon_url?: string | null
+          id?: string
+          image_style?: string | null
+          layout_template?: string
+          logo_dark_url?: string | null
+          logo_url?: string | null
+          palette?: Json
+          project_id: string
+          tone?: string
+          updated_at?: string
+          voice_guidelines?: string | null
+        }
+        Update: {
+          created_at?: string
+          fonts?: Json
+          icon_url?: string | null
+          id?: string
+          image_style?: string | null
+          layout_template?: string
+          logo_dark_url?: string | null
+          logo_url?: string | null
+          palette?: Json
+          project_id?: string
+          tone?: string
+          updated_at?: string
+          voice_guidelines?: string | null
+        }
+        Relationships: []
+      }
       content_briefs: {
         Row: {
           analysis_id: string
@@ -489,6 +537,48 @@ export type Database = {
           location_code?: number
           search_volume?: number | null
           trend_json?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kpi_targets: {
+        Row: {
+          channel: string | null
+          created_at: string
+          direction: string
+          id: string
+          is_active: boolean
+          label: string
+          metric: string
+          project_id: string
+          target_value: number
+          timeframe: string
+          updated_at: string
+        }
+        Insert: {
+          channel?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          metric: string
+          project_id: string
+          target_value: number
+          timeframe?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          metric?: string
+          project_id?: string
+          target_value?: number
+          timeframe?: string
           updated_at?: string
         }
         Relationships: []
