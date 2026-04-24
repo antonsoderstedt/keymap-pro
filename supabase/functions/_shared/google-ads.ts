@@ -30,8 +30,17 @@ export async function listAccessibleCustomers(ctx: AdsContext): Promise<string[]
       "login-customer-id": ctx.loginCustomerId,
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`listAccessibleCustomers failed [${res.status}]: ${JSON.stringify(data)}`);
+  const text = await res.text();
+  if (!res.ok) {
+    if (text.trim().startsWith("<")) {
+      throw new Error("MISSING_ADS_SCOPE: Google Ads-scope (adwords) saknas. Koppla från Google på Översikt-sidan och logga in igen.");
+    }
+    throw new Error(`listAccessibleCustomers failed [${res.status}]: ${text.slice(0, 400)}`);
+  }
+  let data: any;
+  try { data = JSON.parse(text); } catch {
+    throw new Error("MISSING_ADS_SCOPE: Koppla från Google och logga in igen för att aktivera Ads-scope.");
+  }
   return (data.resourceNames || []).map((n: string) => n.replace("customers/", ""));
 }
 
