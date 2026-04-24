@@ -37,16 +37,17 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
     {
       title: "Översikt",
       items: [
-        { to: `${base}`, label: "Dashboard", icon: LayoutDashboard },
+        { to: `${base}`, label: "Executive", icon: LayoutDashboard },
+        { to: `${base}/overview`, label: "Workspace-översikt", icon: ClipboardCheck },
       ],
     },
     {
       title: "Kanaler",
       items: [
-        { to: `${base}/seo`, label: "SEO", icon: TrendingUp, badge: "snart" },
+        { to: `${base}/seo`, label: "SEO", icon: TrendingUp },
         { to: `${base}/google-ads`, label: "Google Ads", icon: Sparkles, badge: "snart" },
-        { to: `${base}/ga4`, label: "GA4", icon: LayoutDashboard, badge: "snart" },
-        { to: `${base}/paid-vs-organic`, label: "Paid vs Organic", icon: Layers, badge: "snart" },
+        { to: `${base}/ga4`, label: "GA4", icon: LayoutDashboard },
+        { to: `${base}/paid-vs-organic`, label: "Paid vs Organic", icon: Layers },
       ],
     },
     {
@@ -74,7 +75,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
     {
       title: "Inställningar",
       items: [
-        { to: `${base}/brand-kit`, label: "Brand Kit", icon: Palette, badge: "snart" },
+        { to: `${base}/brand-kit`, label: "Brand Kit", icon: Palette },
         { to: `${base}/settings`, label: "Inställningar", icon: Settings },
       ],
     },
