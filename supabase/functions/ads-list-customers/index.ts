@@ -35,7 +35,9 @@ Deno.serve(async (req) => {
     return json({ accounts });
   } catch (e: any) {
     console.error("ads-list-customers", e);
-    return json({ error: e.message }, 500);
+    const message = e.message || "Unknown error";
+    const status = message === "Not authenticated" ? 401 : message.startsWith("MISSING_ADS_SCOPE") ? 403 : 500;
+    return json({ error: message }, status);
   }
 });
 
