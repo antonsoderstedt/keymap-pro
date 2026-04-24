@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe, FileText, Megaphone as MegaIcon, LayoutTemplate } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { AnalysisResult, ScanData } from "@/lib/types";
+import KeywordResearchSection from "@/components/results/KeywordResearchSection";
+import type { AnalysisResult, ScanData, ResearchCluster, ResearchKeyword } from "@/lib/types";
 
 export default function Results() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +20,7 @@ export default function Results() {
   const [scanData, setScanData] = useState<ScanData[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [projectName, setProjectName] = useState("");
+  const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadResults();
