@@ -16,6 +16,16 @@ import WorkspaceOverview from "./pages/workspace/WorkspaceOverview";
 import ActionTracker from "./pages/workspace/ActionTracker";
 import WorkspaceArtifacts from "./pages/workspace/WorkspaceArtifacts";
 import ComingSoon from "./pages/workspace/ComingSoon";
+import BrandKit from "./pages/workspace/BrandKit";
+import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";
+import SeoDashboard from "./pages/workspace/SeoDashboard";
+import Ga4Dashboard from "./pages/workspace/Ga4Dashboard";
+import PaidVsOrganic from "./pages/workspace/PaidVsOrganic";
+import SeoAudit from "./pages/workspace/SeoAudit";
+import Alerts from "./pages/workspace/Alerts";
+import AuctionInsights from "./pages/workspace/AuctionInsights";
+import ReportsLibrary from "./pages/workspace/ReportsLibrary";
+import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 
 const queryClient = new QueryClient();
 
@@ -56,20 +66,22 @@ const App = () => (
 
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
-            <Route index element={<WorkspaceOverview />} />
+            <Route index element={<ExecutiveDashboard />} />
+            <Route path="overview" element={<WorkspaceOverview />} />
             <Route path="actions" element={<ActionTracker />} />
             <Route path="artifacts" element={<WorkspaceArtifacts />} />
             <Route path="keyword-universe" element={<ComingSoon title="Sökordsuniversum" description="Genvägen öppnar resultatvyn för senaste analys." phase="Snart inbakad i layouten" />} />
             <Route path="segments" element={<ComingSoon title="Segment & paket" description="Segment med färdiga paket: landningssida, meta, Google Ads-kampanj." />} />
-            <Route path="reports" element={<ComingSoon title="Rapportbibliotek" description="Executive, Auction Insights, Konkurrent, Share of Voice m.fl." phase="Fas 5" />} />
-            <Route path="seo" element={<ComingSoon title="SEO Dashboard" description="GSC-data, ranking, klick, CTR + AI-insikter." phase="Fas 2" />} />
-            <Route path="google-ads" element={<ComingSoon title="Google Ads" description="Performance, Auction Insights, anomaly detection, optimeringsförslag." phase="Fas 3" />} />
-            <Route path="ga4" element={<ComingSoon title="GA4 Dashboard" description="Trafik, konvertering, källor — kopplat till åtgärder." phase="Fas 2" />} />
-            <Route path="paid-vs-organic" element={<ComingSoon title="Paid vs Organic" description="SEO-kannibalisering, brand vs non-brand." phase="Fas 3" />} />
-            <Route path="audit" element={<ComingSoon title="SEO Audit" description="Findings med checkbox-actions, automatisk uppföljning av effekt." phase="Fas 4" />} />
-            <Route path="alerts" element={<ComingSoon title="Alerts & Optimeringar" description="AI-bevakning av Google Ads med one-click implementera." phase="Fas 3" />} />
-            <Route path="brand-kit" element={<ComingSoon title="Brand Kit" description="Logo, färger, typsnitt, tone of voice — appliceras på alla exporter och AI-prompts." phase="Fas 2" />} />
-            <Route path="settings" element={<ComingSoon title="Inställningar" description="Kopplingar, KPI-mål, automation-regler." />} />
+            <Route path="reports" element={<ReportsLibrary />} />
+            <Route path="seo" element={<SeoDashboard />} />
+            <Route path="google-ads" element={<AuctionInsights />} />
+            <Route path="auction-insights" element={<AuctionInsights />} />
+            <Route path="ga4" element={<Ga4Dashboard />} />
+            <Route path="paid-vs-organic" element={<PaidVsOrganic />} />
+            <Route path="audit" element={<SeoAudit />} />
+            <Route path="alerts" element={<Alerts />} />
+            <Route path="brand-kit" element={<BrandKit />} />
+            <Route path="settings" element={<WorkspaceSettings />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
