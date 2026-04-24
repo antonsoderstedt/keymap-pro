@@ -79,6 +79,8 @@ export interface AnalysisOptions {
   quickWins: boolean;
   webscan: boolean;
   keywordResearch: boolean;
+  keywordUniverse: boolean;
+  universeScale?: UniverseScale;
 }
 
 export type ResearchCategory = "Produkt" | "Tjänst" | "Geo" | "Pris" | "Fråga";
