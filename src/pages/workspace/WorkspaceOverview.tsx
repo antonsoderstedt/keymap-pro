@@ -128,6 +128,100 @@ export default function WorkspaceOverview() {
         </div>
       </div>
 
+      {/* Google connection status */}
+      <Card className="border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-serif text-lg flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            Google-anslutning
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {googleStatus.loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Kontrollerar status…
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* OAuth */}
+                <div className="flex items-start gap-3 rounded-md border border-border p-3">
+                  {googleStatus.connected ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Google OAuth</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {googleStatus.connected ? "Ansluten" : "Inte ansluten"}
+                    </div>
+                    {googleStatus.connected && googleStatus.expires_at && (
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        Token giltig till {new Date(googleStatus.expires_at).toLocaleString("sv-SE")}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ads scope */}
+                <div className="flex items-start gap-3 rounded-md border border-border p-3">
+                  {hasAdsScope ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5 shrink-0" />
+                  ) : googleStatus.connected ? (
+                    <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Google Ads-behörighet</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {hasAdsScope
+                        ? "adwords scope beviljad"
+                        : googleStatus.connected
+                        ? "Saknas — bocka i 'Hantera Google Ads' vid återanslutning"
+                        : "Anslut Google först"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {googleStatus.connected && googleStatus.scope && (
+                <details className="text-xs text-muted-foreground">
+                  <summary className="cursor-pointer hover:text-foreground">Visa alla scopes</summary>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {googleStatus.scope.split(" ").map((s) => (
+                      <Badge key={s} variant="outline" className="font-mono text-[10px]">{s}</Badge>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {googleStatus.connected ? (
+                  <>
+                    <Button size="sm" onClick={connectGoogle} className="gap-2">
+                      <Link2 className="h-4 w-4" />
+                      {hasAdsScope ? "Återanslut Google" : "Bevilja Google Ads-behörighet"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={disconnectGoogle}>
+                      Koppla från
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={connectGoogle} className="gap-2">
+                    <Link2 className="h-4 w-4" /> Anslut Google
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" onClick={refreshGoogleStatus}>
+                  Uppdatera status
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => {
