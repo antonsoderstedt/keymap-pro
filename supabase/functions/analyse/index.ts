@@ -6,6 +6,60 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function extractJson(raw: string): any {
+  if (!raw || typeof raw !== "string") throw new Error("Empty AI content");
+  // Strip markdown fences
+  let s = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  // Slice from first { or [ to last } or ]
+  const firstObj = s.indexOf("{");
+  const firstArr = s.indexOf("[");
+  let start = -1;
+  if (firstObj === -1) start = firstArr;
+  else if (firstArr === -1) start = firstObj;
+  else start = Math.min(firstObj, firstArr);
+  if (start === -1) throw new Error("No JSON found");
+  const isObj = s[start] === "{";
+  const lastClose = isObj ? s.lastIndexOf("}") : s.lastIndexOf("]");
+  if (lastClose > start) s = s.slice(start, lastClose + 1);
+  else s = s.slice(start);
+
+  // Try direct
+  try { return JSON.parse(s); } catch {}
+
+  // Light cleanup: trailing commas + control chars
+  let cleaned = s
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  try { return JSON.parse(cleaned); } catch {}
+
+  // Repair truncation: balance braces/brackets while respecting strings
+  let inStr = false, esc = false;
+  const stack: string[] = [];
+  let lastSafe = -1;
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{" ) stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+    if (!inStr && stack.length === 0) lastSafe = i;
+  }
+  let repaired = cleaned;
+  if (inStr) repaired += '"';
+  // Drop trailing partial token after last comma/colon if needed
+  repaired = repaired.replace(/[,:\s]+$/g, "");
+  while (stack.length) repaired += stack.pop();
+  return JSON.parse(repaired);
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -94,6 +148,7 @@ ${scanContext}`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -117,13 +172,13 @@ ${scanContext}`;
     const content = aiData.choices?.[0]?.message?.content;
     if (!content) throw new Error("No content from AI");
 
-    // Parse JSON from response (handle markdown code blocks)
+    // Parse JSON from response (robust: strip markdown, slice to braces, repair truncation)
     let resultJson;
     try {
-      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      resultJson = JSON.parse(cleaned);
+      resultJson = extractJson(content);
     } catch (e) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to parse AI response (first 500 chars):", String(content).slice(0, 500));
+      console.error("...last 500 chars:", String(content).slice(-500));
       throw new Error("AI returnerade ogiltigt JSON-format");
     }
 
