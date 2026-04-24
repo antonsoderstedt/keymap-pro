@@ -36,12 +36,26 @@ Deno.serve(async (req) => {
   } catch (e: any) {
     console.error("ads-list-customers", e);
     const message = e.message || "Unknown error";
-    const status =
-      message === "Not authenticated" ? 401 :
-      message === "Google not connected" ? 400 :
-      message.startsWith("MISSING_ADS_SCOPE") ? 403 :
-      500;
-    return json({ error: message, code: message === "Google not connected" ? "GOOGLE_NOT_CONNECTED" : undefined }, status);
+    const codeMatch = message.match(/^([A-Z_]+):/);
+    const code = codeMatch ? codeMatch[1] : (message === "Google not connected" ? "GOOGLE_NOT_CONNECTED" : message === "Not authenticated" ? "NOT_AUTHENTICATED" : "UNKNOWN");
+    const statusMap: Record<string, number> = {
+      NOT_AUTHENTICATED: 401,
+      GOOGLE_NOT_CONNECTED: 400,
+      MISSING_ADS_SCOPE: 403,
+      DEVELOPER_TOKEN_NOT_APPROVED: 400,
+      DEVELOPER_TOKEN_INVALID: 400,
+      DEVELOPER_TOKEN_ERROR: 400,
+      MCC_INVALID: 400,
+      MCC_ERROR: 400,
+      CONFIG_ERROR: 500,
+      PERMISSION_DENIED: 403,
+      USER_PERMISSION_DENIED: 403,
+      OAUTH_INVALID: 401,
+      FORBIDDEN: 403,
+      ADS_API_ERROR: 502,
+    };
+    const status = statusMap[code] ?? 500;
+    return json({ error: message, code }, status);
   }
 });
 
