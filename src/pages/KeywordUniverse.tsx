@@ -10,9 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search } from "lucide-react";
+import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { KeywordUniverse, UniverseKeyword } from "@/lib/types";
+import { AdsExportModal } from "@/components/universe/AdsExportModal";
+import { StrategyTab } from "@/components/universe/StrategyTab";
 
 const DIMENSION_LABELS: Record<string, string> = {
   produkt: "Produkt", tjanst: "Tjänst", bransch: "Bransch", material: "Material",
@@ -34,7 +36,9 @@ export default function KeywordUniversePage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [universe, setUniverse] = useState<KeywordUniverse | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
+  const [adsModalOpen, setAdsModalOpen] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -45,6 +49,8 @@ export default function KeywordUniversePage() {
   const [priority, setPriority] = useState<string>("all");
   const [hideZeroVolume, setHideZeroVolume] = useState(true);
   const [onlyReal, setOnlyReal] = useState(false);
+  const [onlyGap, setOnlyGap] = useState(false);
+  const [maxKd, setMaxKd] = useState<string>("100");
 
   useEffect(() => {
     load();
@@ -56,7 +62,7 @@ export default function KeywordUniversePage() {
     if (project) setProjectName((project as any).name);
     const { data, error } = await supabase
       .from("analyses")
-      .select("keyword_universe_json")
+      .select("id, keyword_universe_json")
       .eq("project_id", id!)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -66,12 +72,14 @@ export default function KeywordUniversePage() {
       setLoading(false);
       return;
     }
+    setAnalysisId((data as any).id);
     setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
     setLoading(false);
   };
 
   const filtered = useMemo<UniverseKeyword[]>(() => {
     if (!universe) return [];
+    const kdLimit = Number(maxKd) || 100;
     return universe.keywords.filter((k) => {
       if (search && !k.keyword.includes(search.toLowerCase())) return false;
       if (intent !== "all" && k.intent !== intent) return false;
@@ -81,9 +89,11 @@ export default function KeywordUniversePage() {
       if (priority !== "all" && k.priority !== priority) return false;
       if (onlyReal && k.dataSource !== "real") return false;
       if (hideZeroVolume && k.dataSource === "real" && (k.searchVolume ?? 0) === 0) return false;
+      if (onlyGap && !k.competitorGap) return false;
+      if (k.kd != null && k.kd > kdLimit) return false;
       return true;
     }).sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1));
-  }, [universe, search, intent, funnel, dimension, channel, priority, hideZeroVolume, onlyReal]);
+  }, [universe, search, intent, funnel, dimension, channel, priority, hideZeroVolume, onlyReal, onlyGap, maxKd]);
 
   const downloadCSV = (rows: string[][], filename: string) => {
     const csv = rows.map((r) => r.map((c) => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -99,12 +109,16 @@ export default function KeywordUniversePage() {
       toast({ title: "Inga sökord", description: "Filtret matchar inga sökord.", variant: "destructive" });
       return;
     }
-    const rows = [["Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal", "Volym/mån", "CPC (SEK)", "Konkurrens", "Datakälla", "Landningssida", "Annonsgrupp", "Contentidé", "Negativt"]];
+    const rows = [["Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal", "Volym/mån", "CPC (SEK)", "Konkurrens", "KD%", "Konkurrent-gap", "SERP features", "Top domäner", "Datakälla", "Landningssida", "Annonsgrupp", "Contentidé", "Negativt"]];
     filtered.forEach((k) => {
       rows.push([
         k.keyword, k.cluster, DIMENSION_LABELS[k.dimension] || k.dimension,
         INTENT_LABELS[k.intent] || k.intent, k.funnelStage, k.priority, k.channel,
         k.searchVolume?.toString() ?? "", k.cpc?.toFixed(2) ?? "", k.competition?.toFixed(2) ?? "",
+        k.kd != null ? Math.round(k.kd).toString() : "",
+        k.competitorGap ? "Ja" : "",
+        (k.serpFeatures || []).join("; "),
+        (k.topRankingDomains || []).join("; "),
         k.dataSource === "real" ? "DataForSEO" : "Uppskattad",
         k.recommendedLandingPage ?? "", k.recommendedAdGroup ?? "", k.contentIdea ?? "",
         k.isNegative ? "Ja" : "",
@@ -172,11 +186,26 @@ export default function KeywordUniversePage() {
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={() => exportFiltered()} className="gap-2">
-            <Download className="h-3 w-3" /> Exportera ({filtered.length})
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => exportFiltered()} className="gap-2">
+              <Download className="h-3 w-3" /> CSV ({filtered.length})
+            </Button>
+            <Button size="sm" onClick={() => setAdsModalOpen(true)} className="gap-2">
+              <Megaphone className="h-3 w-3" /> Google Ads Editor
+            </Button>
+          </div>
         </div>
       </header>
+
+      {analysisId && (
+        <AdsExportModal
+          open={adsModalOpen}
+          onClose={() => setAdsModalOpen(false)}
+          universe={universe}
+          projectId={id!}
+          analysisId={analysisId}
+        />
+      )}
 
       <main className="mx-auto max-w-7xl px-6 py-6 space-y-6">
         {/* Stats */}
@@ -197,6 +226,7 @@ export default function KeywordUniversePage() {
             <TabsTrigger value="content" className="gap-1"><FileText className="h-3 w-3" />Content</TabsTrigger>
             <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal</TabsTrigger>
             <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa</TabsTrigger>
+            <TabsTrigger value="strategy" className="gap-1"><Target className="h-3 w-3" />Strategi</TabsTrigger>
           </TabsList>
 
           {/* Universe — full filtered table */}
@@ -215,13 +245,21 @@ export default function KeywordUniversePage() {
                 <FilterSelect label="Dimension" value={dimension} onChange={setDimension} options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
                 <FilterSelect label="Kanal" value={channel} onChange={setChannel} options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
                 <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"]]} />
-                <div className="flex items-center gap-2 md:col-span-2">
+                <div>
+                  <Label className="text-xs">KD max</Label>
+                  <Input type="number" min={0} max={100} value={maxKd} onChange={(e) => setMaxKd(e.target.value)} className="h-9" />
+                </div>
+                <div className="flex items-center gap-2">
                   <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
                   <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
                 </div>
-                <div className="flex items-center gap-2 md:col-span-2">
+                <div className="flex items-center gap-2">
                   <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
                   <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                  <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
                 </div>
               </CardContent>
             </Card>
@@ -235,6 +273,9 @@ export default function KeywordUniversePage() {
           <TabsContent value="content"><KeywordTable items={contentOpps} /></TabsContent>
           <TabsContent value="local"><KeywordTable items={localOpps} /></TabsContent>
           <TabsContent value="negatives"><KeywordTable items={negatives} /></TabsContent>
+          <TabsContent value="strategy">
+            {analysisId && <StrategyTab projectId={id!} analysisId={analysisId} />}
+          </TabsContent>
         </Tabs>
       </main>
     </div>
@@ -279,6 +320,7 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
               <TableHead>Sökord</TableHead>
               <TableHead className="text-right">Volym</TableHead>
               <TableHead className="text-right">CPC</TableHead>
+              <TableHead className="text-right">KD%</TableHead>
               <TableHead>Dimension</TableHead>
               <TableHead>Intent</TableHead>
               <TableHead>Funnel</TableHead>
@@ -294,9 +336,17 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
                   {k.keyword}
                   {k.dataSource !== "real" && <Badge variant="outline" className="ml-2 text-[10px]">Uppskattad</Badge>}
                   {k.isNegative && <Badge variant="destructive" className="ml-2 text-[10px]">Negativ</Badge>}
+                  {k.competitorGap && <Badge className="ml-2 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30" variant="outline">Gap</Badge>}
                 </TableCell>
                 <TableCell className="text-right font-mono">{k.searchVolume ?? "—"}</TableCell>
                 <TableCell className="text-right font-mono">{k.cpc != null ? k.cpc.toFixed(2) : "—"}</TableCell>
+                <TableCell className="text-right font-mono">
+                  {k.kd != null ? (
+                    <span className={k.kd < 30 ? "text-green-600 dark:text-green-400" : k.kd < 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}>
+                      {Math.round(k.kd)}
+                    </span>
+                  ) : "—"}
+                </TableCell>
                 <TableCell><Badge variant="outline">{DIMENSION_LABELS[k.dimension] || k.dimension}</Badge></TableCell>
                 <TableCell><Badge variant="secondary">{INTENT_LABELS[k.intent] || k.intent}</Badge></TableCell>
                 <TableCell className="text-xs text-muted-foreground">{k.funnelStage}</TableCell>

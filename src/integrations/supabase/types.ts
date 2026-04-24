@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_drafts: {
+        Row: {
+          ad_group: string
+          analysis_id: string
+          created_at: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          ad_group: string
+          analysis_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+        }
+        Update: {
+          ad_group?: string
+          analysis_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       analyses: {
         Row: {
           created_at: string
@@ -165,6 +189,54 @@ export type Database = {
           name?: string
           products?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      semrush_metrics: {
+        Row: {
+          kd: number | null
+          keyword: string
+          location_code: number
+          serp_features: Json | null
+          top_domains: Json | null
+          updated_at: string
+        }
+        Insert: {
+          kd?: number | null
+          keyword: string
+          location_code?: number
+          serp_features?: Json | null
+          top_domains?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          kd?: number | null
+          keyword?: string
+          location_code?: number
+          serp_features?: Json | null
+          top_domains?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      strategy_drafts: {
+        Row: {
+          analysis_id: string
+          created_at: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          analysis_id: string
+          created_at?: string
+          payload: Json
+          updated_at?: string
+        }
+        Update: {
+          analysis_id?: string
+          created_at?: string
+          payload?: Json
+          updated_at?: string
         }
         Relationships: []
       }

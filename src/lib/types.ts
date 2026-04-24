@@ -39,6 +39,39 @@ export interface UniverseKeyword {
   cpc?: number;
   competition?: number;
   dataSource: "real" | "estimated";
+  // From Semrush
+  kd?: number;                       // 0-100
+  serpFeatures?: string[];
+  topRankingDomains?: string[];
+  competitorGap?: boolean;           // true if competitor ranks but project domain doesn't
+}
+
+// Google Ads draft (one per ad group)
+export interface AdDraft {
+  id?: string;
+  analysis_id?: string;
+  ad_group: string;
+  payload: {
+    headlines: string[];
+    descriptions: string[];
+    path1: string;
+    path2: string;
+    final_url: string;
+    sitelinks: { text: string; description1: string; description2: string; final_url: string }[];
+    callouts: string[];
+  };
+}
+
+// Strategy draft
+export interface StrategyDraft {
+  budgetSplit: { campaign: string; monthlyBudgetSek: number; rationale: string }[];
+  biddingStrategy: { campaign: string; type: string; target: string; rationale: string }[];
+  launchOrder: { phase: string; week: number; campaigns: string[]; focus: string }[];
+  landingPageRequirements: { adGroup: string; h1: string; mustHaves: string[]; cta: string }[];
+  seoVsAdsAdvice: string;
+  quickWins: { keyword: string; action: string; why: string }[];
+  risks: string[];
+  kpis: { metric: string; target: string; timeframe: string }[];
 }
 
 export interface KeywordUniverse {
