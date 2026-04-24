@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { KpiCard } from "./KpiCard";
-import { ChartCard } from "./ChartCard";
-import { SectionHeader } from "./SectionHeader";
+import { KpiCard } from "../KpiCard";
+import { ChartCard } from "../ChartCard";
+import { SectionHeader } from "../SectionHeader";
 import { Sparkles, Search, DollarSign, Target } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid,
@@ -9,7 +9,7 @@ import {
 import type { AnalysisResult } from "@/lib/types";
 import type { KeywordUniverse } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
-import { INTENT_LABELS } from "./KeywordTable";
+import { INTENT_LABELS } from "../KeywordTable";
 
 interface Props {
   result: AnalysisResult;
