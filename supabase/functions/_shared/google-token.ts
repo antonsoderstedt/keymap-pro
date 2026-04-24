@@ -54,7 +54,7 @@ export async function getGoogleAccessToken(authHeader: string | null): Promise<{
     expires_at: expiresAt,
   }).eq("user_id", userId);
 
-  return newAccess;
+  return { token: newAccess, userId };
 }
 
 async function getAuthenticatedUserId(jwt: string): Promise<string> {
