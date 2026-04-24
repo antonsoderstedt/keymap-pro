@@ -178,15 +178,49 @@ export default function Results() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={exportKeywordsCSV} className="gap-2">
-              <Download className="h-3 w-3" />Keywords CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportAdsCSV} className="gap-2">
-              <Download className="h-3 w-3" />Ads CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={copyJSON} className="gap-2">
-              <Copy className="h-3 w-3" />JSON
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="gap-2">
+                  <Download className="h-3 w-3" />
+                  Exportera
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="text-xs">Keyword Research</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportSeoCSV} className="gap-2 cursor-pointer">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="text-sm">SEO Export</div>
+                    <div className="text-xs text-muted-foreground">Sökord, kluster, sidtitel</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportAdsResearchCSV} className="gap-2 cursor-pointer">
+                  <MegaIcon className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="text-sm">Google Ads Export</div>
+                    <div className="text-xs text-muted-foreground">Kampanj, annonsgrupp, max CPC</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportLandingCSV} className="gap-2 cursor-pointer">
+                  <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex-1">
+                    <div className="text-sm">Landningssidor Export</div>
+                    <div className="text-xs text-muted-foreground">H1, meta, slug per kluster</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Klassisk</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportKeywordsCSV} className="gap-2 cursor-pointer">
+                  <Download className="h-3.5 w-3.5" /><span className="text-sm">Keywords CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportAdsCSV} className="gap-2 cursor-pointer">
+                  <Download className="h-3.5 w-3.5" /><span className="text-sm">Ads-struktur CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyJSON} className="gap-2 cursor-pointer">
+                  <Copy className="h-3.5 w-3.5" /><span className="text-sm">Kopiera JSON</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
