@@ -10,9 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search } from "lucide-react";
+import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { KeywordUniverse, UniverseKeyword } from "@/lib/types";
+import { AdsExportModal } from "@/components/universe/AdsExportModal";
+import { StrategyTab } from "@/components/universe/StrategyTab";
 
 const DIMENSION_LABELS: Record<string, string> = {
   produkt: "Produkt", tjanst: "Tjänst", bransch: "Bransch", material: "Material",
@@ -34,7 +36,9 @@ export default function KeywordUniversePage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [universe, setUniverse] = useState<KeywordUniverse | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
+  const [adsModalOpen, setAdsModalOpen] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -45,6 +49,8 @@ export default function KeywordUniversePage() {
   const [priority, setPriority] = useState<string>("all");
   const [hideZeroVolume, setHideZeroVolume] = useState(true);
   const [onlyReal, setOnlyReal] = useState(false);
+  const [onlyGap, setOnlyGap] = useState(false);
+  const [maxKd, setMaxKd] = useState<string>("100");
 
   useEffect(() => {
     load();
@@ -56,7 +62,7 @@ export default function KeywordUniversePage() {
     if (project) setProjectName((project as any).name);
     const { data, error } = await supabase
       .from("analyses")
-      .select("keyword_universe_json")
+      .select("id, keyword_universe_json")
       .eq("project_id", id!)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -66,12 +72,14 @@ export default function KeywordUniversePage() {
       setLoading(false);
       return;
     }
+    setAnalysisId((data as any).id);
     setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
     setLoading(false);
   };
 
   const filtered = useMemo<UniverseKeyword[]>(() => {
     if (!universe) return [];
+    const kdLimit = Number(maxKd) || 100;
     return universe.keywords.filter((k) => {
       if (search && !k.keyword.includes(search.toLowerCase())) return false;
       if (intent !== "all" && k.intent !== intent) return false;
@@ -81,9 +89,11 @@ export default function KeywordUniversePage() {
       if (priority !== "all" && k.priority !== priority) return false;
       if (onlyReal && k.dataSource !== "real") return false;
       if (hideZeroVolume && k.dataSource === "real" && (k.searchVolume ?? 0) === 0) return false;
+      if (onlyGap && !k.competitorGap) return false;
+      if (k.kd != null && k.kd > kdLimit) return false;
       return true;
     }).sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1));
-  }, [universe, search, intent, funnel, dimension, channel, priority, hideZeroVolume, onlyReal]);
+  }, [universe, search, intent, funnel, dimension, channel, priority, hideZeroVolume, onlyReal, onlyGap, maxKd]);
 
   const downloadCSV = (rows: string[][], filename: string) => {
     const csv = rows.map((r) => r.map((c) => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
