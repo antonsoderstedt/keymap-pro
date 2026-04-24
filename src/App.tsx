@@ -41,8 +41,7 @@ const App = () => (
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/project/:id" element={<ProtectedRoute><ProjectWizard /></ProtectedRoute>} />
           <Route path="/project/:id/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
-          {/* Legacy route — Universe is now consolidated into /results */}
-          <Route path="/project/:id/results/universe" element={<Navigate to="../results" replace />} />
+          <Route path="/project/:id/results/universe" element={<ProtectedRoute><KeywordUniverse /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
