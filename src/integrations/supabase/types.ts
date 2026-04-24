@@ -159,6 +159,54 @@ export type Database = {
         }
         Relationships: []
       }
+      alerts: {
+        Row: {
+          category: string
+          created_at: string
+          expected_impact: string | null
+          id: string
+          message: string
+          payload: Json | null
+          project_id: string
+          resolved_at: string | null
+          severity: string
+          status: string
+          suggested_action: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          expected_impact?: string | null
+          id?: string
+          message: string
+          payload?: Json | null
+          project_id: string
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          suggested_action?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          expected_impact?: string | null
+          id?: string
+          message?: string
+          payload?: Json | null
+          project_id?: string
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          suggested_action?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       analyses: {
         Row: {
           created_at: string
@@ -265,6 +313,167 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      auction_insights_snapshots: {
+        Row: {
+          campaign: string | null
+          created_at: string
+          end_date: string
+          id: string
+          project_id: string
+          rows: Json
+          start_date: string
+        }
+        Insert: {
+          campaign?: string | null
+          created_at?: string
+          end_date: string
+          id?: string
+          project_id: string
+          rows?: Json
+          start_date: string
+        }
+        Update: {
+          campaign?: string | null
+          created_at?: string
+          end_date?: string
+          id?: string
+          project_id?: string
+          rows?: Json
+          start_date?: string
+        }
+        Relationships: []
+      }
+      audit_findings: {
+        Row: {
+          affected_url: string | null
+          baseline_metrics: Json | null
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          project_id: string
+          recommendation: string | null
+          resolved_at: string | null
+          run_id: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_url?: string | null
+          baseline_metrics?: Json | null
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          project_id: string
+          recommendation?: string | null
+          resolved_at?: string | null
+          run_id: string
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_url?: string | null
+          baseline_metrics?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          project_id?: string
+          recommendation?: string | null
+          resolved_at?: string | null
+          run_id?: string
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_findings_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          domain: string
+          error_message: string | null
+          health_score: number | null
+          id: string
+          project_id: string
+          started_at: string | null
+          status: string
+          totals: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          domain: string
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          project_id: string
+          started_at?: string | null
+          status?: string
+          totals?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          domain?: string
+          error_message?: string | null
+          health_score?: number | null
+          id?: string
+          project_id?: string
+          started_at?: string | null
+          status?: string
+          totals?: Json | null
+        }
+        Relationships: []
+      }
+      automation_rules: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          mode: string
+          project_id: string
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mode?: string
+          project_id: string
+          rule_type: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mode?: string
+          project_id?: string
+          rule_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       backlink_gaps: {
         Row: {
