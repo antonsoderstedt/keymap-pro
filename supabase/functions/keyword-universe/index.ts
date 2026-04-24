@@ -13,10 +13,10 @@ const TOP_CITIES = [
 
 type Scale = "focused" | "broad" | "max";
 
-const SCALE_CONFIG: Record<Scale, { maxKeywords: number; aiCities: number; geoPerProduct: number; problemPairs: number; segmentPairs: number }> = {
-  focused: { maxKeywords: 500, aiCities: 5, geoPerProduct: 4, problemPairs: 3, segmentPairs: 3 },
-  broad:   { maxKeywords: 1500, aiCities: 8, geoPerProduct: 8, problemPairs: 5, segmentPairs: 5 },
-  max:     { maxKeywords: 4000, aiCities: 15, geoPerProduct: 12, problemPairs: 8, segmentPairs: 8 },
+const SCALE_CONFIG: Record<Scale, { maxKeywords: number; aiCities: number; geoPerProduct: number; problemPairs: number; segmentPairs: number; semrushCap: number }> = {
+  focused: { maxKeywords: 500, aiCities: 5, geoPerProduct: 4, problemPairs: 3, segmentPairs: 3, semrushCap: 200 },
+  broad:   { maxKeywords: 1500, aiCities: 8, geoPerProduct: 8, problemPairs: 5, segmentPairs: 5, semrushCap: 600 },
+  max:     { maxKeywords: 4000, aiCities: 15, geoPerProduct: 12, problemPairs: 8, segmentPairs: 8, semrushCap: 1500 },
 };
 
 const slugify = (s: string) =>
@@ -259,20 +259,65 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       console.error("[universe] enrich error", e);
     }
 
+    // === PASS 3.5: Semrush enrichment for top N (sorted by DataForSEO volume) ===
+    let semrushMap: Record<string, any> = {};
+    try {
+      const sortedByVol = [...universe]
+        .map((u) => ({ kw: u.keyword, vol: metricsMap[u.keyword]?.search_volume ?? 0 }))
+        .sort((a, b) => b.vol - a.vol)
+        .slice(0, cfg.semrushCap)
+        .map((x) => x.kw);
+
+      if (sortedByVol.length > 0 && Deno.env.get("SEMRUSH_API_KEY")) {
+        const semrushRes = await fetch(`${supabaseUrl}/functions/v1/enrich-semrush`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ keywords: sortedByVol, max_keywords: cfg.semrushCap }),
+        });
+        if (semrushRes.ok) {
+          const j = await semrushRes.json();
+          semrushMap = j.metrics || {};
+          console.log(`[universe] semrush fetched=${j.fetched} cached=${j.cached}`);
+        } else {
+          console.error("[universe] semrush failed", semrushRes.status, await semrushRes.text());
+        }
+      }
+    } catch (e) {
+      console.error("[universe] semrush error", e);
+    }
+
+    // Determine project domain (for competitor-gap detection)
+    const projectDomain = (project as any).domain
+      ? String((project as any).domain).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")
+      : null;
+
     // === PASS 4: Build final output with priority + recommendations ===
     const final = universe.map((u) => {
       const m = metricsMap[u.keyword];
+      const sm = semrushMap[u.keyword];
       const vol = m?.search_volume ?? null;
       const cpc = m?.cpc_sek ?? null;
       const comp = m?.competition ?? null;
+      const kd = sm?.kd ?? null;
+      const serpFeatures = sm?.serp_features ?? null;
+      const topDomains: string[] | null = sm?.top_domains ?? null;
 
-      // Priority heuristic
+      const competitorGap = projectDomain && topDomains && topDomains.length > 0
+        ? !topDomains.some((d: string) => d.toLowerCase().includes(projectDomain))
+        : false;
+
+      // Priority heuristic (improved with KD)
       let priority: "high" | "medium" | "low" = "low";
       if (vol != null) {
-        if (vol >= 200 && (comp == null || comp < 0.7)) priority = "high";
-        else if (vol >= 50) priority = "medium";
+        if (vol >= 200 && (kd == null || kd < 50)) priority = "high";
+        else if (vol >= 50 && (kd == null || kd < 70)) priority = "medium";
+        else if (vol >= 50) priority = "low";
       } else if (u.intent === "transactional") {
         priority = "medium";
+      }
+      // Boost: competitor ranks but you don't = big opportunity
+      if (competitorGap && vol != null && vol >= 100) {
+        priority = priority === "low" ? "medium" : "high";
       }
 
       const slug = slugify(u.cluster);
@@ -292,6 +337,10 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         cpc: cpc ?? undefined,
         competition: comp ?? undefined,
         dataSource: vol != null ? "real" : "estimated",
+        kd: kd ?? undefined,
+        serpFeatures: serpFeatures ?? undefined,
+        topRankingDomains: topDomains ?? undefined,
+        competitorGap: competitorGap || undefined,
       };
     });
 
