@@ -320,6 +320,7 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
               <TableHead>Sökord</TableHead>
               <TableHead className="text-right">Volym</TableHead>
               <TableHead className="text-right">CPC</TableHead>
+              <TableHead className="text-right">KD%</TableHead>
               <TableHead>Dimension</TableHead>
               <TableHead>Intent</TableHead>
               <TableHead>Funnel</TableHead>
@@ -335,9 +336,17 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
                   {k.keyword}
                   {k.dataSource !== "real" && <Badge variant="outline" className="ml-2 text-[10px]">Uppskattad</Badge>}
                   {k.isNegative && <Badge variant="destructive" className="ml-2 text-[10px]">Negativ</Badge>}
+                  {k.competitorGap && <Badge className="ml-2 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30" variant="outline">Gap</Badge>}
                 </TableCell>
                 <TableCell className="text-right font-mono">{k.searchVolume ?? "—"}</TableCell>
                 <TableCell className="text-right font-mono">{k.cpc != null ? k.cpc.toFixed(2) : "—"}</TableCell>
+                <TableCell className="text-right font-mono">
+                  {k.kd != null ? (
+                    <span className={k.kd < 30 ? "text-green-600 dark:text-green-400" : k.kd < 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}>
+                      {Math.round(k.kd)}
+                    </span>
+                  ) : "—"}
+                </TableCell>
                 <TableCell><Badge variant="outline">{DIMENSION_LABELS[k.dimension] || k.dimension}</Badge></TableCell>
                 <TableCell><Badge variant="secondary">{INTENT_LABELS[k.intent] || k.intent}</Badge></TableCell>
                 <TableCell className="text-xs text-muted-foreground">{k.funnelStage}</TableCell>
