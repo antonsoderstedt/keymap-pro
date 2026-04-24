@@ -93,6 +93,36 @@ export type Database = {
           },
         ]
       }
+      keyword_metrics: {
+        Row: {
+          competition: number | null
+          cpc_sek: number | null
+          keyword: string
+          location_code: number
+          search_volume: number | null
+          trend_json: Json | null
+          updated_at: string
+        }
+        Insert: {
+          competition?: number | null
+          cpc_sek?: number | null
+          keyword: string
+          location_code?: number
+          search_volume?: number | null
+          trend_json?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          competition?: number | null
+          cpc_sek?: number | null
+          keyword?: string
+          location_code?: number
+          search_volume?: number | null
+          trend_json?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           company: string

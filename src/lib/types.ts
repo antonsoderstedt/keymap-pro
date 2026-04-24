@@ -56,6 +56,11 @@ export interface ResearchKeyword {
   cpc: ResearchCpc;
   intent: ResearchIntent;
   usage: ResearchUsage;
+  // Real metrics from DataForSEO (Sweden, sv)
+  realVolume?: number;       // exact monthly searches
+  realCpc?: number;          // SEK
+  competition?: number;      // 0-1
+  dataSource?: "real" | "estimated";
 }
 
 export interface ResearchCluster {

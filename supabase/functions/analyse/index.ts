@@ -263,6 +263,67 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
 
       resultJson.keywordResearch = allClusters;
       console.log(`Total: ${allClusters.length} clusters across all segments`);
+
+      // === Enrich with real DataForSEO metrics ===
+      try {
+        const allKeywords = Array.from(new Set(
+          allClusters.flatMap((c: any) => (c.keywords || []).map((k: any) => String(k.keyword || "").toLowerCase().trim())).filter(Boolean)
+        ));
+
+        if (allKeywords.length > 0) {
+          console.log(`Enriching ${allKeywords.length} unique keywords with DataForSEO...`);
+          const enrichRes = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${supabaseKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ keywords: allKeywords }),
+          });
+
+          if (enrichRes.ok) {
+            const { metrics } = await enrichRes.json();
+            const metricsMap: Record<string, any> = metrics || {};
+
+            // Merge metrics into each keyword
+            allClusters.forEach((cluster: any) => {
+              cluster.keywords = (cluster.keywords || []).map((k: any) => {
+                const key = String(k.keyword || "").toLowerCase().trim();
+                const m = metricsMap[key];
+                if (m && m.search_volume != null) {
+                  return {
+                    ...k,
+                    realVolume: m.search_volume,
+                    realCpc: m.cpc_sek,
+                    competition: m.competition,
+                    dataSource: "real",
+                  };
+                }
+                return { ...k, dataSource: "estimated" };
+              });
+            });
+
+            // Sort clusters by total real volume (desc)
+            allClusters.sort((a: any, b: any) => {
+              const sumA = (a.keywords || []).reduce((s: number, k: any) => s + (k.realVolume || 0), 0);
+              const sumB = (b.keywords || []).reduce((s: number, k: any) => s + (k.realVolume || 0), 0);
+              return sumB - sumA;
+            });
+
+            // Sort keywords within cluster by volume desc
+            allClusters.forEach((c: any) => {
+              c.keywords.sort((a: any, b: any) => (b.realVolume || 0) - (a.realVolume || 0));
+            });
+
+            const enrichedCount = allClusters.flatMap((c: any) => c.keywords).filter((k: any) => k.dataSource === "real").length;
+            console.log(`Enrichment complete: ${enrichedCount}/${allKeywords.length} got real data`);
+          } else {
+            console.error("Enrichment failed:", enrichRes.status, await enrichRes.text());
+          }
+        }
+      } catch (enrichErr) {
+        console.error("Enrichment error (continuing without real data):", enrichErr);
+      }
     }
 
     // Save analysis

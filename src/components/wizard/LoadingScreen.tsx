@@ -13,6 +13,7 @@ const STEPS = [
   "Hittar expansionsmöjligheter...",
   "Bygger Google Ads-kampanjstruktur...",
   "Identifierar Quick Wins...",
+  "Hämtar verkliga sökvolymer från Google Sverige...",
   "Sammanställer resultat...",
 ];
 
