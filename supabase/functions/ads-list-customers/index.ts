@@ -36,8 +36,12 @@ Deno.serve(async (req) => {
   } catch (e: any) {
     console.error("ads-list-customers", e);
     const message = e.message || "Unknown error";
-    const status = message === "Not authenticated" ? 401 : message.startsWith("MISSING_ADS_SCOPE") ? 403 : 500;
-    return json({ error: message }, status);
+    const status =
+      message === "Not authenticated" ? 401 :
+      message === "Google not connected" ? 400 :
+      message.startsWith("MISSING_ADS_SCOPE") ? 403 :
+      500;
+    return json({ error: message, code: message === "Google not connected" ? "GOOGLE_NOT_CONNECTED" : undefined }, status);
   }
 });
 
