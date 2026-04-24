@@ -7,7 +7,47 @@ export interface Project {
   market: string;
   products: string | null;
   known_segments: string | null;
+  competitors: string | null;
   created_at: string;
+}
+
+export type UniverseScale = "focused" | "broad" | "max";
+
+export type UniverseDimension =
+  | "produkt" | "tjanst" | "bransch" | "material" | "problem" | "losning"
+  | "location" | "kundsegment" | "use_case" | "kommersiell" | "fraga" | "konkurrent";
+
+export type UniverseIntent = "informational" | "commercial" | "transactional" | "navigational";
+export type UniverseFunnel = "awareness" | "consideration" | "conversion";
+export type UniversePriority = "high" | "medium" | "low";
+export type UniverseChannel = "SEO" | "Google Ads" | "Lokal SEO" | "Content" | "Landing Page";
+
+export interface UniverseKeyword {
+  keyword: string;
+  cluster: string;
+  dimension: UniverseDimension;
+  intent: UniverseIntent;
+  funnelStage: UniverseFunnel;
+  priority: UniversePriority;
+  channel: UniverseChannel;
+  recommendedLandingPage?: string;
+  recommendedAdGroup?: string;
+  contentIdea?: string;
+  isNegative?: boolean;
+  // From DataForSEO
+  searchVolume?: number;
+  cpc?: number;
+  competition?: number;
+  dataSource: "real" | "estimated";
+}
+
+export interface KeywordUniverse {
+  scale: UniverseScale;
+  generatedAt: string;
+  totalKeywords: number;
+  totalEnriched: number;
+  cities: string[];
+  keywords: UniverseKeyword[];
 }
 
 export interface Customer {
@@ -39,6 +79,8 @@ export interface AnalysisOptions {
   quickWins: boolean;
   webscan: boolean;
   keywordResearch: boolean;
+  keywordUniverse: boolean;
+  universeScale?: UniverseScale;
 }
 
 export type ResearchCategory = "Produkt" | "Tjänst" | "Geo" | "Pris" | "Fråga";

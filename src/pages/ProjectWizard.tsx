@@ -27,11 +27,14 @@ export default function ProjectWizard() {
   const [market, setMarket] = useState("se-sv");
   const [products, setProducts] = useState("");
   const [knownSegments, setKnownSegments] = useState("");
+  const [competitors, setCompetitors] = useState("");
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [options, setOptions] = useState<AnalysisOptions>({
     segmentAnalysis: true,
     keywordClusters: true,
     keywordResearch: true,
+    keywordUniverse: true,
+    universeScale: "broad",
     expansion: true,
     adsStructure: true,
     quickWins: true,
@@ -56,6 +59,7 @@ export default function ProjectWizard() {
     setMarket(p.market);
     setProducts(p.products || "");
     setKnownSegments(p.known_segments || "");
+    setCompetitors((p as any).competitors || "");
 
     const { data: custs } = await supabase.from("customers").select("*").eq("project_id", id!);
     if (custs && custs.length > 0) {
@@ -72,7 +76,8 @@ export default function ProjectWizard() {
       name: projectName || company || "Namnlöst projekt",
       company, domain: domain || null, market,
       products: products || null, known_segments: knownSegments || null,
-    }).eq("id", id!);
+      competitors: competitors || null,
+    } as any).eq("id", id!);
 
     if (error) {
       toast({ title: "Fel vid sparning", description: error.message, variant: "destructive" });
@@ -214,6 +219,7 @@ export default function ProjectWizard() {
             market={market} setMarket={setMarket}
             products={products} setProducts={setProducts}
             knownSegments={knownSegments} setKnownSegments={setKnownSegments}
+            competitors={competitors} setCompetitors={setCompetitors}
           />
         )}
         {step === 1 && <StepImport customers={customers} setCustomers={setCustomers} />}

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe, FileText, Megaphone as MegaIcon, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe, FileText, Megaphone as MegaIcon, LayoutTemplate, Network } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import KeywordResearchSection from "@/components/results/KeywordResearchSection";
 import type { AnalysisResult, ScanData, ResearchCluster, ResearchKeyword } from "@/lib/types";
@@ -197,6 +197,10 @@ export default function Results() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/project/${id}/results/universe`)} className="gap-2">
+              <Network className="h-3 w-3" />
+              Keyword Universe
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="default" size="sm" className="gap-2">

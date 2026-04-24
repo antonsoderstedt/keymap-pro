@@ -1,0 +1,319 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const TOP_CITIES = [
+  "Stockholm", "Göteborg", "Malmö", "Uppsala", "Västerås",
+  "Örebro", "Linköping", "Helsingborg", "Jönköping", "Norrköping",
+];
+
+type Scale = "focused" | "broad" | "max";
+
+const SCALE_CONFIG: Record<Scale, { maxKeywords: number; aiCities: number; geoPerProduct: number; problemPairs: number; segmentPairs: number }> = {
+  focused: { maxKeywords: 500, aiCities: 5, geoPerProduct: 4, problemPairs: 3, segmentPairs: 3 },
+  broad:   { maxKeywords: 1500, aiCities: 8, geoPerProduct: 8, problemPairs: 5, segmentPairs: 5 },
+  max:     { maxKeywords: 4000, aiCities: 15, geoPerProduct: 12, problemPairs: 8, segmentPairs: 8 },
+};
+
+const slugify = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+const normalizeKw = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const { project_id, scale: scaleInput } = await req.json();
+    if (!project_id) throw new Error("project_id is required");
+
+    const scale: Scale = (scaleInput || "broad") as Scale;
+    const cfg = SCALE_CONFIG[scale] || SCALE_CONFIG.broad;
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: project, error: pErr } = await supabase.from("projects").select("*").eq("id", project_id).single();
+    if (pErr || !project) throw new Error("Project not found");
+
+    const { data: customers } = await supabase.from("customers").select("*").eq("project_id", project_id).limit(50);
+    const industries = Array.from(new Set((customers || []).map((c: any) => c.industry).filter(Boolean)));
+
+    // === PASS 1: Ask AI for structured dimension lists ===
+    console.log(`[universe] scale=${scale} cap=${cfg.maxKeywords}`);
+
+    const dimensionSchema = {
+      type: "object",
+      properties: {
+        products:    { type: "array", items: { type: "string" }, description: "Konkreta produktnamn (10-20)" },
+        services:    { type: "array", items: { type: "string" }, description: "Tjänstenamn (8-15)" },
+        materials:   { type: "array", items: { type: "string" }, description: "Material (5-12)" },
+        problems:    { type: "array", items: { type: "string" }, description: "Problem kunden har (8-15) — kort form, t.ex. 'rost', 'läckage'" },
+        solutions:   { type: "array", items: { type: "string" }, description: "Lösningar (8-15) — t.ex. 'reparation', 'installation'" },
+        useCases:    { type: "array", items: { type: "string" }, description: "Användningsområden (6-12) — t.ex. 'för lager', 'för verkstad'" },
+        segments:    { type: "array", items: { type: "string" }, description: "Kundsegment (5-12) — t.ex. 'industri', 'BRF', 'kommun'" },
+        industries:  { type: "array", items: { type: "string" }, description: "Branscher (5-12)" },
+        cities:      { type: "array", items: { type: "string" }, description: `Relevanta svenska städer/kommuner utöver topp 10 (${cfg.aiCities} st baserat på var kundsegmenten finns)` },
+        competitors: { type: "array", items: { type: "string" }, description: "Konkurrentnamn — använd input om finns, annars gissa 3-6" },
+        questions:   { type: "array", items: { type: "string" }, description: "Frågefrasstammar (6-10) — t.ex. 'vad kostar', 'hur fungerar', 'vilken är bäst'" },
+      },
+      required: ["products", "services", "materials", "problems", "solutions", "useCases", "segments", "industries", "cities", "competitors", "questions"],
+      additionalProperties: false,
+    };
+
+    const dimPrompt = `Du är en svensk B2B-SEO-strateg. Extrahera strukturerade dimensioner för att bygga ett keyword universe.
+
+FÖRETAG: ${project.company}
+DOMÄN: ${project.domain || "—"}
+PRODUKTER/TJÄNSTER: ${project.products || "—"}
+KÄNDA SEGMENT: ${project.known_segments || "—"}
+KONKURRENTER (input): ${(project as any).competitors || "—"}
+KUNDBRANSCHER: ${industries.join(", ") || "—"}
+
+Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifierare som "pris" — det lägger vi till själva.`;
+
+    const dimRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: "Returnera strukturerad data via verktyg." },
+          { role: "user", content: dimPrompt },
+        ],
+        tools: [{ type: "function", function: { name: "submit_dimensions", description: "Submit dimension lists", parameters: dimensionSchema } }],
+        tool_choice: { type: "function", function: { name: "submit_dimensions" } },
+      }),
+    });
+
+    if (!dimRes.ok) {
+      const t = await dimRes.text();
+      console.error("[universe] AI dim error", dimRes.status, t);
+      if (dimRes.status === 429) {
+        return new Response(JSON.stringify({ error: "AI rate limit nått. Försök igen om en stund." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (dimRes.status === 402) {
+        return new Response(JSON.stringify({ error: "AI-krediter slut. Lägg till krediter i Settings → Workspace → Usage." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`AI gateway error: ${dimRes.status}`);
+    }
+
+    const dimData = await dimRes.json();
+    const dimToolCall = dimData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!dimToolCall?.function?.arguments) throw new Error("AI returnerade inga dimensioner");
+    const dims = JSON.parse(dimToolCall.function.arguments);
+
+    // === PASS 2: Generate keyword universe via deterministic patterns ===
+    const cities = Array.from(new Set([...TOP_CITIES, ...(dims.cities || [])])).slice(0, 10 + cfg.aiCities);
+
+    type RawKw = { keyword: string; cluster: string; dimension: string; intent: string; funnel: string; channel: string; isNegative?: boolean };
+    const universe: RawKw[] = [];
+    const seen = new Set<string>();
+    const add = (kw: RawKw) => {
+      const k = normalizeKw(kw.keyword);
+      if (!k || k.length < 3 || seen.has(k)) return;
+      if (universe.length >= cfg.maxKeywords) return;
+      seen.add(k);
+      universe.push({ ...kw, keyword: k });
+    };
+
+    const products: string[] = (dims.products || []).slice(0, 20);
+    const services: string[] = (dims.services || []).slice(0, 15);
+    const materials: string[] = (dims.materials || []).slice(0, 12);
+    const problems: string[] = (dims.problems || []).slice(0, 15);
+    const solutions: string[] = (dims.solutions || []).slice(0, 15);
+    const useCases: string[] = (dims.useCases || []).slice(0, 12);
+    const segments: string[] = (dims.segments || []).slice(0, 12);
+    const branches: string[] = (dims.industries || []).slice(0, 12);
+    const competitors: string[] = (dims.competitors || []).slice(0, 8);
+    const questions: string[] = (dims.questions || []).slice(0, 10);
+
+    // 1. Bare products & services (commercial, consideration)
+    products.forEach((p) => add({ keyword: p, cluster: `Produkt: ${p}`, dimension: "produkt", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+    services.forEach((s) => add({ keyword: s, cluster: `Tjänst: ${s}`, dimension: "tjanst", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+
+    // 2. Product + commercial modifiers
+    const commMods = ["pris", "offert", "köpa", "beställa", "leverantör", "kostnad", "bäst", "online"];
+    products.forEach((p) => {
+      commMods.forEach((m) => add({ keyword: `${p} ${m}`, cluster: `Produkt: ${p} — kommersiell`, dimension: "kommersiell", intent: "transactional", funnel: "conversion", channel: "Google Ads" }));
+    });
+    services.forEach((s) => {
+      ["pris", "offert", "kostnad", "leverantör", "specialist"].forEach((m) =>
+        add({ keyword: `${s} ${m}`, cluster: `Tjänst: ${s} — kommersiell`, dimension: "kommersiell", intent: "transactional", funnel: "conversion", channel: "Google Ads" }));
+    });
+
+    // 3. Product + material
+    products.slice(0, 12).forEach((p) => {
+      materials.slice(0, 6).forEach((m) =>
+        add({ keyword: `${p} ${m}`, cluster: `Produkt: ${p} — material`, dimension: "material", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+    });
+
+    // 4. Product + problem
+    products.slice(0, 10).forEach((p) => {
+      problems.slice(0, cfg.problemPairs).forEach((pr) =>
+        add({ keyword: `${p} ${pr}`, cluster: `Problem: ${pr}`, dimension: "problem", intent: "informational", funnel: "awareness", channel: "Content" }));
+    });
+
+    // 5. Problem + solution
+    problems.forEach((pr) => {
+      solutions.slice(0, 4).forEach((sol) =>
+        add({ keyword: `${pr} ${sol}`, cluster: `Problem: ${pr} → ${sol}`, dimension: "losning", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+      add({ keyword: `${pr} hjälp`, cluster: `Problem: ${pr}`, dimension: "problem", intent: "informational", funnel: "awareness", channel: "Content" });
+      add({ keyword: `${pr} reparation`, cluster: `Problem: ${pr}`, dimension: "losning", intent: "transactional", funnel: "conversion", channel: "Google Ads" });
+    });
+
+    // 6. Service + industry
+    services.forEach((s) => {
+      branches.slice(0, cfg.segmentPairs).forEach((b) =>
+        add({ keyword: `${s} ${b}`, cluster: `Bransch: ${b}`, dimension: "bransch", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+    });
+    products.slice(0, 8).forEach((p) => {
+      branches.slice(0, cfg.segmentPairs).forEach((b) =>
+        add({ keyword: `${p} ${b}`, cluster: `Bransch: ${b}`, dimension: "bransch", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+    });
+
+    // 7. Solution + customer segment
+    solutions.forEach((sol) => {
+      segments.slice(0, 5).forEach((seg) =>
+        add({ keyword: `${sol} ${seg}`, cluster: `Segment: ${seg}`, dimension: "kundsegment", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+    });
+
+    // 8. Use cases
+    useCases.forEach((uc) => {
+      products.slice(0, 5).forEach((p) =>
+        add({ keyword: `${p} ${uc}`, cluster: `Use case: ${uc}`, dimension: "use_case", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+      services.slice(0, 4).forEach((s) =>
+        add({ keyword: `${s} ${uc}`, cluster: `Use case: ${uc}`, dimension: "use_case", intent: "commercial", funnel: "consideration", channel: "SEO" }));
+    });
+
+    // 9. Geo: service + city, product + city, "nära mig"
+    services.slice(0, 8).forEach((s) => {
+      cities.slice(0, cfg.geoPerProduct).forEach((c) =>
+        add({ keyword: `${s} ${c.toLowerCase()}`, cluster: `Lokal: ${c}`, dimension: "location", intent: "transactional", funnel: "conversion", channel: "Lokal SEO" }));
+      add({ keyword: `${s} nära mig`, cluster: `Lokal: nära mig`, dimension: "location", intent: "transactional", funnel: "conversion", channel: "Lokal SEO" });
+    });
+    products.slice(0, 6).forEach((p) => {
+      cities.slice(0, Math.min(cfg.geoPerProduct, 6)).forEach((c) =>
+        add({ keyword: `${p} ${c.toLowerCase()}`, cluster: `Lokal: ${c}`, dimension: "location", intent: "commercial", funnel: "consideration", channel: "Lokal SEO" }));
+    });
+    // Material + product + city (long-tail)
+    if (scale !== "focused") {
+      materials.slice(0, 4).forEach((m) => {
+        products.slice(0, 4).forEach((p) => {
+          cities.slice(0, 3).forEach((c) =>
+            add({ keyword: `${m} ${p} ${c.toLowerCase()}`, cluster: `Long-tail: ${m} + ${p} + geo`, dimension: "location", intent: "commercial", funnel: "consideration", channel: "Lokal SEO" }));
+        });
+      });
+    }
+
+    // 10. Questions
+    questions.forEach((q) => {
+      [...products.slice(0, 5), ...services.slice(0, 5)].forEach((t) =>
+        add({ keyword: `${q} ${t}`, cluster: `Fråga: ${q}`, dimension: "fraga", intent: "informational", funnel: "awareness", channel: "Content" }));
+    });
+
+    // 11. Competitors
+    competitors.forEach((co) => {
+      add({ keyword: co, cluster: `Konkurrent: ${co}`, dimension: "konkurrent", intent: "navigational", funnel: "consideration", channel: "Google Ads" });
+      add({ keyword: `alternativ till ${co}`, cluster: `Konkurrent: ${co}`, dimension: "konkurrent", intent: "commercial", funnel: "consideration", channel: "SEO" });
+      add({ keyword: `${co} jämförelse`, cluster: `Konkurrent: ${co}`, dimension: "konkurrent", intent: "commercial", funnel: "consideration", channel: "Content" });
+    });
+
+    // 12. Negative keyword candidates (free, jobb, gratis, wikipedia)
+    const negModifiers = ["gratis", "jobb", "wikipedia", "kurs", "utbildning", "praktik"];
+    products.slice(0, 5).forEach((p) =>
+      negModifiers.forEach((n) =>
+        add({ keyword: `${p} ${n}`, cluster: `Negativa kandidater`, dimension: "kommersiell", intent: "informational", funnel: "awareness", channel: "Google Ads", isNegative: true })));
+
+    console.log(`[universe] generated ${universe.length} unique keywords`);
+
+    // === PASS 3: Enrich via DataForSEO ===
+    let metricsMap: Record<string, any> = {};
+    try {
+      const allKws = universe.map((u) => u.keyword);
+      const enrichRes = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords: allKws }),
+      });
+      if (enrichRes.ok) {
+        const j = await enrichRes.json();
+        metricsMap = j.metrics || {};
+      } else {
+        console.error("[universe] enrich failed", enrichRes.status, await enrichRes.text());
+      }
+    } catch (e) {
+      console.error("[universe] enrich error", e);
+    }
+
+    // === PASS 4: Build final output with priority + recommendations ===
+    const final = universe.map((u) => {
+      const m = metricsMap[u.keyword];
+      const vol = m?.search_volume ?? null;
+      const cpc = m?.cpc_sek ?? null;
+      const comp = m?.competition ?? null;
+
+      // Priority heuristic
+      let priority: "high" | "medium" | "low" = "low";
+      if (vol != null) {
+        if (vol >= 200 && (comp == null || comp < 0.7)) priority = "high";
+        else if (vol >= 50) priority = "medium";
+      } else if (u.intent === "transactional") {
+        priority = "medium";
+      }
+
+      const slug = slugify(u.cluster);
+      return {
+        keyword: u.keyword,
+        cluster: u.cluster,
+        dimension: u.dimension,
+        intent: u.intent,
+        funnelStage: u.funnel,
+        priority,
+        channel: u.channel,
+        recommendedLandingPage: u.isNegative ? undefined : `/${slug}`,
+        recommendedAdGroup: u.cluster,
+        contentIdea: u.intent === "informational" ? `Guide: ${u.keyword}` : undefined,
+        isNegative: u.isNegative || false,
+        searchVolume: vol ?? undefined,
+        cpc: cpc ?? undefined,
+        competition: comp ?? undefined,
+        dataSource: vol != null ? "real" : "estimated",
+      };
+    });
+
+    const enrichedCount = final.filter((k) => k.dataSource === "real").length;
+    console.log(`[universe] enriched ${enrichedCount}/${final.length}`);
+
+    const result = {
+      scale,
+      generatedAt: new Date().toISOString(),
+      totalKeywords: final.length,
+      totalEnriched: enrichedCount,
+      cities,
+      keywords: final,
+    };
+
+    return new Response(JSON.stringify({ success: true, universe: result }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error("[universe] error", e);
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

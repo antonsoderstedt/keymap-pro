@@ -326,12 +326,36 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
       }
     }
 
+    // === Keyword Universe (skalad sökordsanalys) ===
+    let keywordUniverse: any = null;
+    if (options?.keywordUniverse) {
+      try {
+        console.log(`[analyse] running keyword-universe (scale=${options.universeScale || "broad"})`);
+        const uniRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id, scale: options.universeScale || "broad" }),
+        });
+        if (uniRes.ok) {
+          const j = await uniRes.json();
+          keywordUniverse = j.universe || null;
+          console.log(`[analyse] universe: ${keywordUniverse?.totalKeywords} kw, ${keywordUniverse?.totalEnriched} berikade`);
+        } else {
+          console.error("[analyse] universe failed", uniRes.status, await uniRes.text());
+        }
+      } catch (e) {
+        console.error("[analyse] universe error", e);
+      }
+    }
+
     // Save analysis
     const { error: saveErr } = await supabase.from("analyses").insert({
       project_id,
       options,
       result_json: resultJson,
-    });
+      keyword_universe_json: keywordUniverse,
+      universe_scale: options?.universeScale || null,
+    } as any);
 
     if (saveErr) {
       console.error("Save error:", saveErr);
