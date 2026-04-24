@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeGoogleOauth } from "@/lib/googleOAuth";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,26 +38,33 @@ export default function Dashboard() {
   }, []);
 
   const checkGoogle = async () => {
-    const { data } = await supabase.functions.invoke("google-oauth/status");
-    setGoogleConnected(!!(data as any)?.connected);
+    try {
+      const data = await invokeGoogleOauth<{ connected?: boolean }>("status");
+      setGoogleConnected(!!data.connected);
+    } catch {
+      setGoogleConnected(false);
+    }
   };
 
   const connectGoogle = async () => {
-    const { data, error } = await supabase.functions.invoke("google-oauth/start");
-    if (error || !(data as any)?.url) {
-      toast({ title: "Fel", description: error?.message || "Kunde inte starta Google-inloggning", variant: "destructive" });
+    try {
+      const data = await invokeGoogleOauth<{ url?: string }>("start");
+      if (!data.url) throw new Error("Kunde inte starta Google-inloggning");
+      window.location.href = data.url;
+    } catch (error) {
+      toast({ title: "Fel", description: error instanceof Error ? error.message : "Kunde inte starta Google-inloggning", variant: "destructive" });
       return;
     }
-    // Append origin so callback can redirect back to current host
-    const url = new URL((data as any).url);
-    // Encode origin in state already; we redirect from callback to a fixed origin via query param too
-    window.location.href = `${(data as any).url}`;
   };
 
   const disconnectGoogle = async () => {
-    await supabase.functions.invoke("google-oauth/disconnect");
-    setGoogleConnected(false);
-    toast({ title: "Google frånkopplad" });
+    try {
+      await invokeGoogleOauth("disconnect");
+      setGoogleConnected(false);
+      toast({ title: "Google frånkopplad" });
+    } catch (error) {
+      toast({ title: "Fel", description: error instanceof Error ? error.message : "Kunde inte koppla från Google", variant: "destructive" });
+    }
   };
 
   const loadProjects = async () => {
