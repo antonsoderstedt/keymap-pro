@@ -295,6 +295,17 @@ export default function Results() {
                 </Card>
               ))}
             </div>
+
+            {/* Keyword Research section under segment cards */}
+            {result.keywordResearch && result.keywordResearch.length > 0 && (
+              <div className="mt-6">
+                <KeywordResearchSection
+                  clusters={result.keywordResearch}
+                  selectedKeywords={selectedKeywords}
+                  setSelectedKeywords={setSelectedKeywords}
+                />
+              </div>
+            )}
           </TabsContent>
 
           {/* Keywords */}
