@@ -14,6 +14,127 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_items: {
+        Row: {
+          baseline_metrics: Json | null
+          category: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          expected_impact: string | null
+          id: string
+          implementation_notes: string | null
+          implemented_at: string | null
+          implemented_by: string | null
+          priority: string
+          project_id: string
+          source_id: string | null
+          source_payload: Json | null
+          source_type: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          baseline_metrics?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          expected_impact?: string | null
+          id?: string
+          implementation_notes?: string | null
+          implemented_at?: string | null
+          implemented_by?: string | null
+          priority?: string
+          project_id: string
+          source_id?: string | null
+          source_payload?: Json | null
+          source_type?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          baseline_metrics?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          expected_impact?: string | null
+          id?: string
+          implementation_notes?: string | null
+          implemented_at?: string | null
+          implemented_by?: string | null
+          priority?: string
+          project_id?: string
+          source_id?: string | null
+          source_payload?: Json | null
+          source_type?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_outcomes: {
+        Row: {
+          action_id: string
+          baseline_value: number | null
+          confidence: string | null
+          current_value: number | null
+          days_after_implementation: number
+          delta: number | null
+          delta_pct: number | null
+          id: string
+          measured_at: string
+          metric_name: string
+          notes: string | null
+        }
+        Insert: {
+          action_id: string
+          baseline_value?: number | null
+          confidence?: string | null
+          current_value?: number | null
+          days_after_implementation: number
+          delta?: number | null
+          delta_pct?: number | null
+          id?: string
+          measured_at?: string
+          metric_name: string
+          notes?: string | null
+        }
+        Update: {
+          action_id?: string
+          baseline_value?: number | null
+          confidence?: string | null
+          current_value?: number | null
+          days_after_implementation?: number
+          delta?: number | null
+          delta_pct?: number | null
+          id?: string
+          measured_at?: string
+          metric_name?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_outcomes_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_drafts: {
         Row: {
           ad_group: string
@@ -72,6 +193,72 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "analyses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analysis_jobs: {
+        Row: {
+          analysis_id: string | null
+          completed_at: string | null
+          created_at: string
+          current_step: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          payload: Json | null
+          progress_pct: number
+          project_id: string
+          started_at: string | null
+          status: string
+          steps: Json
+          updated_at: string
+        }
+        Insert: {
+          analysis_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          job_type: string
+          payload?: Json | null
+          progress_pct?: number
+          project_id: string
+          started_at?: string | null
+          status?: string
+          steps?: Json
+          updated_at?: string
+        }
+        Update: {
+          analysis_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          payload?: Json | null
+          progress_pct?: number
+          project_id?: string
+          started_at?: string | null
+          status?: string
+          steps?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analysis_jobs_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analysis_jobs_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -341,9 +528,13 @@ export type Database = {
           company: string
           competitors: string | null
           created_at: string
+          description: string | null
           domain: string | null
           id: string
+          is_archived: boolean
           known_segments: string | null
+          last_active_at: string
+          logo_url: string | null
           market: string
           name: string
           products: string | null
@@ -353,9 +544,13 @@ export type Database = {
           company: string
           competitors?: string | null
           created_at?: string
+          description?: string | null
           domain?: string | null
           id?: string
+          is_archived?: boolean
           known_segments?: string | null
+          last_active_at?: string
+          logo_url?: string | null
           market?: string
           name: string
           products?: string | null
@@ -365,9 +560,13 @@ export type Database = {
           company?: string
           competitors?: string | null
           created_at?: string
+          description?: string | null
           domain?: string | null
           id?: string
+          is_archived?: boolean
           known_segments?: string | null
+          last_active_at?: string
+          logo_url?: string | null
           market?: string
           name?: string
           products?: string | null
@@ -449,6 +648,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      workspace_artifacts: {
+        Row: {
+          artifact_type: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          payload: Json
+          project_id: string
+          source_id: string | null
+        }
+        Insert: {
+          artifact_type: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          payload?: Json
+          project_id: string
+          source_id?: string | null
+        }
+        Update: {
+          artifact_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          payload?: Json
+          project_id?: string
+          source_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_artifacts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
