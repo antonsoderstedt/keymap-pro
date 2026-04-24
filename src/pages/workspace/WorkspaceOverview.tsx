@@ -13,7 +13,13 @@ import {
   ArrowRight,
   PlayCircle,
   Calendar,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Loader2,
+  Link2,
 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 interface OverviewStats {
   total_analyses: number;
