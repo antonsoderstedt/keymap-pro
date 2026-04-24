@@ -1,93 +1,92 @@
-# Keyword Research-modul i KEYMAP Pro
 
-## 1. Datamodell — `src/lib/types.ts`
+# Verklig sökvolymdata via DataForSEO
 
-Lägg till `keywordResearch: boolean` i `AnalysisOptions`. Lägg till nya typer:
+## Problem
+AI:n gissar sökvolymer — den har ingen tillgång till Googles verkliga data. För svensk B2B är de flesta nischade sökord faktiskt under 100/månad, så AI:n sätter konservativt "<100" på allt. Resultatet: bara 9 av 182 sökord verkar ha volym, exporten blir oanvändbar för prioritering.
 
+## Lösning: DataForSEO Keyword Data API
+REST-API som ger:
+- Exakt månatlig sökvolym (Google Sverige, location_code 2752, language "sv")
+- CPC i SEK
+- Konkurrensnivå (0–1)
+- 12-månaders trend
+- Kostnad: ~$0.05 per 1000 sökord (~5 öre per analys). Gratis $1 vid signup räcker till ~20 analyser.
+
+## Tekniska ändringar
+
+### 1. Secrets
+- `DATAFORSEO_LOGIN` och `DATAFORSEO_PASSWORD` läggs till som Lovable Cloud secrets
+- Användaren skapar konto på dataforseo.com och hämtar credentials
+
+### 2. Ny tabell: `keyword_metrics` (cache)
+```
+keyword text PK
+location_code int
+search_volume int
+cpc_sek numeric
+competition numeric
+trend_json jsonb
+updated_at timestamptz default now()
+```
+Cache i 30 dagar — om sökord finns och är färskt, hoppa över API-anrop. Sparar pengar och tid.
+
+### 3. Ny edge function: `enrich-keywords`
+- Tar `{ keywords: string[] }` (max 1000)
+- Slår upp i `keyword_metrics` först
+- För missade/utgångna: anropar `POST https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live`
+  - Body: `[{ keywords, location_code: 2752, language_code: "sv" }]`
+  - Auth: Basic auth med login/password
+- Skriver tillbaka till cache-tabellen
+- Returnerar `Record<string, { volume, cpc, competition, trend }>`
+
+### 4. Uppdatera `analyse` edge function
+- Efter AI-genereringen → samla alla unika sökord från alla kluster
+- Anropa `enrich-keywords` med listan
+- Slå ihop verklig data med AI-data:
+  - `volume` ersätts från intervall → exakt tal
+  - `cpc` blir riktig SEK-siffra
+  - Lägg till `competition` och `dataSource: "real" | "estimated"`
+- Sortera kluster efter total volym desc
+
+### 5. Typer (`src/lib/types.ts`)
+`ResearchKeyword` får nya fält:
 ```ts
-export type ResearchCategory = "Produkt" | "Tjänst" | "Geo" | "Pris" | "Fråga";
-export type ResearchChannel = "SEO" | "Ads" | "Båda";
-export type ResearchVolume = "<100" | "100-500" | "500-2000" | "2000+";
-export type ResearchCpc = "Låg" | "Medium" | "Hög";
-export type ResearchIntent = "Köp" | "Info" | "Nav";
-export type ResearchUsage = "Landningssida" | "Blogg" | "Ads-grupp";
-
-export interface ResearchKeyword {
-  keyword: string;
-  category: ResearchCategory;
-  channel: ResearchChannel;
-  volume: ResearchVolume;
-  cpc: ResearchCpc;
-  intent: ResearchIntent;
-  usage: ResearchUsage;
-}
-
-export interface ResearchCluster {
-  cluster: string;          // t.ex. "Laserskärning — pris & offert"
-  segment: string;          // tillhör vilket segment
-  recommendedH1: string;
-  metaDescription: string;
-  urlSlug: string;
-  keywords: ResearchKeyword[];
-}
+realVolume?: number;       // exakt månatlig volym
+realCpc?: number;          // SEK
+competition?: number;      // 0-1
+dataSource: "real" | "estimated";
 ```
 
-Lägg till `keywordResearch?: ResearchCluster[]` i `AnalysisResult`.
+### 6. UI (`KeywordResearchSection.tsx`)
+- Visa exakt volym ("320/mån") istället för intervall
+- CPC i SEK ("12,40 kr")
+- Ny kolumn: Konkurrens (Låg/Medel/Hög)
+- Default-sortering: volym desc
+- Default-filter: dölj sökord med 0 volym (toggle för att visa alla)
+- Badge "Uppskattad" på sökord utan verklig data
 
-## 2. Edge function — `supabase/functions/analyse/index.ts`
+### 7. Loading state (`StepAnalyse.tsx`)
+- Nytt progress-steg: "Hämtar verkliga sökvolymer från Google…" (~10 sek för 200 sökord)
 
-När `options.keywordResearch === true`, kör en separat AI-pass **per segment** (efter att huvudanalysen är klar) som genererar 40–60 sökord i tre logiska steg i en enda prompt:
+## UX-flöde
+1. Användaren startar analys
+2. AI genererar 40–60 sökord per segment (~30 sek)
+3. **Nytt:** edge function skickar alla sökord till DataForSEO (~10 sek, cachas)
+4. Resultattabell visar verkliga volymer + CPC i SEK, sorterat på volym
+5. Default: dölj sökord med 0 volym → exporten blir bara användbara sökord
 
-- **Pass 1 — Kärnsökord** (8–12 termer): tjänstenamn, produktnamn, branschtermer från segmentets `primaryKeywords` + `languagePatterns`.
-- **Pass 2 — Matrisexpansion** (20–30 termer): kombinera kärntermer med modifiers:
-  - **Pris/offert**: pris, kostnad, offert, prisförslag
-  - **Leverans**: snabb, express, online, leveranstid
-  - **Geo**: Stockholm, Göteborg, Malmö, Sverige (eller marknadsspecifikt)
-  - **Intent**: köpa, beställa, hitta leverantör, jämför
-  - **Format**: liten serie, prototyp, engångsbeställning, volym
-- **Pass 3 — Long-tail/frågor** (10–15 termer): "hur [verb] [tjänst]", "var köper man [produkt]", "bästa [tjänst] för [bransch]".
+## Vad du behöver göra
+1. Skapa konto på [dataforseo.com](https://dataforseo.com) (gratis $1 credit)
+2. Hämta API-credentials från deras dashboard → Settings → API
+3. Jag ber om `DATAFORSEO_LOGIN` och `DATAFORSEO_PASSWORD` via secrets-prompten när vi börjar
 
-Använd **tool calling** (structured output) med Gemini 2.5 Flash för att garantera korrekt JSON-format. Schema: array av `ResearchKeyword` + en clustering-pass som grupperar dem semantiskt och genererar `cluster`-namn, `recommendedH1`, `metaDescription`, `urlSlug`.
+## Alternativ
+**Google Ads Keyword Planner** (gratis men krångligt): kräver eget Google Ads-konto, OAuth per användare, 1–2 dagars setup, ger bara intervall-volymer. Inte värt det här.
 
-För att hålla kostnaden nere körs alla tre passen i **samma prompt** per segment, inte tre separata API-calls. Clustering kan också göras i samma pass.
+**Semrush/Ahrefs API**: bättre svensk data men 10–100x dyrare. Overkill för KEYMAP.
 
-Spara `keywordResearch` som array av `ResearchCluster` i `result_json`.
+DataForSEO är rätt val: billigt, snabbt att integrera, exakta tal.
 
-## 3. Wizard — `src/components/wizard/StepAnalyse.tsx`
+---
 
-Lägg till ny modul i `modules`-arrayen:
-```ts
-{ key: "keywordResearch", label: "Keyword Research (40–60/segment)",
-  desc: "Djup sökordsforskning med matrisexpansion och long-tail per segment", icon: Search }
-```
-
-Default-aktiverad i `ProjectWizard.tsx` initial state.
-
-## 4. UI-komponent — `src/components/results/KeywordResearchSection.tsx` (ny)
-
-Renderas i `Results.tsx` under tab "Segments" (eller egen tab). Funktioner:
-
-- **Header**: "Keyword Research" + "Visa alla sökord (X st)"-knapp som expanderar/kollapsar sektionen
-- **Filterpanel** (badges/selects): Segment, Kanal, Intent, Kategori, Användning
-- **Sortering** på alla kolumner (klickbar TableHead med pil-ikon)
-- **Klustergruppering**: varje kluster är en kollapsbar rad (Collapsible) med kluster-namn + antal sökord + score
-- **Checkbox per rad** för att markera enskilda sökord — markerade sparas i state och kan exporteras separat
-- Kolumner: ☐ | Sökord | Kategori | Kanal | Volym | CPC | Intent | Användning
-- Mörkt tema, mono-font för sökord, lime-accent på markerade rader
-
-## 5. Tre nya export-knappar — `src/pages/Results.tsx`
-
-Ersätt nuvarande "Keywords CSV" med en dropdown eller tre knappar:
-
-- **SEO Export** (`keymap-seo.csv`): Sökord, Kluster, Kategori, Intent, Volym, Rekommenderad sidtitel (= cluster.recommendedH1)
-- **Google Ads Export** (`keymap-ads.csv`): Kampanj (= segment), Annonsgrupp (= cluster.cluster), Sökord, Match Type ("Phrase" default), Max CPC-rekommendation (mappad från cpc-nivå: Låg=10 SEK, Medium=25 SEK, Hög=50 SEK)
-- **Landningssidor Export** (`keymap-landing.csv`): Kluster, H1, Meta description, URL-slug, Antal sökord
-
-Om användaren har valt sökord via checkboxarna → exportera bara markerade.
-
-## 6. Teknik & QA
-
-- Behåll mörkt tema (`bg-card`, `border-border`, `text-primary` lime).
-- Använd befintliga shadcn-komponenter: `Table`, `Collapsible`, `Checkbox`, `Select`, `Badge`, `Button`.
-- Ingen DB-migration behövs — `result_json` är jsonb och rymmer det nya fältet.
-- Bakåtkompatibilitet: gamla analyser utan `keywordResearch` ska fortsatt fungera (rendera tomt om `undefined`).
+**Säg "Approved" så bygger jag det.** Jag ber om DataForSEO-credentials i första steget.
