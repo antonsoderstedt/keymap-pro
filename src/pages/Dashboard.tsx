@@ -22,9 +22,41 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
+
   useEffect(() => {
     loadProjects();
+    checkGoogle();
+    // Toast on return from OAuth
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google") === "connected") {
+      toast({ title: "Google ansluten", description: "GA4 + Search Console är nu kopplade." });
+      window.history.replaceState({}, "", "/dashboard");
+    }
   }, []);
+
+  const checkGoogle = async () => {
+    const { data } = await supabase.functions.invoke("google-oauth/status");
+    setGoogleConnected(!!(data as any)?.connected);
+  };
+
+  const connectGoogle = async () => {
+    const { data, error } = await supabase.functions.invoke("google-oauth/start");
+    if (error || !(data as any)?.url) {
+      toast({ title: "Fel", description: error?.message || "Kunde inte starta Google-inloggning", variant: "destructive" });
+      return;
+    }
+    // Append origin so callback can redirect back to current host
+    const url = new URL((data as any).url);
+    // Encode origin in state already; we redirect from callback to a fixed origin via query param too
+    window.location.href = `${(data as any).url}`;
+  };
+
+  const disconnectGoogle = async () => {
+    await supabase.functions.invoke("google-oauth/disconnect");
+    setGoogleConnected(false);
+    toast({ title: "Google frånkopplad" });
+  };
 
   const loadProjects = async () => {
     const { data: projectsData, error: pError } = await supabase
@@ -98,7 +130,16 @@ export default function Dashboard() {
       <header className="border-b border-border px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <h1 className="font-serif text-2xl text-primary">KEYMAP</h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {googleConnected ? (
+              <Button variant="outline" size="sm" onClick={disconnectGoogle}>
+                Google ansluten ✓
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={connectGoogle}>
+                Anslut Google
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">{user?.email}</span>
             <Button variant="ghost" size="icon" onClick={signOut}>
               <LogOut className="h-4 w-4" />
