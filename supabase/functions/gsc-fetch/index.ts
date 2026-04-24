@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const token = await getGoogleAccessToken(req.headers.get("Authorization"));
+    const { token } = await getGoogleAccessToken(req.headers.get("Authorization"));
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const action = body.action || "sites";
 

@@ -222,18 +222,36 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         body: JSON.stringify({}),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.code || data?.error || "Kunde inte hämta Ads-konton");
-      setAccounts(data?.accounts || []);
-      if (!data?.accounts?.length) toast.info("Inga Ads-konton hittades — kontrollera att du auktoriserat med Ads-scope.");
-    } catch (e: any) {
-      const message = e.message || "Kunde inte hämta Ads-konton";
-      if (message === "Google not connected" || message.includes("GOOGLE_NOT_CONNECTED")) {
-        toast.error("Google är inte ansluten. Gå till Översikt och klicka 'Anslut Google'.");
-      } else if (message.includes("MISSING_ADS_SCOPE")) {
-        toast.error("Google Ads-behörighet saknas. Gå till Översikt → 'Bevilja Google Ads-behörighet'.");
-      } else {
-        toast.error(message);
+      if (!response.ok) {
+        const err: any = new Error(data?.error || "Kunde inte hämta Ads-konton");
+        err.code = data?.code;
+        throw err;
       }
+      setAccounts(data?.accounts || []);
+      if (!data?.accounts?.length) toast.info("Inga Ads-konton hittades — kontrollera att din Google-användare har åtkomst till MCC-kontot.");
+    } catch (e: any) {
+      const code = e.code || "";
+      const message = e.message || "Kunde inte hämta Ads-konton";
+      const messages: Record<string, string> = {
+        NOT_AUTHENTICATED: "Du behöver logga in igen.",
+        GOOGLE_NOT_CONNECTED: "Google är inte ansluten. Gå till Översikt och klicka 'Anslut Google'.",
+        MISSING_ADS_SCOPE: "Google Ads-scope saknas i token. Koppla från Google på Översikt och anslut igen.",
+        DEVELOPER_TOKEN_NOT_APPROVED: "Google Ads developer token är inte godkänd ännu — kontakta admin.",
+        DEVELOPER_TOKEN_INVALID: "Google Ads developer token är ogiltig — kontakta admin.",
+        DEVELOPER_TOKEN_ERROR: "Problem med Google Ads developer token — kontakta admin.",
+        MCC_INVALID: "MCC-konfiguration (login-customer-id) är felaktig — kontakta admin.",
+        MCC_ERROR: "Problem med MCC-konfigurationen — kontakta admin.",
+        CONFIG_ERROR: "Serverkonfiguration saknas — kontakta admin.",
+        PERMISSION_DENIED: "Behörighet nekad av Google Ads — verifiera MCC-länkning.",
+        USER_PERMISSION_DENIED: "Din Google-användare saknar åtkomst i MCC-kontot.",
+        OAUTH_INVALID: "OAuth-token avvisad — koppla från och anslut Google igen.",
+        FORBIDDEN: "Google Ads API nekade förfrågan.",
+        ADS_API_ERROR: "Fel från Google Ads API.",
+      };
+      toast.error(messages[code] || message, {
+        description: code ? `Kod: ${code}` : undefined,
+        duration: 8000,
+      });
     } finally { setLoading(false); }
   };
 
