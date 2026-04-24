@@ -14,7 +14,7 @@ interface JwtPayload {
   role?: string;
 }
 
-export async function getGoogleAccessToken(authHeader: string | null): Promise<string> {
+export async function getGoogleAccessToken(authHeader: string | null): Promise<{ token: string; userId: string }> {
   if (!authHeader?.startsWith("Bearer ")) throw new Error("Not authenticated");
   const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!jwt) throw new Error("Not authenticated");
@@ -30,7 +30,7 @@ export async function getGoogleAccessToken(authHeader: string | null): Promise<s
 
   // Still valid (with 60s buffer)?
   if (new Date(row.expires_at).getTime() - 60_000 > Date.now()) {
-    return row.access_token as string;
+    return { token: row.access_token as string, userId };
   }
 
   // Refresh
