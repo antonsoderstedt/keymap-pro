@@ -118,13 +118,13 @@ ${scanContext}`;
     const content = aiData.choices?.[0]?.message?.content;
     if (!content) throw new Error("No content from AI");
 
-    // Parse JSON from response (handle markdown code blocks)
+    // Parse JSON from response (robust: strip markdown, slice to braces, repair truncation)
     let resultJson;
     try {
-      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      resultJson = JSON.parse(cleaned);
+      resultJson = extractJson(content);
     } catch (e) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to parse AI response (first 500 chars):", String(content).slice(0, 500));
+      console.error("...last 500 chars:", String(content).slice(-500));
       throw new Error("AI returnerade ogiltigt JSON-format");
     }
 
