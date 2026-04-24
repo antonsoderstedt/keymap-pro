@@ -95,8 +95,16 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
         g.keywords.sort((a, b) => {
           let av: any = (a as any)[sortKey];
           let bv: any = (b as any)[sortKey];
-          if (sortKey === "volume") { av = VOLUME_ORDER.indexOf(av); bv = VOLUME_ORDER.indexOf(bv); }
-          else if (sortKey === "cpc") { av = CPC_ORDER.indexOf(av); bv = CPC_ORDER.indexOf(bv); }
+          if (sortKey === "volume") {
+            // Prefer real volume when available
+            av = a.dataSource === "real" ? (a.realVolume ?? -1) : VOLUME_ORDER.indexOf(a.volume);
+            bv = b.dataSource === "real" ? (b.realVolume ?? -1) : VOLUME_ORDER.indexOf(b.volume);
+          } else if (sortKey === "cpc") {
+            av = a.realCpc ?? CPC_ORDER.indexOf(a.cpc);
+            bv = b.realCpc ?? CPC_ORDER.indexOf(b.cpc);
+          }
+          if (av == null) av = "";
+          if (bv == null) bv = "";
           if (av < bv) return sortDir === "asc" ? -1 : 1;
           if (av > bv) return sortDir === "asc" ? 1 : -1;
           return 0;
