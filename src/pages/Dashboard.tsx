@@ -8,6 +8,7 @@ import { Plus, LogOut, FolderOpen, Calendar, BarChart3, ChevronDown, ChevronUp, 
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project, Analysis, AnalysisResult } from "@/lib/types";
+import GoogleDataPanel from "@/components/GoogleDataPanel";
 
 interface ProjectWithAnalyses extends Project {
   analyses: Analysis[];
@@ -159,6 +160,13 @@ export default function Dashboard() {
             Nytt projekt
           </Button>
         </div>
+
+        {/* Google data */}
+        {googleConnected && (
+          <div className="mb-8">
+            <GoogleDataPanel />
+          </div>
+        )}
 
         {/* Compare bar */}
         {compareIds.length === 2 && (
