@@ -60,7 +60,7 @@ export function useBrandKit(projectId: string | undefined) {
       .select("*")
       .eq("project_id", projectId)
       .maybeSingle();
-    setBrandKit(data as BrandKit | null);
+    setBrandKit(data as unknown as BrandKit | null);
     setLoading(false);
   }, [projectId]);
 
@@ -73,11 +73,11 @@ export function useBrandKit(projectId: string | undefined) {
     if (brandKit) {
       const { data, error } = await supabase
         .from("brand_kits")
-        .update(updates)
+        .update(updates as any)
         .eq("id", brandKit.id)
         .select()
         .maybeSingle();
-      if (!error && data) setBrandKit(data as BrandKit);
+      if (!error && data) setBrandKit(data as unknown as BrandKit);
       return { data, error };
     } else {
       const { data, error } = await supabase
@@ -87,10 +87,10 @@ export function useBrandKit(projectId: string | undefined) {
           palette: DEFAULT_PALETTE as any,
           fonts: DEFAULT_FONTS as any,
           ...updates,
-        })
+        } as any)
         .select()
         .maybeSingle();
-      if (!error && data) setBrandKit(data as BrandKit);
+      if (!error && data) setBrandKit(data as unknown as BrandKit);
       return { data, error };
     }
   };
