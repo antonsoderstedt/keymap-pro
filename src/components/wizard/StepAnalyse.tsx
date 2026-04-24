@@ -1,7 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, Search, Expand, Megaphone, Zap, Globe } from "lucide-react";
+import { BarChart3, Search, Expand, Megaphone, Zap, Globe, Sparkles } from "lucide-react";
 import type { AnalysisOptions } from "@/lib/types";
 
 interface StepAnalyseProps {
@@ -13,6 +13,7 @@ interface StepAnalyseProps {
 const modules = [
   { key: "segmentAnalysis" as const, label: "Segmentanalys & Branschspråk", desc: "Identifierar segment, hur de söker och deras språkbruk", icon: BarChart3 },
   { key: "keywordClusters" as const, label: "Keyword Clusters", desc: "Grupperade sökord per segment med volym, svårighet och CPC", icon: Search },
+  { key: "keywordResearch" as const, label: "Keyword Research (40–60/segment)", desc: "Djup sökordsforskning: kärna, matrisexpansion och long-tail per segment", icon: Sparkles },
   { key: "expansion" as const, label: "Expansion — nya segment", desc: "Hittar angränsande segment med samma behov", icon: Expand },
   { key: "adsStructure" as const, label: "Google Ads-struktur", desc: "Färdiga kampanjer med annonsgrupper, match types och negativa", icon: Megaphone },
   { key: "quickWins" as const, label: "Quick Wins", desc: "Sökord med låg konkurrens och hög köpintent", icon: Zap },
