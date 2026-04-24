@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Target, Plus, Trash2 } from "lucide-react";
+import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface KpiTarget {
