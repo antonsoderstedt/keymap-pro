@@ -74,6 +74,62 @@ export default function Results() {
     downloadCSV(rows, "keymap-ads-structure.csv");
   };
 
+  // === Keyword Research exports ===
+  const cpcToMaxBid = (cpc: string) => cpc === "Hög" ? "50" : cpc === "Medium" ? "25" : "10";
+
+  const getResearchKeywords = (): { cluster: ResearchCluster; keyword: ResearchKeyword; clusterIdx: number; rowIdx: number }[] => {
+    if (!result?.keywordResearch) return [];
+    const all: any[] = [];
+    result.keywordResearch.forEach((c, ci) => {
+      c.keywords.forEach((k, ki) => all.push({ cluster: c, keyword: k, clusterIdx: ci, rowIdx: ki }));
+    });
+    if (selectedKeywords.size > 0) {
+      return all.filter((x) => selectedKeywords.has(`${x.clusterIdx}::${x.rowIdx}`));
+    }
+    return all;
+  };
+
+  const exportSeoCSV = () => {
+    const items = getResearchKeywords();
+    if (items.length === 0) {
+      toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
+      return;
+    }
+    const rows = [["Sökord", "Kluster", "Kategori", "Intent", "Volym", "Rekommenderad sidtitel"]];
+    items.forEach(({ cluster, keyword }) => {
+      rows.push([keyword.keyword, cluster.cluster, keyword.category, keyword.intent, keyword.volume, cluster.recommendedH1]);
+    });
+    downloadCSV(rows, "keymap-seo.csv");
+    toast({ title: "SEO-export klar", description: `${items.length} sökord exporterade` });
+  };
+
+  const exportAdsResearchCSV = () => {
+    const items = getResearchKeywords();
+    if (items.length === 0) {
+      toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
+      return;
+    }
+    const rows = [["Kampanj", "Annonsgrupp", "Sökord", "Match Type", "Max CPC (SEK)"]];
+    items.forEach(({ cluster, keyword }) => {
+      rows.push([cluster.segment, cluster.cluster, keyword.keyword, "Phrase", cpcToMaxBid(keyword.cpc)]);
+    });
+    downloadCSV(rows, "keymap-google-ads.csv");
+    toast({ title: "Ads-export klar", description: `${items.length} sökord exporterade` });
+  };
+
+  const exportLandingCSV = () => {
+    if (!result?.keywordResearch?.length) {
+      toast({ title: "Inga kluster", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
+      return;
+    }
+    const rows = [["Kluster", "Segment", "H1", "Meta description", "URL-slug", "Antal sökord"]];
+    result.keywordResearch.forEach((c) => {
+      rows.push([c.cluster, c.segment, c.recommendedH1, c.metaDescription, c.urlSlug, String(c.keywords?.length || 0)]);
+    });
+    downloadCSV(rows, "keymap-landningssidor.csv");
+    toast({ title: "Landningssidor-export klar", description: `${result.keywordResearch.length} kluster exporterade` });
+  };
+
   const downloadCSV = (rows: string[][], filename: string) => {
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
