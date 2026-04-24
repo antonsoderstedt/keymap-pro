@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -188,6 +188,7 @@ export default function WorkspaceSettings() {
 interface AdsAccount { id: string; name: string; currency?: string; isManager?: boolean }
 
 function GoogleAdsConnection({ projectId }: { projectId: string }) {
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<AdsAccount[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -212,7 +213,10 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
       setAccounts(data?.accounts || []);
       if (!data?.accounts?.length) toast.info("Inga Ads-konton hittades — kontrollera att du auktoriserat med Ads-scope.");
     } catch (e: any) {
-      toast.error(e.message || "Kunde inte hämta Ads-konton");
+      const message = e.context?.error || e.message || "Kunde inte hämta Ads-konton";
+      toast.error(message.includes("MISSING_ADS_SCOPE")
+        ? "Google Ads-behörighet saknas. Klicka på Återanslut Google i Dashboard."
+        : message);
     } finally { setLoading(false); }
   };
 
@@ -270,8 +274,9 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Koppla från och in på Google igen från översikten.
+          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Gå till Dashboard och klicka Återanslut Google.
         </p>
+        <Button size="sm" variant="ghost" onClick={() => navigate("/dashboard")}>Gå till Dashboard</Button>
       </CardContent>
     </Card>
   );
