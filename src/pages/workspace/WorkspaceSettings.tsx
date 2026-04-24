@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Target, Plus, Trash2 } from "lucide-react";
+import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface KpiTarget {
@@ -167,20 +167,113 @@ export default function WorkspaceSettings() {
         </CardContent>
       </Card>
 
-      {/* Connections placeholder */}
+      <GoogleAdsConnection projectId={id!} />
+
+      {/* Övriga kopplingar */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif text-lg">Kopplingar</CardTitle>
+          <CardTitle className="font-serif text-lg">Övriga kopplingar</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <ConnectionRow name="Google Search Console" status="se på workspace" />
-          <ConnectionRow name="Google Analytics 4" status="se på workspace" />
-          <ConnectionRow name="Google Ads" status="kräver developer token" warning />
+          <ConnectionRow name="Google Search Console" status="hanteras via Google-inloggning" />
+          <ConnectionRow name="Google Analytics 4" status="hanteras via Google-inloggning" />
           <ConnectionRow name="Semrush" status="aktiv (global)" />
           <ConnectionRow name="DataForSEO" status="aktiv (global)" />
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+interface AdsAccount { id: string; name: string; currency?: string; isManager?: boolean }
+
+function GoogleAdsConnection({ projectId }: { projectId: string }) {
+  const [accounts, setAccounts] = useState<AdsAccount[]>([]);
+  const [selected, setSelected] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState<{ id: string | null; name: string | null }>({ id: null, name: null });
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("project_google_settings").select("ads_customer_id, ads_customer_name").eq("project_id", projectId).maybeSingle();
+      if (data) {
+        setSaved({ id: data.ads_customer_id, name: data.ads_customer_name });
+        setSelected(data.ads_customer_id || "");
+      }
+    })();
+  }, [projectId]);
+
+  const fetchAccounts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ads-list-customers", { body: {} });
+      if (error) throw error;
+      setAccounts(data?.accounts || []);
+      if (!data?.accounts?.length) toast.info("Inga Ads-konton hittades — kontrollera att du auktoriserat med Ads-scope.");
+    } catch (e: any) {
+      toast.error(e.message || "Kunde inte hämta Ads-konton");
+    } finally { setLoading(false); }
+  };
+
+  const save = async () => {
+    if (!selected) return;
+    const acc = accounts.find(a => a.id === selected);
+    const name = acc?.name || `Konto ${selected}`;
+    const { error } = await supabase.from("project_google_settings").upsert({
+      project_id: projectId, ads_customer_id: selected, ads_customer_name: name,
+    }, { onConflict: "project_id" });
+    if (error) toast.error(error.message);
+    else { toast.success("Google Ads-konto sparat"); setSaved({ id: selected, name }); }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-serif text-lg flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-primary" /> Google Ads-konto
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {saved.id ? (
+          <div className="flex items-center justify-between p-3 rounded-md border border-border">
+            <div>
+              <div className="text-sm font-medium">{saved.name}</div>
+              <div className="text-xs text-muted-foreground">Customer ID: {saved.id}</div>
+            </div>
+            <Badge variant="default" className="text-[10px]">aktivt</Badge>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Inget Ads-konto valt för den här kunden.</p>
+        )}
+
+        <Button size="sm" variant="outline" onClick={fetchAccounts} disabled={loading} className="gap-2">
+          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          {loading ? "Hämtar…" : "Hämta mina Ads-konton"}
+        </Button>
+
+        {accounts.length > 0 && (
+          <div className="space-y-2">
+            <Label>Välj konto för den här kunden</Label>
+            <Select value={selected} onValueChange={setSelected}>
+              <SelectTrigger><SelectValue placeholder="Välj…" /></SelectTrigger>
+              <SelectContent>
+                {accounts.map(a => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name} {a.isManager ? "(MCC)" : ""} — {a.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={save} disabled={!selected}>Spara koppling</Button>
+          </div>
+        )}
+
+        <p className="text-[11px] text-muted-foreground">
+          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Koppla från och in på Google igen från översikten.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

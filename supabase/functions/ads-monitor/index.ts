@@ -81,15 +81,51 @@ serve(async (req) => {
       });
     }
 
-    // Mock Google Ads alerts (until live token exists)
+    // Live Google Ads alerts when token + customer linked
     const hasAdsToken = !!Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
+    const { data: gset } = await supabase
+      .from("project_google_settings").select("ads_customer_id").eq("project_id", project_id).maybeSingle();
+
     if (!hasAdsToken) {
       generated.push({
         type: "ads_setup", category: "ads", severity: "info",
-        title: "Google Ads-koppling väntar",
-        message: "När du lägger till Google Ads developer token aktiveras Auction Insights, anomaly detection och optimeringsförslag automatiskt.",
-        suggested_action: "Lägg till GOOGLE_ADS_DEVELOPER_TOKEN i inställningar",
+        title: "Google Ads developer token saknas",
+        message: "Lägg till GOOGLE_ADS_DEVELOPER_TOKEN för att aktivera Auction Insights och Ads-optimering.",
+        suggested_action: "Lägg till secret i Lovable Cloud-inställningar",
       });
+    } else if (!gset?.ads_customer_id) {
+      generated.push({
+        type: "ads_setup", category: "ads", severity: "info",
+        title: "Google Ads-konto inte valt",
+        message: "Välj vilket Ads-konto den här kunden tillhör under Inställningar för att aktivera live-data.",
+        suggested_action: "Välj Ads-konto under Inställningar",
+      });
+    } else {
+      // Pull latest auction insights snapshot and look for anomalies
+      const { data: aiSnap } = await supabase
+        .from("auction_insights_snapshots").select("*").eq("project_id", project_id)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const campaigns = (aiSnap?.rows as any)?.campaigns || [];
+      const lostBudget = campaigns.filter((c: any) => (c.lostBudget ?? 0) > 0.15);
+      const lostRank = campaigns.filter((c: any) => (c.lostRank ?? 0) > 0.20);
+      if (lostBudget.length) {
+        generated.push({
+          type: "ads_budget_lost", category: "ads", severity: "warning",
+          title: `${lostBudget.length} kampanj(er) tappar visningar pga budget`,
+          message: `Lost IS (budget) över 15% — du missar visningar du skulle vunnit.`,
+          suggested_action: "Höj dagsbudget med 15-25% på kampanjer med stark ROAS",
+          payload: { campaigns: lostBudget.slice(0, 5) },
+        });
+      }
+      if (lostRank.length) {
+        generated.push({
+          type: "ads_rank_lost", category: "ads", severity: "warning",
+          title: `${lostRank.length} kampanj(er) tappar visningar pga ranking`,
+          message: "Lost IS (rank) över 20% — Quality Score eller bud för lågt.",
+          suggested_action: "Förbättra annonsrelevans, landningssida, eller höj bud",
+          payload: { campaigns: lostRank.slice(0, 5) },
+        });
+      }
     }
 
     // Insert all

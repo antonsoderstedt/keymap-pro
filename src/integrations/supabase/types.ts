@@ -794,6 +794,8 @@ export type Database = {
       }
       project_google_settings: {
         Row: {
+          ads_customer_id: string | null
+          ads_customer_name: string | null
           created_at: string
           ga4_property_id: string | null
           ga4_property_name: string | null
@@ -803,6 +805,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ads_customer_id?: string | null
+          ads_customer_name?: string | null
           created_at?: string
           ga4_property_id?: string | null
           ga4_property_name?: string | null
@@ -812,6 +816,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ads_customer_id?: string | null
+          ads_customer_name?: string | null
           created_at?: string
           ga4_property_id?: string | null
           ga4_property_name?: string | null
