@@ -1,8 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, Search, Expand, Megaphone, Zap, Globe, Sparkles } from "lucide-react";
-import type { AnalysisOptions } from "@/lib/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { BarChart3, Search, Expand, Megaphone, Zap, Globe, Sparkles, Network } from "lucide-react";
+import type { AnalysisOptions, UniverseScale } from "@/lib/types";
 
 interface StepAnalyseProps {
   options: AnalysisOptions;
@@ -14,15 +13,24 @@ const modules = [
   { key: "segmentAnalysis" as const, label: "Segmentanalys & Branschspråk", desc: "Identifierar segment, hur de söker och deras språkbruk", icon: BarChart3 },
   { key: "keywordClusters" as const, label: "Keyword Clusters", desc: "Grupperade sökord per segment med volym, svårighet och CPC", icon: Search },
   { key: "keywordResearch" as const, label: "Keyword Research (40–60/segment)", desc: "Djup sökordsforskning: kärna, matrisexpansion och long-tail per segment", icon: Sparkles },
+  { key: "keywordUniverse" as const, label: "Keyword Universe (skalad)", desc: "Bygger fullt sökordsuniverse via 12 dimensioner: produkt × bransch × geo × problem × lösning × material …", icon: Network },
   { key: "expansion" as const, label: "Expansion — nya segment", desc: "Hittar angränsande segment med samma behov", icon: Expand },
   { key: "adsStructure" as const, label: "Google Ads-struktur", desc: "Färdiga kampanjer med annonsgrupper, match types och negativa", icon: Megaphone },
   { key: "quickWins" as const, label: "Quick Wins", desc: "Sökord med låg konkurrens och hög köpintent", icon: Zap },
   { key: "webscan" as const, label: "Webbscan av kundföretag", desc: "Skannar kunddomäner för att förstå vad de bygger och behöver", icon: Globe },
 ];
 
+const scaleOptions: { value: UniverseScale; label: string; desc: string }[] = [
+  { value: "focused", label: "Fokuserat", desc: "200–500 sökord, ~15 sek, ~5 öre" },
+  { value: "broad", label: "Brett", desc: "500–1500 sökord, ~30 sek, ~15 öre" },
+  { value: "max", label: "Maximalt", desc: "1500–4000 sökord, ~60 sek, ~40 öre" },
+];
+
 export default function StepAnalyse({ options, setOptions, hasDomainsForScan }: StepAnalyseProps) {
   const toggle = (key: keyof AnalysisOptions) => {
-    setOptions({ ...options, [key]: !options[key] });
+    if (typeof options[key] === "boolean") {
+      setOptions({ ...options, [key]: !options[key] });
+    }
   };
 
   return (
@@ -36,17 +44,18 @@ export default function StepAnalyse({ options, setOptions, hasDomainsForScan }: 
         {modules.map((m) => {
           const disabled = m.key === "webscan" && !hasDomainsForScan;
           const Icon = m.icon;
+          const checked = options[m.key] as boolean;
           return (
             <Card
               key={m.key}
               className={`cursor-pointer border-border transition-colors ${
-                options[m.key] ? "border-primary bg-primary/5" : "bg-card hover:border-muted-foreground/30"
+                checked ? "border-primary bg-primary/5" : "bg-card hover:border-muted-foreground/30"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
               onClick={() => !disabled && toggle(m.key)}
             >
               <CardContent className="flex items-start gap-3 p-4">
                 <Checkbox
-                  checked={options[m.key]}
+                  checked={checked}
                   onCheckedChange={() => !disabled && toggle(m.key)}
                   disabled={disabled}
                   className="mt-1"
@@ -64,6 +73,34 @@ export default function StepAnalyse({ options, setOptions, hasDomainsForScan }: 
           );
         })}
       </div>
+
+      {options.keywordUniverse && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Network className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Universe-skala</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Bestäm hur stort sökordsuniverse som ska byggas. Påverkar tid och DataForSEO-kostnad.</p>
+          <div className="grid gap-2 md:grid-cols-3">
+            {scaleOptions.map((s) => {
+              const active = (options.universeScale || "broad") === s.value;
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setOptions({ ...options, universeScale: s.value })}
+                  className={`text-left rounded-md border p-3 transition-colors ${
+                    active ? "border-primary bg-primary/10" : "border-border bg-card hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="text-sm font-medium">{s.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{s.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
