@@ -79,6 +79,60 @@ export type Database = {
           },
         ]
       }
+      backlink_gaps: {
+        Row: {
+          analysis_id: string
+          created_at: string
+          domain: string
+          id: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          analysis_id: string
+          created_at?: string
+          domain: string
+          id?: string
+          payload: Json
+          updated_at?: string
+        }
+        Update: {
+          analysis_id?: string
+          created_at?: string
+          domain?: string
+          id?: string
+          payload?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      content_briefs: {
+        Row: {
+          analysis_id: string
+          cluster: string
+          created_at: string
+          id: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          analysis_id: string
+          cluster: string
+          created_at?: string
+          id?: string
+          payload: Json
+          updated_at?: string
+        }
+        Update: {
+          analysis_id?: string
+          cluster?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           domain: string | null
@@ -215,6 +269,33 @@ export type Database = {
           location_code?: number
           serp_features?: Json | null
           top_domains?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_audits: {
+        Row: {
+          analysis_id: string
+          created_at: string
+          domain: string
+          id: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          analysis_id: string
+          created_at?: string
+          domain: string
+          id?: string
+          payload: Json
+          updated_at?: string
+        }
+        Update: {
+          analysis_id?: string
+          created_at?: string
+          domain?: string
+          id?: string
+          payload?: Json
           updated_at?: string
         }
         Relationships: []
