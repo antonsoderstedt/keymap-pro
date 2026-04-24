@@ -2,181 +2,133 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Download, Copy, BarChart3, Search, Expand, Megaphone, Zap, Globe, FileText, Megaphone as MegaIcon, LayoutTemplate, Network } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Download, FileText, Presentation, FileType, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import KeywordResearchSection from "@/components/results/KeywordResearchSection";
-import type { AnalysisResult, ScanData, ResearchCluster, ResearchKeyword } from "@/lib/types";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ResultsSidebar } from "@/components/results/ResultsSidebar";
+import { OverviewSection } from "@/components/results/sections/OverviewSection";
+import { SegmentsSection } from "@/components/results/sections/SegmentsSection";
+import { KeywordsSection } from "@/components/results/sections/KeywordsSection";
+import { ChannelsSection } from "@/components/results/sections/ChannelsSection";
+import { ActionSection } from "@/components/results/sections/ActionSection";
+import { DIMENSION_LABELS, INTENT_LABELS } from "@/components/results/KeywordTable";
+import type { AnalysisResult, KeywordUniverse, UniverseKeyword } from "@/lib/types";
 
 export default function Results() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [scanData, setScanData] = useState<ScanData[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [universe, setUniverse] = useState<KeywordUniverse | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
-  const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<"pptx" | "pdf" | null>(null);
 
   useEffect(() => {
-    loadResults();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const loadResults = async () => {
+  const load = async () => {
+    setLoading(true);
     const { data: project } = await supabase.from("projects").select("name").eq("id", id!).single();
     if (project) setProjectName((project as any).name);
 
     const { data, error } = await supabase
       .from("analyses")
-      .select("*")
+      .select("id, result_json, keyword_universe_json")
       .eq("project_id", id!)
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
 
     if (error || !data) {
-      toast({ title: "Inga resultat", description: "Ingen analys hittad för detta projekt.", variant: "destructive" });
+      toast({ title: "Inga resultat", description: "Ingen analys hittad för projektet.", variant: "destructive" });
       setLoading(false);
       return;
     }
 
+    setAnalysisId((data as any).id);
     setResult((data as any).result_json as AnalysisResult);
-    setScanData((data as any).scan_data_json as ScanData[] | null);
+    setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
     setLoading(false);
   };
 
-  const exportKeywordsCSV = () => {
-    if (!result) return;
-    const rows = [["Kategori", "Sökord", "Kanal", "Intent", "Volym", "Svårighet", "CPC"]];
-    result.keywords?.forEach((cluster) => {
-      cluster.keywords.forEach((kw) => {
-        rows.push([cluster.cluster, kw.keyword, kw.channel, kw.type, kw.volumeEstimate, kw.difficulty, kw.cpc]);
-      });
-    });
-    downloadCSV(rows, "keymap-keywords.csv");
-  };
-
-  const exportAdsCSV = () => {
-    if (!result) return;
-    const rows = [["Kampanj", "Segment", "Annonsgrupp", "Match Type", "Sökord"]];
-    result.adsStructure?.forEach((campaign) => {
-      campaign.adGroups.forEach((ag) => {
-        ag.broadMatch.forEach((kw) => rows.push([campaign.campaignName, campaign.segment, ag.name, "Broad", kw]));
-        ag.phraseMatch.forEach((kw) => rows.push([campaign.campaignName, campaign.segment, ag.name, "Phrase", kw]));
-        ag.exactMatch.forEach((kw) => rows.push([campaign.campaignName, campaign.segment, ag.name, "Exact", kw]));
-        ag.negatives.forEach((kw) => rows.push([campaign.campaignName, campaign.segment, ag.name, "Negative", kw]));
-      });
-    });
-    downloadCSV(rows, "keymap-ads-structure.csv");
-  };
-
-  // === Keyword Research exports ===
-  const cpcToMaxBid = (cpc: string) => cpc === "Hög" ? "50" : cpc === "Medium" ? "25" : "10";
-
-  const getResearchKeywords = (): { cluster: ResearchCluster; keyword: ResearchKeyword; clusterIdx: number; rowIdx: number }[] => {
-    if (!result?.keywordResearch) return [];
-    const all: any[] = [];
-    result.keywordResearch.forEach((c, ci) => {
-      c.keywords.forEach((k, ki) => all.push({ cluster: c, keyword: k, clusterIdx: ci, rowIdx: ki }));
-    });
-    if (selectedKeywords.size > 0) {
-      return all.filter((x) => selectedKeywords.has(`${x.clusterIdx}::${x.rowIdx}`));
-    }
-    // If no selection, default to keywords with real volume > 0 (or all if no real data)
-    const hasReal = all.some((x) => x.keyword.dataSource === "real");
-    if (hasReal) return all.filter((x) => x.keyword.dataSource !== "real" || (x.keyword.realVolume || 0) > 0);
-    return all;
-  };
-
-  const volumeDisplay = (k: ResearchKeyword) =>
-    k.dataSource === "real" ? String(k.realVolume ?? 0) : k.volume;
-
-  const cpcDisplay = (k: ResearchKeyword) =>
-    k.dataSource === "real" && k.realCpc != null ? k.realCpc.toFixed(2) : k.cpc;
-
-  const exportSeoCSV = () => {
-    const items = getResearchKeywords();
-    if (items.length === 0) {
-      toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
-      return;
-    }
-    const rows = [["Sökord", "Kluster", "Kategori", "Intent", "Volym/mån", "CPC (SEK)", "Datakälla", "Rekommenderad sidtitel"]];
-    items.forEach(({ cluster, keyword }) => {
-      rows.push([
-        keyword.keyword, cluster.cluster, keyword.category, keyword.intent,
-        volumeDisplay(keyword), cpcDisplay(keyword),
-        keyword.dataSource === "real" ? "DataForSEO" : "Uppskattad",
-        cluster.recommendedH1,
-      ]);
-    });
-    downloadCSV(rows, "keymap-seo.csv");
-    toast({ title: "SEO-export klar", description: `${items.length} sökord exporterade` });
-  };
-
-  const exportAdsResearchCSV = () => {
-    const items = getResearchKeywords();
-    if (items.length === 0) {
-      toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
-      return;
-    }
-    const rows = [["Kampanj", "Annonsgrupp", "Sökord", "Match Type", "Volym/mån", "Max CPC (SEK)"]];
-    items.forEach(({ cluster, keyword }) => {
-      // Use real CPC * 1.2 as max bid if available, else fall back to bucket
-      const maxBid = keyword.dataSource === "real" && keyword.realCpc != null
-        ? (keyword.realCpc * 1.2).toFixed(2)
-        : cpcToMaxBid(keyword.cpc);
-      rows.push([cluster.segment, cluster.cluster, keyword.keyword, "Phrase", volumeDisplay(keyword), maxBid]);
-    });
-    downloadCSV(rows, "keymap-google-ads.csv");
-    toast({ title: "Ads-export klar", description: `${items.length} sökord exporterade` });
-  };
-
-  const exportLandingCSV = () => {
-    if (!result?.keywordResearch?.length) {
-      toast({ title: "Inga kluster", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
-      return;
-    }
-    const rows = [["Kluster", "Segment", "H1", "Meta description", "URL-slug", "Antal sökord", "Total volym/mån"]];
-    result.keywordResearch.forEach((c) => {
-      const totalVol = (c.keywords || []).reduce((s, k) => s + (k.realVolume || 0), 0);
-      rows.push([c.cluster, c.segment, c.recommendedH1, c.metaDescription, c.urlSlug, String(c.keywords?.length || 0), String(totalVol)]);
-    });
-    downloadCSV(rows, "keymap-landningssidor.csv");
-    toast({ title: "Landningssidor-export klar", description: `${result.keywordResearch.length} kluster exporterade` });
-  };
-
   const downloadCSV = (rows: string[][], filename: string) => {
-    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const csv = rows.map((r) => r.map((c) => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
   };
 
-  const copyJSON = () => {
-    if (!result) return;
-    navigator.clipboard.writeText(JSON.stringify(result, null, 2));
-    toast({ title: "Kopierat!", description: "JSON kopierat till urklipp" });
+  const exportUniverseCsv = (filtered: UniverseKeyword[]) => {
+    if (filtered.length === 0) {
+      toast({ title: "Inga sökord", description: "Filtret matchar inga sökord.", variant: "destructive" });
+      return;
+    }
+    const rows = [["Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal", "Volym/mån", "CPC (SEK)", "Konkurrens", "KD%", "Konkurrent-gap", "Datakälla", "Landningssida", "Annonsgrupp", "Contentidé", "Negativt"]];
+    filtered.forEach((k) => {
+      rows.push([
+        k.keyword, k.cluster, DIMENSION_LABELS[k.dimension] || k.dimension,
+        INTENT_LABELS[k.intent] || k.intent, k.funnelStage, k.priority, k.channel,
+        k.searchVolume?.toString() ?? "", k.cpc?.toFixed(2) ?? "", k.competition?.toFixed(2) ?? "",
+        k.kd != null ? Math.round(k.kd).toString() : "",
+        k.competitorGap ? "Ja" : "",
+        k.dataSource === "real" ? "DataForSEO" : "Uppskattad",
+        k.recommendedLandingPage ?? "", k.recommendedAdGroup ?? "", k.contentIdea ?? "",
+        k.isNegative ? "Ja" : "",
+      ]);
+    });
+    downloadCSV(rows, "keymap-universe.csv");
+    toast({ title: "Export klar", description: `${filtered.length} sökord` });
+  };
+
+  const exportPresentation = async (format: "pptx" | "pdf") => {
+    if (!analysisId) return;
+    setExporting(format);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-presentation", {
+        body: { analysis_id: analysisId, format },
+      });
+      if (error) throw error;
+      const base64 = (data as any)?.file;
+      if (!base64) throw new Error("Inget filinnehåll returnerades");
+      const bin = atob(base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const mime = format === "pptx"
+        ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        : "application/pdf";
+      const blob = new Blob([bytes], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${projectName.replace(/[^a-z0-9-]+/gi, "-").toLowerCase() || "keymap"}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Presentation klar", description: `Filen ${format.toUpperCase()} har laddats ner.` });
+    } catch (e: any) {
+      toast({ title: "Export misslyckades", description: e.message || "Försök igen.", variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
   };
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 rounded-full bg-primary animate-pulse-glow" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!result) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
         <p className="text-muted-foreground">Inga resultat hittade.</p>
         <Button onClick={() => navigate(`/project/${id}`)} variant="outline">Tillbaka till projektet</Button>
       </div>
@@ -185,62 +137,64 @@ export default function Results() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-6 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-4">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-6 py-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate(`/project/${id}`)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              <h1 className="font-serif text-xl">{projectName}</h1>
-              <p className="text-xs text-muted-foreground">{result.totalKeywords} sökord • {result.segments?.length || 0} segment</p>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight">{projectName || "Projekt"}</h1>
+              <p className="truncate text-xs text-muted-foreground">
+                {result.totalKeywords?.toLocaleString("sv-SE") ?? 0} sökord
+                {result.segments?.length ? ` • ${result.segments.length} segment` : ""}
+                {universe ? ` • ${universe.totalEnriched} berikade` : ""}
+              </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/project/${id}/results/universe`)} className="gap-2">
-              <Network className="h-3 w-3" />
-              Keyword Universe
-            </Button>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="default" size="sm" className="gap-2">
-                  <Download className="h-3 w-3" />
-                  Exportera
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" /> Exportera
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuLabel className="text-xs">Keyword Research</DropdownMenuLabel>
-                <DropdownMenuItem onClick={exportSeoCSV} className="gap-2 cursor-pointer">
-                  <FileText className="h-3.5 w-3.5 text-primary" />
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="text-xs">Presentation (rekommenderas)</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => exportPresentation("pptx")}
+                  disabled={!!exporting}
+                  className="cursor-pointer gap-3"
+                >
+                  {exporting === "pptx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Presentation className="h-4 w-4 text-primary" />}
                   <div className="flex-1">
-                    <div className="text-sm">SEO Export</div>
-                    <div className="text-xs text-muted-foreground">Sökord, kluster, sidtitel</div>
+                    <div className="text-sm font-medium">PowerPoint (.pptx)</div>
+                    <div className="text-xs text-muted-foreground">Redigerbar slide-deck för kundmöte</div>
                   </div>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportAdsResearchCSV} className="gap-2 cursor-pointer">
-                  <MegaIcon className="h-3.5 w-3.5 text-primary" />
+                <DropdownMenuItem
+                  onClick={() => exportPresentation("pdf")}
+                  disabled={!!exporting}
+                  className="cursor-pointer gap-3"
+                >
+                  {exporting === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileType className="h-4 w-4 text-primary" />}
                   <div className="flex-1">
-                    <div className="text-sm">Google Ads Export</div>
-                    <div className="text-xs text-muted-foreground">Kampanj, annonsgrupp, max CPC</div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportLandingCSV} className="gap-2 cursor-pointer">
-                  <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
-                  <div className="flex-1">
-                    <div className="text-sm">Landningssidor Export</div>
-                    <div className="text-xs text-muted-foreground">H1, meta, slug per kluster</div>
+                    <div className="text-sm font-medium">PDF</div>
+                    <div className="text-xs text-muted-foreground">Låst layout, perfekt att dela</div>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs">Klassisk</DropdownMenuLabel>
-                <DropdownMenuItem onClick={exportKeywordsCSV} className="gap-2 cursor-pointer">
-                  <Download className="h-3.5 w-3.5" /><span className="text-sm">Keywords CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportAdsCSV} className="gap-2 cursor-pointer">
-                  <Download className="h-3.5 w-3.5" /><span className="text-sm">Ads-struktur CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={copyJSON} className="gap-2 cursor-pointer">
-                  <Copy className="h-3.5 w-3.5" /><span className="text-sm">Kopiera JSON</span>
+                <DropdownMenuLabel className="text-xs">Rådata</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => universe && exportUniverseCsv(universe.keywords)}
+                  disabled={!universe}
+                  className="cursor-pointer gap-3"
+                >
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-sm">Hela universumet (CSV)</div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -248,243 +202,29 @@ export default function Results() {
         </div>
       </header>
 
-      {/* Summary */}
-      <div className="border-b border-border px-6 py-4">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-sm text-muted-foreground">{result.summary}</p>
-        </div>
-      </div>
+      <div className="mx-auto flex max-w-[1400px] gap-8 px-6 py-8">
+        <ResultsSidebar />
 
-      <main className="mx-auto max-w-7xl px-6 py-6">
-        <Tabs defaultValue="segments">
-          <TabsList className="mb-6">
-            <TabsTrigger value="segments" className="gap-2"><BarChart3 className="h-3 w-3" />Segment</TabsTrigger>
-            <TabsTrigger value="keywords" className="gap-2"><Search className="h-3 w-3" />Keywords</TabsTrigger>
-            <TabsTrigger value="expansion" className="gap-2"><Expand className="h-3 w-3" />Expansion</TabsTrigger>
-            <TabsTrigger value="ads" className="gap-2"><Megaphone className="h-3 w-3" />Google Ads</TabsTrigger>
-            <TabsTrigger value="quickwins" className="gap-2"><Zap className="h-3 w-3" />Quick Wins</TabsTrigger>
-            {scanData && <TabsTrigger value="webscan" className="gap-2"><Globe className="h-3 w-3" />Webbscan</TabsTrigger>}
-          </TabsList>
-
-          {/* Segments */}
-          <TabsContent value="segments">
-            <div className="grid gap-4 md:grid-cols-2">
-              {result.segments?.map((seg, i) => (
-                <Card key={i} className="border-border bg-card">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="font-serif text-lg">{seg.name}</CardTitle>
-                      <Badge variant={seg.opportunityScore >= 7 ? "default" : "secondary"}>
-                        Score: {seg.opportunityScore}/10
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2 text-xs text-muted-foreground">
-                      <span>SNI: {seg.sniCode}</span>
-                      <span>•</span>
-                      <span>{seg.size} företag</span>
-                      {seg.isNew && <Badge variant="outline" className="text-primary border-primary">Ny</Badge>}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-xs">
-                    <div>
-                      <p className="text-muted-foreground mb-1">Hur de söker:</p>
-                      <div className="flex flex-wrap gap-1">{seg.howTheySearch?.map((s, j) => <Badge key={j} variant="outline">{s}</Badge>)}</div>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">Språkmönster:</p>
-                      <div className="flex flex-wrap gap-1">{seg.languagePatterns?.map((s, j) => <Badge key={j} variant="secondary">{s}</Badge>)}</div>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">Use cases:</p>
-                      <ul className="list-disc pl-4">{seg.useCases?.map((s, j) => <li key={j}>{s}</li>)}</ul>
-                    </div>
-                    <p className="text-muted-foreground italic">{seg.insight}</p>
-                    {seg.primaryKeywords?.length > 0 && (
-                      <Table>
-                        <TableHeader><TableRow>
-                          <TableHead className="text-xs">Sökord</TableHead><TableHead className="text-xs">Kanal</TableHead><TableHead className="text-xs">Volym</TableHead><TableHead className="text-xs">Intent</TableHead>
-                        </TableRow></TableHeader>
-                        <TableBody>{seg.primaryKeywords.map((kw, j) => (
-                          <TableRow key={j}>
-                            <TableCell className="font-mono">{kw.keyword}</TableCell>
-                            <TableCell>{kw.channel}</TableCell>
-                            <TableCell>{kw.volumeEstimate}</TableCell>
-                            <TableCell><Badge variant="outline">{kw.intent}</Badge></TableCell>
-                          </TableRow>
-                        ))}</TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Keyword Research section under segment cards */}
-            {result.keywordResearch && result.keywordResearch.length > 0 && (
-              <div className="mt-6">
-                <KeywordResearchSection
-                  clusters={result.keywordResearch}
-                  selectedKeywords={selectedKeywords}
-                  setSelectedKeywords={setSelectedKeywords}
-                />
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Keywords */}
-          <TabsContent value="keywords">
-            <div className="space-y-6">
-              {result.keywords?.map((cluster, i) => (
-                <Card key={i} className="border-border bg-card">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="font-serif text-lg">{cluster.cluster}</CardTitle>
-                    <p className="text-xs text-muted-foreground">Segment: {cluster.segment}</p>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader><TableRow>
-                        <TableHead>Sökord</TableHead><TableHead>Typ</TableHead><TableHead>Kanal</TableHead><TableHead>Volym</TableHead><TableHead>Svårighet</TableHead><TableHead>CPC</TableHead>
-                      </TableRow></TableHeader>
-                      <TableBody>{cluster.keywords.map((kw, j) => (
-                        <TableRow key={j}>
-                          <TableCell className="font-mono text-sm">{kw.keyword}</TableCell>
-                          <TableCell><Badge variant="outline">{kw.type}</Badge></TableCell>
-                          <TableCell>{kw.channel}</TableCell>
-                          <TableCell>{kw.volumeEstimate}</TableCell>
-                          <TableCell>{kw.difficulty}</TableCell>
-                          <TableCell>{kw.cpc}</TableCell>
-                        </TableRow>
-                      ))}</TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Expansion */}
-          <TabsContent value="expansion">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {result.expansion?.map((exp, i) => (
-                <Card key={i} className="border-border bg-card">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="font-serif text-lg">{exp.name}</CardTitle>
-                      <Badge>{exp.opportunityScore}/10</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">SNI: {exp.sniCode}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-xs">
-                    <p>{exp.why}</p>
-                    <div>
-                      <p className="text-muted-foreground mb-1">Språk:</p>
-                      <div className="flex flex-wrap gap-1">{exp.language?.map((l, j) => <Badge key={j} variant="secondary">{l}</Badge>)}</div>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">Top sökord:</p>
-                      <div className="flex flex-wrap gap-1">{exp.topKeywords?.map((kw, j) => <Badge key={j} variant="outline" className="font-mono">{kw}</Badge>)}</div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Google Ads */}
-          <TabsContent value="ads">
-            <div className="space-y-6">
-              {result.adsStructure?.map((campaign, i) => (
-                <Card key={i} className="border-border bg-card">
-                  <CardHeader>
-                    <CardTitle className="font-serif text-lg">{campaign.campaignName}</CardTitle>
-                    <p className="text-xs text-muted-foreground">Segment: {campaign.segment}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {campaign.adGroups.map((ag, j) => (
-                      <div key={j} className="rounded border border-border p-3">
-                        <h4 className="text-sm font-medium mb-2">{ag.name}</h4>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {ag.broadMatch?.length > 0 && (
-                            <div><p className="text-xs text-muted-foreground mb-1">Broad Match:</p>
-                              <div className="flex flex-wrap gap-1">{ag.broadMatch.map((kw, k) => <Badge key={k} variant="outline" className="font-mono text-xs">{kw}</Badge>)}</div>
-                            </div>
-                          )}
-                          {ag.phraseMatch?.length > 0 && (
-                            <div><p className="text-xs text-muted-foreground mb-1">Phrase Match:</p>
-                              <div className="flex flex-wrap gap-1">{ag.phraseMatch.map((kw, k) => <Badge key={k} variant="secondary" className="font-mono text-xs">"{kw}"</Badge>)}</div>
-                            </div>
-                          )}
-                          {ag.exactMatch?.length > 0 && (
-                            <div><p className="text-xs text-muted-foreground mb-1">Exact Match:</p>
-                              <div className="flex flex-wrap gap-1">{ag.exactMatch.map((kw, k) => <Badge key={k} className="font-mono text-xs">[{kw}]</Badge>)}</div>
-                            </div>
-                          )}
-                          {ag.negatives?.length > 0 && (
-                            <div><p className="text-xs text-muted-foreground mb-1">Negativa:</p>
-                              <div className="flex flex-wrap gap-1">{ag.negatives.map((kw, k) => <Badge key={k} variant="destructive" className="font-mono text-xs">-{kw}</Badge>)}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Quick Wins */}
-          <TabsContent value="quickwins">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {result.quickWins?.map((qw, i) => (
-                <Card key={i} className="border-border bg-card">
-                  <CardContent className="p-4 space-y-2">
-                    <p className="font-mono text-sm font-medium text-primary">{qw.keyword}</p>
-                    <p className="text-xs text-muted-foreground">{qw.reason}</p>
-                    <div className="flex items-center gap-2 text-xs">
-                      <Badge variant="outline">{qw.channel}</Badge>
-                      <Badge variant="secondary">{qw.intent}</Badge>
-                      <span className="text-muted-foreground">{qw.volumeEstimate}</span>
-                    </div>
-                    <p className="text-xs text-foreground border-t border-border pt-2 mt-2">→ {qw.action}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Webscan */}
-          {scanData && (
-            <TabsContent value="webscan">
-              <div className="grid gap-4 md:grid-cols-2">
-                {scanData.map((scan, i) => (
-                  <Card key={i} className="border-border bg-card">
-                    <CardHeader>
-                      <CardTitle className="font-serif text-lg">{scan.company}</CardTitle>
-                      <p className="text-xs text-muted-foreground font-mono">{scan.domain}</p>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-xs">
-                      <div><p className="text-muted-foreground">Vad de gör:</p><p>{scan.whatTheyDo}</p></div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Språk de använder:</p>
-                        <div className="flex flex-wrap gap-1">{scan.languageTheyUse?.map((s, j) => <Badge key={j} variant="secondary">{s}</Badge>)}</div>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Troliga behov:</p>
-                        <ul className="list-disc pl-4">{scan.likelyNeeds?.map((s, j) => <li key={j}>{s}</li>)}</ul>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Sökintent-hints:</p>
-                        <div className="flex flex-wrap gap-1">{scan.searchIntentHints?.map((s, j) => <Badge key={j} variant="outline" className="font-mono">{s}</Badge>)}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
+        <main className="min-w-0 flex-1 space-y-16 animate-fade-in">
+          <OverviewSection result={result} universe={universe} />
+          {result.segments?.length > 0 && <SegmentsSection segments={result.segments} />}
+          {universe ? (
+            <>
+              <KeywordsSection universe={universe} onExportCsv={exportUniverseCsv} />
+              <ChannelsSection universe={universe} projectId={id!} analysisId={analysisId} />
+              <ActionSection result={result} universe={universe} projectId={id!} analysisId={analysisId} />
+            </>
+          ) : (
+            <section className="rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
+              <p className="font-semibold">Keyword Universe saknas</p>
+              <p className="mt-1 text-sm text-muted-foreground">Generera ett universe för att låsa upp sektionerna Sökord, Kanaler och Action.</p>
+              <Button className="mt-4" onClick={() => navigate(`/project/${id}/results/universe`)}>
+                Generera Keyword Universe
+              </Button>
+            </section>
           )}
-        </Tabs>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
