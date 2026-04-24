@@ -8,35 +8,40 @@ const corsHeaders = {
 
 function extractJson(raw: string): any {
   if (!raw || typeof raw !== "string") throw new Error("Empty AI content");
-  // Strip markdown fences
+
   let s = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  // Slice from first { or [ to last } or ]
   const firstObj = s.indexOf("{");
   const firstArr = s.indexOf("[");
   let start = -1;
+
   if (firstObj === -1) start = firstArr;
   else if (firstArr === -1) start = firstObj;
   else start = Math.min(firstObj, firstArr);
+
   if (start === -1) throw new Error("No JSON found");
+
   const isObj = s[start] === "{";
   const lastClose = isObj ? s.lastIndexOf("}") : s.lastIndexOf("]");
   if (lastClose > start) s = s.slice(start, lastClose + 1);
   else s = s.slice(start);
 
-  // Try direct
-  try { return JSON.parse(s); } catch {}
+  try {
+    return JSON.parse(s);
+  } catch {}
 
-  // Light cleanup: trailing commas + control chars
-  let cleaned = s
+  const cleaned = s
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
-  try { return JSON.parse(cleaned); } catch {}
 
-  // Repair truncation: balance braces/brackets while respecting strings
-  let inStr = false, esc = false;
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  let inStr = false;
+  let esc = false;
   const stack: string[] = [];
-  let lastSafe = -1;
+
   for (let i = 0; i < cleaned.length; i++) {
     const ch = cleaned[i];
     if (inStr) {
@@ -45,63 +50,92 @@ function extractJson(raw: string): any {
       else if (ch === '"') inStr = false;
       continue;
     }
+
     if (ch === '"') inStr = true;
-    else if (ch === "{" ) stack.push("}");
+    else if (ch === "{") stack.push("}");
     else if (ch === "[") stack.push("]");
     else if (ch === "}" || ch === "]") stack.pop();
-    if (!inStr && stack.length === 0) lastSafe = i;
   }
+
   let repaired = cleaned;
   if (inStr) repaired += '"';
-  // Drop trailing partial token after last comma/colon if needed
   repaired = repaired.replace(/[,:\s]+$/g, "");
   while (stack.length) repaired += stack.pop();
+
   return JSON.parse(repaired);
 }
 
+function buildFailureResult(message: string) {
+  return {
+    summary: "",
+    totalKeywords: 0,
+    segments: [],
+    keywords: [],
+    expansion: [],
+    adsStructure: [],
+    quickWins: [],
+    __error: message,
+  };
+}
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+async function runAnalysisJob({
+  projectId,
+  options,
+  analysisId,
+  supabaseUrl,
+  supabaseKey,
+  lovableApiKey,
+}: {
+  projectId: string;
+  options: Record<string, unknown>;
+  analysisId: string;
+  supabaseUrl: string;
+  supabaseKey: string;
+  lovableApiKey: string;
+}) {
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { project_id, options } = await req.json();
-    if (!project_id) throw new Error("project_id is required");
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get project
-    const { data: project, error: pErr } = await supabase.from("projects").select("*").eq("id", project_id).single();
+    const { data: project, error: pErr } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("id", projectId)
+      .single();
     if (pErr || !project) throw new Error("Project not found");
 
-    // Get customers
-    const { data: customers } = await supabase.from("customers").select("*").eq("project_id", project_id).limit(20);
+    const { data: customers } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("project_id", projectId)
+      .limit(20);
 
-    // Check for existing scan data
     let scanContext = "";
     if (options?.webscan) {
       const { data: latestAnalysis } = await supabase
         .from("analyses")
         .select("scan_data_json")
-        .eq("project_id", project_id)
+        .eq("project_id", projectId)
         .not("scan_data_json", "is", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
+
       if (latestAnalysis?.scan_data_json) {
         scanContext = `\n\nWebbscan-data från kundföretag:\n${JSON.stringify(latestAnalysis.scan_data_json)}`;
       }
     }
 
-    const customerSummary = (customers || []).map((c: any) =>
-      `${c.name} | ${c.industry || "?"} | SNI: ${c.sni || "?"} | ${c.domain || "?"} | Oms: ${c.revenue || "?"} | Frekvens: ${c.frequency || "?"} | Produkter: ${c.products || "?"}`
-    ).join("\n");
+    const customerSummary = (customers || [])
+      .map(
+        (c: any) =>
+          `${c.name} | ${c.industry || "?"} | SNI: ${c.sni || "?"} | ${c.domain || "?"} | Oms: ${c.revenue || "?"} | Frekvens: ${c.frequency || "?"} | Produkter: ${c.products || "?"}`,
+      )
+      .join("\n");
 
-    const enabledModules = Object.entries(options || {}).filter(([_, v]) => v).map(([k]) => k).join(", ");
+    const enabledModules = Object.entries(options || {})
+      .filter(([_, value]) => value)
+      .map(([key]) => key)
+      .join(", ");
 
     const systemPrompt = `Du är en senior SEO- och Google Ads-strateg för den svenska B2B-marknaden. Analysera kunddata och returnera ENBART ett JSON-objekt utan backticks. Tänk som en analytiker: förstå varje bransch inifrån, hur de söker, vilket språk de använder om sina behov och problem.
 
@@ -139,7 +173,7 @@ ${scanContext}`;
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${lovableApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -155,16 +189,8 @@ ${scanContext}`;
     if (!response.ok) {
       const errText = await response.text();
       console.error("AI gateway error:", response.status, errText);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "AI rate limit nått. Försök igen om en stund." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI-krediter slut. Lägg till krediter i Settings → Workspace → Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (response.status === 429) throw new Error("AI rate limit nått. Försök igen om en stund.");
+      if (response.status === 402) throw new Error("AI-krediter slut. Lägg till krediter i Settings → Workspace → Usage.");
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
@@ -172,17 +198,15 @@ ${scanContext}`;
     const content = aiData.choices?.[0]?.message?.content;
     if (!content) throw new Error("No content from AI");
 
-    // Parse JSON from response (robust: strip markdown, slice to braces, repair truncation)
     let resultJson;
     try {
       resultJson = extractJson(content);
-    } catch (e) {
+    } catch {
       console.error("Failed to parse AI response (first 500 chars):", String(content).slice(0, 500));
       console.error("...last 500 chars:", String(content).slice(-500));
       throw new Error("AI returnerade ogiltigt JSON-format");
     }
 
-    // === Keyword Research Pass (per segment) ===
     if (options?.keywordResearch && Array.isArray(resultJson?.segments)) {
       console.log(`Running keyword research for ${resultJson.segments.length} segments...`);
 
@@ -228,13 +252,13 @@ ${scanContext}`;
       };
 
       const allClusters: any[] = [];
-
-      // Process segments in parallel batches of 2 to balance speed and rate limits
       const segments = resultJson.segments.slice(0, 6);
+
       for (let i = 0; i < segments.length; i += 2) {
         const batch = segments.slice(i, i + 2);
-        const batchResults = await Promise.all(batch.map(async (seg: any) => {
-          const researchPrompt = `Du är en SEO- och Google Ads-strateg specialiserad på svensk B2B. Generera 40–60 sökord för segmentet "${seg.name}" (SNI ${seg.sniCode}) i tre logiska pass:
+        const batchResults = await Promise.all(
+          batch.map(async (seg: any) => {
+            const researchPrompt = `Du är en SEO- och Google Ads-strateg specialiserad på svensk B2B. Generera 40–60 sökord för segmentet "${seg.name}" (SNI ${seg.sniCode}) i tre logiska pass:
 
 PASS 1 — KÄRNSÖKORD (8-12 termer)
 Tjänstenamn, produktnamn och branschtermer. Utgå från:
@@ -269,49 +293,50 @@ INSTRUKTIONER:
 
 Returnera 3-6 kluster där summan av sökord är 40-60.`;
 
-          try {
-            const researchRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash",
-                messages: [
-                  { role: "system", content: "Du är en senior SEO/Ads-strateg. Använd verktyget för att returnera strukturerad keyword research." },
-                  { role: "user", content: researchPrompt },
-                ],
-                tools: [{
-                  type: "function",
-                  function: {
-                    name: "submit_keyword_research",
-                    description: "Submit clustered keyword research for a segment",
-                    parameters: researchSchema,
-                  },
-                }],
-                tool_choice: { type: "function", function: { name: "submit_keyword_research" } },
-              }),
-            });
+            try {
+              const researchRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${lovableApiKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash",
+                  messages: [
+                    { role: "system", content: "Du är en senior SEO/Ads-strateg. Använd verktyget för att returnera strukturerad keyword research." },
+                    { role: "user", content: researchPrompt },
+                  ],
+                  tools: [{
+                    type: "function",
+                    function: {
+                      name: "submit_keyword_research",
+                      description: "Submit clustered keyword research for a segment",
+                      parameters: researchSchema,
+                    },
+                  }],
+                  tool_choice: { type: "function", function: { name: "submit_keyword_research" } },
+                }),
+              });
 
-            if (!researchRes.ok) {
-              console.error(`Research failed for segment ${seg.name}:`, researchRes.status);
+              if (!researchRes.ok) {
+                console.error(`Research failed for segment ${seg.name}:`, researchRes.status);
+                return [];
+              }
+
+              const data = await researchRes.json();
+              const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+              if (!toolCall?.function?.arguments) return [];
+
+              const parsed = JSON.parse(toolCall.function.arguments);
+              const clusters = (parsed.clusters || []).map((cluster: any) => ({ ...cluster, segment: seg.name }));
+              console.log(`Segment "${seg.name}": ${clusters.length} clusters, ${clusters.reduce((sum: number, cluster: any) => sum + (cluster.keywords?.length || 0), 0)} keywords`);
+              return clusters;
+            } catch (error) {
+              console.error(`Research error for segment ${seg.name}:`, error);
               return [];
             }
-
-            const data = await researchRes.json();
-            const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-            if (!toolCall?.function?.arguments) return [];
-
-            const parsed = JSON.parse(toolCall.function.arguments);
-            const clusters = (parsed.clusters || []).map((c: any) => ({ ...c, segment: seg.name }));
-            console.log(`Segment "${seg.name}": ${clusters.length} clusters, ${clusters.reduce((s: number, c: any) => s + (c.keywords?.length || 0), 0)} keywords`);
-            return clusters;
-          } catch (err) {
-            console.error(`Research error for segment ${seg.name}:`, err);
-            return [];
-          }
-        }));
+          }),
+        );
 
         batchResults.forEach((clusters) => allClusters.push(...clusters));
       }
@@ -319,18 +344,21 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
       resultJson.keywordResearch = allClusters;
       console.log(`Total: ${allClusters.length} clusters across all segments`);
 
-      // === Enrich with real DataForSEO metrics ===
       try {
-        const allKeywords = Array.from(new Set(
-          allClusters.flatMap((c: any) => (c.keywords || []).map((k: any) => String(k.keyword || "").toLowerCase().trim())).filter(Boolean)
-        ));
+        const allKeywords = Array.from(
+          new Set(
+            allClusters
+              .flatMap((cluster: any) => (cluster.keywords || []).map((keyword: any) => String(keyword.keyword || "").toLowerCase().trim()))
+              .filter(Boolean),
+          ),
+        );
 
         if (allKeywords.length > 0) {
           console.log(`Enriching ${allKeywords.length} unique keywords with DataForSEO...`);
           const enrichRes = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${supabaseKey}`,
+              Authorization: `Bearer ${supabaseKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ keywords: allKeywords }),
@@ -340,37 +368,34 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
             const { metrics } = await enrichRes.json();
             const metricsMap: Record<string, any> = metrics || {};
 
-            // Merge metrics into each keyword
             allClusters.forEach((cluster: any) => {
-              cluster.keywords = (cluster.keywords || []).map((k: any) => {
-                const key = String(k.keyword || "").toLowerCase().trim();
-                const m = metricsMap[key];
-                if (m && m.search_volume != null) {
+              cluster.keywords = (cluster.keywords || []).map((keyword: any) => {
+                const key = String(keyword.keyword || "").toLowerCase().trim();
+                const metric = metricsMap[key];
+                if (metric && metric.search_volume != null) {
                   return {
-                    ...k,
-                    realVolume: m.search_volume,
-                    realCpc: m.cpc_sek,
-                    competition: m.competition,
+                    ...keyword,
+                    realVolume: metric.search_volume,
+                    realCpc: metric.cpc_sek,
+                    competition: metric.competition,
                     dataSource: "real",
                   };
                 }
-                return { ...k, dataSource: "estimated" };
+                return { ...keyword, dataSource: "estimated" };
               });
             });
 
-            // Sort clusters by total real volume (desc)
             allClusters.sort((a: any, b: any) => {
-              const sumA = (a.keywords || []).reduce((s: number, k: any) => s + (k.realVolume || 0), 0);
-              const sumB = (b.keywords || []).reduce((s: number, k: any) => s + (k.realVolume || 0), 0);
+              const sumA = (a.keywords || []).reduce((sum: number, keyword: any) => sum + (keyword.realVolume || 0), 0);
+              const sumB = (b.keywords || []).reduce((sum: number, keyword: any) => sum + (keyword.realVolume || 0), 0);
               return sumB - sumA;
             });
 
-            // Sort keywords within cluster by volume desc
-            allClusters.forEach((c: any) => {
-              c.keywords.sort((a: any, b: any) => (b.realVolume || 0) - (a.realVolume || 0));
+            allClusters.forEach((cluster: any) => {
+              cluster.keywords.sort((a: any, b: any) => (b.realVolume || 0) - (a.realVolume || 0));
             });
 
-            const enrichedCount = allClusters.flatMap((c: any) => c.keywords).filter((k: any) => k.dataSource === "real").length;
+            const enrichedCount = allClusters.flatMap((cluster: any) => cluster.keywords).filter((keyword: any) => keyword.dataSource === "real").length;
             console.log(`Enrichment complete: ${enrichedCount}/${allKeywords.length} got real data`);
           } else {
             console.error("Enrichment failed:", enrichRes.status, await enrichRes.text());
@@ -381,7 +406,6 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
       }
     }
 
-    // === Keyword Universe (skalad sökordsanalys) ===
     let keywordUniverse: any = null;
     if (options?.keywordUniverse) {
       const scale = options.universeScale || "broad";
@@ -391,57 +415,132 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
           console.log(`[analyse] running keyword-universe (scale=${scale}) attempt ${attempt}/${maxAttempts}`);
           const uniRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ project_id, scale }),
+            headers: {
+              Authorization: `Bearer ${supabaseKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ project_id: projectId, scale }),
           });
+
           if (uniRes.ok) {
-            const j = await uniRes.json();
-            keywordUniverse = j.universe || null;
+            const payload = await uniRes.json();
+            keywordUniverse = payload.universe || null;
             console.log(`[analyse] universe: ${keywordUniverse?.totalKeywords} kw, ${keywordUniverse?.totalEnriched} berikade`);
             break;
           }
-          const txt = await uniRes.text();
-          console.error(`[analyse] universe failed (attempt ${attempt})`, uniRes.status, txt);
-          // Retry on transient errors
+
+          const text = await uniRes.text();
+          console.error(`[analyse] universe failed (attempt ${attempt})`, uniRes.status, text);
           if ([429, 500, 502, 503, 504].includes(uniRes.status) && attempt < maxAttempts) {
-            await new Promise((r) => setTimeout(r, 2000 * attempt));
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
             continue;
           }
           break;
-        } catch (e) {
-          console.error(`[analyse] universe error (attempt ${attempt})`, e);
+        } catch (error) {
+          console.error(`[analyse] universe error (attempt ${attempt})`, error);
           if (attempt < maxAttempts) {
-            await new Promise((r) => setTimeout(r, 2000 * attempt));
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
             continue;
           }
         }
       }
     }
 
-    // Save analysis
-    const { error: saveErr } = await supabase.from("analyses").insert({
-      project_id,
-      options,
-      result_json: resultJson,
-      keyword_universe_json: keywordUniverse,
-      universe_scale: options?.universeScale || null,
-    } as any);
+    const { error: updateErr } = await supabase
+      .from("analyses")
+      .update({
+        options,
+        result_json: resultJson,
+        keyword_universe_json: keywordUniverse,
+        universe_scale: (options?.universeScale as string | undefined) || null,
+      } as any)
+      .eq("id", analysisId);
 
-    if (saveErr) {
-      console.error("Save error:", saveErr);
+    if (updateErr) {
+      console.error("Save error:", updateErr);
       throw new Error("Kunde inte spara analysresultat");
     }
 
     console.log("Analysis complete, saved to DB");
+  } catch (error) {
+    console.error("analyse background error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
 
-    return new Response(JSON.stringify({ success: true, result: resultJson }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const { error: failUpdateErr } = await supabase
+      .from("analyses")
+      .update({
+        result_json: buildFailureResult(message),
+        keyword_universe_json: null,
+      } as any)
+      .eq("id", analysisId);
+
+    if (failUpdateErr) {
+      console.error("Failed to persist analysis error:", failUpdateErr);
+    }
+  }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const { project_id, options = {}, analysis_id } = await req.json();
+    if (!project_id) throw new Error("project_id is required");
+
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) throw new Error("LOVABLE_API_KEY not configured");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let analysisId = analysis_id as string | undefined;
+    if (!analysisId) {
+      const { data: inserted, error: insertErr } = await supabase
+        .from("analyses")
+        .insert({
+          project_id,
+          options,
+          result_json: null,
+          keyword_universe_json: null,
+          universe_scale: options?.universeScale || null,
+        } as any)
+        .select("id")
+        .single();
+
+      if (insertErr || !inserted?.id) {
+        console.error("Create analysis error:", insertErr);
+        throw new Error("Kunde inte starta analysen");
+      }
+
+      analysisId = inserted.id;
+    }
+
+    const task = runAnalysisJob({
+      projectId: project_id,
+      options,
+      analysisId,
+      supabaseUrl,
+      supabaseKey,
+      lovableApiKey,
     });
 
-  } catch (e) {
-    console.error("analyse error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const waitUntil = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil;
+    if (typeof waitUntil === "function") {
+      waitUntil(task);
+    } else {
+      task.catch((error) => console.error("Background task failed without waitUntil:", error));
+    }
+
+    return new Response(JSON.stringify({ success: true, analysis_id: analysisId, status: "processing" }), {
+      status: 202,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("analyse error:", error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
