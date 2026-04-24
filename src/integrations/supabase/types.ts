@@ -18,26 +18,32 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          keyword_universe_json: Json | null
           options: Json
           project_id: string
           result_json: Json | null
           scan_data_json: Json | null
+          universe_scale: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          keyword_universe_json?: Json | null
           options?: Json
           project_id: string
           result_json?: Json | null
           scan_data_json?: Json | null
+          universe_scale?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          keyword_universe_json?: Json | null
           options?: Json
           project_id?: string
           result_json?: Json | null
           scan_data_json?: Json | null
+          universe_scale?: string | null
         }
         Relationships: [
           {
@@ -126,6 +132,7 @@ export type Database = {
       projects: {
         Row: {
           company: string
+          competitors: string | null
           created_at: string
           domain: string | null
           id: string
@@ -137,6 +144,7 @@ export type Database = {
         }
         Insert: {
           company: string
+          competitors?: string | null
           created_at?: string
           domain?: string | null
           id?: string
@@ -148,6 +156,7 @@ export type Database = {
         }
         Update: {
           company?: string
+          competitors?: string | null
           created_at?: string
           domain?: string | null
           id?: string
