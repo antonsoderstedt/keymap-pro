@@ -15,7 +15,10 @@ export async function getGoogleAccessToken(authHeader: string | null): Promise<s
 
   const supa = createClient(SUPABASE_URL, SERVICE_ROLE);
   const { data: { user }, error: userError } = await supa.auth.getUser(jwt);
-  if (userError || !user) throw new Error("Not authenticated");
+  if (userError || !user) {
+    console.error("Google token auth validation failed", userError?.message ?? "No user returned");
+    throw new Error("Not authenticated");
+  }
 
   const admin = supa;
   const { data: row, error } = await admin
