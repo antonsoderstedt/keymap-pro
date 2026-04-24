@@ -106,25 +106,22 @@ export default function ProjectWizard() {
     await saveProject();
     setAnalysing(true);
     setProgress(0);
-    setProgressMessage("Förbereder analys...");
+    setProgressMessage("Startar analysen...");
 
     const messages = [
-      "Läser in kunddata...",
-      "Analyserar branschsegment...",
-      "Identifierar branschspråk...",
-      "Genererar keyword clusters...",
-      "Bygger kampanjstruktur...",
-      "Identifierar Quick Wins...",
-      "Sammanställer resultat...",
+      "Skapar analysjobb...",
+      "Förbereder underlag...",
+      "Startar AI-analysen...",
+      "Öppnar resultatvyn...",
     ];
 
     let p = 0;
     const interval = setInterval(() => {
-      p += Math.random() * 8 + 2;
-      if (p > 90) p = 90;
+      p += Math.random() * 18 + 8;
+      if (p > 92) p = 92;
       setProgress(p);
-      setProgressMessage(messages[Math.min(Math.floor(p / 14), messages.length - 1)]);
-    }, 1500);
+      setProgressMessage(messages[Math.min(Math.floor(p / 25), messages.length - 1)]);
+    }, 700);
 
     try {
       const { data, error } = await supabase.functions.invoke("analyse", {
@@ -137,11 +134,11 @@ export default function ProjectWizard() {
       if (data?.error) throw new Error(data.error);
 
       setProgress(100);
-      setProgressMessage("Klart!");
+      setProgressMessage("Analysen körs nu i bakgrunden...");
 
       setTimeout(() => {
         navigate(`/project/${id}/results`);
-      }, 500);
+      }, 350);
     } catch (error: any) {
       clearInterval(interval);
       setAnalysing(false);
