@@ -124,6 +124,18 @@ function json(body: unknown, status = 200) {
   });
 }
 
+async function getUserId(req: Request) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+
+  const token = authHeader.replace("Bearer ", "").trim();
+  const supa = createClient(SUPABASE_URL, ANON_KEY);
+  const { data, error } = await supa.auth.getClaims(token);
+
+  if (error || !data?.claims?.sub) return null;
+  return data.claims.sub;
+}
+
 function requireEnv(name: string) {
   const value = Deno.env.get(name)?.trim();
   if (!value) {
