@@ -86,8 +86,17 @@ export default function Results() {
     if (selectedKeywords.size > 0) {
       return all.filter((x) => selectedKeywords.has(`${x.clusterIdx}::${x.rowIdx}`));
     }
+    // If no selection, default to keywords with real volume > 0 (or all if no real data)
+    const hasReal = all.some((x) => x.keyword.dataSource === "real");
+    if (hasReal) return all.filter((x) => x.keyword.dataSource !== "real" || (x.keyword.realVolume || 0) > 0);
     return all;
   };
+
+  const volumeDisplay = (k: ResearchKeyword) =>
+    k.dataSource === "real" ? String(k.realVolume ?? 0) : k.volume;
+
+  const cpcDisplay = (k: ResearchKeyword) =>
+    k.dataSource === "real" && k.realCpc != null ? k.realCpc.toFixed(2) : k.cpc;
 
   const exportSeoCSV = () => {
     const items = getResearchKeywords();
@@ -95,9 +104,14 @@ export default function Results() {
       toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
       return;
     }
-    const rows = [["Sökord", "Kluster", "Kategori", "Intent", "Volym", "Rekommenderad sidtitel"]];
+    const rows = [["Sökord", "Kluster", "Kategori", "Intent", "Volym/mån", "CPC (SEK)", "Datakälla", "Rekommenderad sidtitel"]];
     items.forEach(({ cluster, keyword }) => {
-      rows.push([keyword.keyword, cluster.cluster, keyword.category, keyword.intent, keyword.volume, cluster.recommendedH1]);
+      rows.push([
+        keyword.keyword, cluster.cluster, keyword.category, keyword.intent,
+        volumeDisplay(keyword), cpcDisplay(keyword),
+        keyword.dataSource === "real" ? "DataForSEO" : "Uppskattad",
+        cluster.recommendedH1,
+      ]);
     });
     downloadCSV(rows, "keymap-seo.csv");
     toast({ title: "SEO-export klar", description: `${items.length} sökord exporterade` });
@@ -109,9 +123,13 @@ export default function Results() {
       toast({ title: "Inga sökord", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
       return;
     }
-    const rows = [["Kampanj", "Annonsgrupp", "Sökord", "Match Type", "Max CPC (SEK)"]];
+    const rows = [["Kampanj", "Annonsgrupp", "Sökord", "Match Type", "Volym/mån", "Max CPC (SEK)"]];
     items.forEach(({ cluster, keyword }) => {
-      rows.push([cluster.segment, cluster.cluster, keyword.keyword, "Phrase", cpcToMaxBid(keyword.cpc)]);
+      // Use real CPC * 1.2 as max bid if available, else fall back to bucket
+      const maxBid = keyword.dataSource === "real" && keyword.realCpc != null
+        ? (keyword.realCpc * 1.2).toFixed(2)
+        : cpcToMaxBid(keyword.cpc);
+      rows.push([cluster.segment, cluster.cluster, keyword.keyword, "Phrase", volumeDisplay(keyword), maxBid]);
     });
     downloadCSV(rows, "keymap-google-ads.csv");
     toast({ title: "Ads-export klar", description: `${items.length} sökord exporterade` });
@@ -122,9 +140,10 @@ export default function Results() {
       toast({ title: "Inga kluster", description: "Inga keyword research-data tillgängliga", variant: "destructive" });
       return;
     }
-    const rows = [["Kluster", "Segment", "H1", "Meta description", "URL-slug", "Antal sökord"]];
+    const rows = [["Kluster", "Segment", "H1", "Meta description", "URL-slug", "Antal sökord", "Total volym/mån"]];
     result.keywordResearch.forEach((c) => {
-      rows.push([c.cluster, c.segment, c.recommendedH1, c.metaDescription, c.urlSlug, String(c.keywords?.length || 0)]);
+      const totalVol = (c.keywords || []).reduce((s, k) => s + (k.realVolume || 0), 0);
+      rows.push([c.cluster, c.segment, c.recommendedH1, c.metaDescription, c.urlSlug, String(c.keywords?.length || 0), String(totalVol)]);
     });
     downloadCSV(rows, "keymap-landningssidor.csv");
     toast({ title: "Landningssidor-export klar", description: `${result.keywordResearch.length} kluster exporterade` });
