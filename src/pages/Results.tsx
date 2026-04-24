@@ -197,6 +197,10 @@ export default function Results() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/project/${id}/results/universe`)} className="gap-2">
+              <Network className="h-3 w-3" />
+              Keyword Universe
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="default" size="sm" className="gap-2">
