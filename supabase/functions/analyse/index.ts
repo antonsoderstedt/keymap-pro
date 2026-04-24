@@ -127,6 +127,144 @@ ${scanContext}`;
       throw new Error("AI returnerade ogiltigt JSON-format");
     }
 
+    // === Keyword Research Pass (per segment) ===
+    if (options?.keywordResearch && Array.isArray(resultJson?.segments)) {
+      console.log(`Running keyword research for ${resultJson.segments.length} segments...`);
+
+      const researchSchema = {
+        type: "object",
+        properties: {
+          clusters: {
+            type: "array",
+            description: "3-6 semantically grouped clusters covering the segment",
+            items: {
+              type: "object",
+              properties: {
+                cluster: { type: "string", description: "Cluster name e.g. 'Laserskärning — pris & offert'" },
+                recommendedH1: { type: "string" },
+                metaDescription: { type: "string", description: "120-160 chars" },
+                urlSlug: { type: "string", description: "kebab-case slug" },
+                keywords: {
+                  type: "array",
+                  description: "8-15 keywords in this cluster",
+                  items: {
+                    type: "object",
+                    properties: {
+                      keyword: { type: "string" },
+                      category: { type: "string", enum: ["Produkt", "Tjänst", "Geo", "Pris", "Fråga"] },
+                      channel: { type: "string", enum: ["SEO", "Ads", "Båda"] },
+                      volume: { type: "string", enum: ["<100", "100-500", "500-2000", "2000+"] },
+                      cpc: { type: "string", enum: ["Låg", "Medium", "Hög"] },
+                      intent: { type: "string", enum: ["Köp", "Info", "Nav"] },
+                      usage: { type: "string", enum: ["Landningssida", "Blogg", "Ads-grupp"] },
+                    },
+                    required: ["keyword", "category", "channel", "volume", "cpc", "intent", "usage"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["cluster", "recommendedH1", "metaDescription", "urlSlug", "keywords"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["clusters"],
+        additionalProperties: false,
+      };
+
+      const allClusters: any[] = [];
+
+      // Process segments in parallel batches of 2 to balance speed and rate limits
+      const segments = resultJson.segments.slice(0, 6);
+      for (let i = 0; i < segments.length; i += 2) {
+        const batch = segments.slice(i, i + 2);
+        const batchResults = await Promise.all(batch.map(async (seg: any) => {
+          const researchPrompt = `Du är en SEO- och Google Ads-strateg specialiserad på svensk B2B. Generera 40–60 sökord för segmentet "${seg.name}" (SNI ${seg.sniCode}) i tre logiska pass:
+
+PASS 1 — KÄRNSÖKORD (8-12 termer)
+Tjänstenamn, produktnamn och branschtermer. Utgå från:
+- Primary keywords: ${(seg.primaryKeywords || []).map((k: any) => k.keyword).join(", ")}
+- Språkmönster: ${(seg.languagePatterns || []).join(", ")}
+- Hur de söker: ${(seg.howTheySearch || []).join(", ")}
+
+PASS 2 — MATRISEXPANSION (20-30 termer)
+Kombinera kärntermerna med dessa modifiers:
+- Pris/offert: pris, kostnad, offert, prisförslag
+- Leverans: snabb, express, online, leveranstid
+- Geo: Stockholm, Göteborg, Malmö, Sverige
+- Intent: köpa, beställa, hitta leverantör, jämför
+- Format: liten serie, prototyp, engångsbeställning, volym
+
+PASS 3 — LONG-TAIL & FRÅGOR (10-15 termer)
+Använd mönster: "hur [verb] [tjänst]", "var köper man [produkt]", "bästa [tjänst] för [bransch]", "vad kostar [tjänst]".
+
+KONTEXT:
+Företag: ${project.company}
+Produkter: ${project.products || "ej angivet"}
+Marknad: ${project.market}
+Use cases för segmentet: ${(seg.useCases || []).join("; ")}
+
+INSTRUKTIONER:
+- Gruppera alla 40-60 sökord i 3-6 semantiska kluster (t.ex. "Laserskärning — pris & offert", "Laserskärning — prototyp & småserie")
+- Varje kluster blir en Google Ads-annonsgrupp eller SEO-landningssida
+- För varje sökord: sätt korrekt category, channel, volume, cpc, intent, usage
+- Volume-bedömning baserat på svensk B2B (de flesta är <100 eller 100-500)
+- Generera meta description (120-160 tecken) och URL-slug per kluster
+- Sökord ska vara på svenska (om marknad = se-sv) och realistiska B2B-termer
+
+Returnera 3-6 kluster där summan av sökord är 40-60.`;
+
+          try {
+            const researchRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash",
+                messages: [
+                  { role: "system", content: "Du är en senior SEO/Ads-strateg. Använd verktyget för att returnera strukturerad keyword research." },
+                  { role: "user", content: researchPrompt },
+                ],
+                tools: [{
+                  type: "function",
+                  function: {
+                    name: "submit_keyword_research",
+                    description: "Submit clustered keyword research for a segment",
+                    parameters: researchSchema,
+                  },
+                }],
+                tool_choice: { type: "function", function: { name: "submit_keyword_research" } },
+              }),
+            });
+
+            if (!researchRes.ok) {
+              console.error(`Research failed for segment ${seg.name}:`, researchRes.status);
+              return [];
+            }
+
+            const data = await researchRes.json();
+            const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+            if (!toolCall?.function?.arguments) return [];
+
+            const parsed = JSON.parse(toolCall.function.arguments);
+            const clusters = (parsed.clusters || []).map((c: any) => ({ ...c, segment: seg.name }));
+            console.log(`Segment "${seg.name}": ${clusters.length} clusters, ${clusters.reduce((s: number, c: any) => s + (c.keywords?.length || 0), 0)} keywords`);
+            return clusters;
+          } catch (err) {
+            console.error(`Research error for segment ${seg.name}:`, err);
+            return [];
+          }
+        }));
+
+        batchResults.forEach((clusters) => allClusters.push(...clusters));
+      }
+
+      resultJson.keywordResearch = allClusters;
+      console.log(`Total: ${allClusters.length} clusters across all segments`);
+    }
+
     // Save analysis
     const { error: saveErr } = await supabase.from("analyses").insert({
       project_id,
