@@ -45,7 +45,7 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
     if (!selected) return;
     setBrief(null);
     supabase.from("content_briefs").select("payload").eq("analysis_id", analysisId).eq("cluster", selected).maybeSingle().then(({ data }) => {
-      if (data) setBrief(data.payload as ContentBrief);
+      if (data) setBrief(data.payload as unknown as ContentBrief);
     });
   }, [selected, analysisId]);
 
