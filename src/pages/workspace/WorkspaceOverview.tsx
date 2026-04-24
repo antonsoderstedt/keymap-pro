@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeGoogleOauth } from "@/lib/googleOAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,29 +49,38 @@ export default function WorkspaceOverview() {
 
   const refreshGoogleStatus = async () => {
     setGoogleStatus((s) => ({ ...s, loading: true }));
-    const { data } = await supabase.functions.invoke("google-oauth/status");
-    const d = (data as any) || {};
-    setGoogleStatus({
-      loading: false,
-      connected: !!d.connected,
-      scope: d.scope,
-      expires_at: d.expires_at,
-    });
+    try {
+      const d = await invokeGoogleOauth<{ connected?: boolean; scope?: string; expires_at?: string }>("status");
+      setGoogleStatus({
+        loading: false,
+        connected: !!d.connected,
+        scope: d.scope,
+        expires_at: d.expires_at,
+      });
+    } catch (error) {
+      setGoogleStatus({ loading: false, connected: false });
+    }
   };
 
   const connectGoogle = async () => {
-    const { data, error } = await supabase.functions.invoke("google-oauth/start");
-    if (error || !(data as any)?.url) {
-      toast({ title: "Fel", description: error?.message || "Kunde inte starta Google-inloggning", variant: "destructive" });
+    try {
+      const data = await invokeGoogleOauth<{ url?: string }>("start");
+      if (!data.url) throw new Error("Kunde inte starta Google-inloggning");
+      window.location.href = data.url;
+    } catch (error) {
+      toast({ title: "Fel", description: error instanceof Error ? error.message : "Kunde inte starta Google-inloggning", variant: "destructive" });
       return;
     }
-    window.location.href = (data as any).url;
   };
 
   const disconnectGoogle = async () => {
-    await supabase.functions.invoke("google-oauth/disconnect");
-    toast({ title: "Google frånkopplad" });
-    refreshGoogleStatus();
+    try {
+      await invokeGoogleOauth("disconnect");
+      toast({ title: "Google frånkopplad" });
+      refreshGoogleStatus();
+    } catch (error) {
+      toast({ title: "Fel", description: error instanceof Error ? error.message : "Kunde inte koppla från Google", variant: "destructive" });
+    }
   };
 
   useEffect(() => {
