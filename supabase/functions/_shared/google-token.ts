@@ -2,11 +2,11 @@
 // Refreshes via refresh_token when expired.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const CLIENT_ID = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
-const CLIENT_SECRET = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SERVICE_ROLE = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
+const CLIENT_ID = requireEnv("GOOGLE_OAUTH_CLIENT_ID");
+const CLIENT_SECRET = requireEnv("GOOGLE_OAUTH_CLIENT_SECRET");
 
 export async function getGoogleAccessToken(authHeader: string | null): Promise<string> {
   if (!authHeader) throw new Error("Not authenticated");
@@ -51,4 +51,12 @@ export async function getGoogleAccessToken(authHeader: string | null): Promise<s
   }).eq("user_id", user.id);
 
   return newAccess;
+}
+
+function requireEnv(name: string) {
+  const value = Deno.env.get(name)?.trim();
+  if (!value) {
+    throw new Error(`${name} is not configured`);
+  }
+  return value;
 }

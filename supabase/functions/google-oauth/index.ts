@@ -6,11 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const CLIENT_ID = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
-const CLIENT_SECRET = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const CLIENT_ID = requireEnv("GOOGLE_OAUTH_CLIENT_ID");
+const CLIENT_SECRET = requireEnv("GOOGLE_OAUTH_CLIENT_SECRET");
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SERVICE_ROLE = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-oauth/callback`;
 
@@ -136,4 +136,12 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function requireEnv(name: string) {
+  const value = Deno.env.get(name)?.trim();
+  if (!value) {
+    throw new Error(`${name} is not configured`);
+  }
+  return value;
 }
