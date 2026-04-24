@@ -11,6 +11,7 @@ import StepImport, { type CustomerRow } from "@/components/wizard/StepImport";
 import StepAnalyse from "@/components/wizard/StepAnalyse";
 import LoadingScreen from "@/components/wizard/LoadingScreen";
 import type { Project, AnalysisOptions } from "@/lib/types";
+import GoogleDataPanel from "@/components/GoogleDataPanel";
 
 const STEPS = ["Företagskontext", "Kunddata", "Analys"];
 
@@ -248,6 +249,19 @@ export default function ProjectWizard() {
             </Button>
           )}
         </div>
+
+        {/* Google data — per projekt */}
+        {id && (
+          <section className="mt-12 border-t border-border pt-8">
+            <div className="mb-4">
+              <h3 className="font-serif text-xl">Google-data</h3>
+              <p className="text-sm text-muted-foreground">
+                Koppla Search Console & GA4 till detta projekt. Snapshots sparas automatiskt vid hämtning.
+              </p>
+            </div>
+            <GoogleDataPanel projectId={id} />
+          </section>
+        )}
       </main>
     </div>
   );

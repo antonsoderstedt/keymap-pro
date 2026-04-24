@@ -177,6 +177,39 @@ export type Database = {
           },
         ]
       }
+      ga4_snapshots: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          project_id: string
+          property_id: string
+          rows: Json
+          start_date: string
+          totals: Json | null
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          project_id: string
+          property_id: string
+          rows?: Json
+          start_date: string
+          totals?: Json | null
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          project_id?: string
+          property_id?: string
+          rows?: Json
+          start_date?: string
+          totals?: Json | null
+        }
+        Relationships: []
+      }
       google_tokens: {
         Row: {
           access_token: string
@@ -210,6 +243,39 @@ export type Database = {
         }
         Relationships: []
       }
+      gsc_snapshots: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          project_id: string
+          rows: Json
+          site_url: string
+          start_date: string
+          totals: Json | null
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          project_id: string
+          rows?: Json
+          site_url: string
+          start_date: string
+          totals?: Json | null
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          project_id?: string
+          rows?: Json
+          site_url?: string
+          start_date?: string
+          totals?: Json | null
+        }
+        Relationships: []
+      }
       keyword_metrics: {
         Row: {
           competition: number | null
@@ -236,6 +302,36 @@ export type Database = {
           location_code?: number
           search_volume?: number | null
           trend_json?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      project_google_settings: {
+        Row: {
+          created_at: string
+          ga4_property_id: string | null
+          ga4_property_name: string | null
+          gsc_site_url: string | null
+          id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ga4_property_id?: string | null
+          ga4_property_name?: string | null
+          gsc_site_url?: string | null
+          id?: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ga4_property_id?: string | null
+          ga4_property_name?: string | null
+          gsc_site_url?: string | null
+          id?: string
+          project_id?: string
           updated_at?: string
         }
         Relationships: []
