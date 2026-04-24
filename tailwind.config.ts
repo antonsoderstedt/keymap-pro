@@ -14,6 +14,7 @@ export default {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         display: ["Inter Tight", "Inter", "sans-serif"],
+        serif: ["Inter Tight", "Inter", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
       },
       colors: {
