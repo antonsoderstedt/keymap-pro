@@ -10,11 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search, Target } from "lucide-react";
+import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search, Target, BookOpen, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { KeywordUniverse, UniverseKeyword } from "@/lib/types";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
 import { StrategyTab } from "@/components/universe/StrategyTab";
+import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
+import { TechSeoTab } from "@/components/universe/TechSeoTab";
 
 const DIMENSION_LABELS: Record<string, string> = {
   produkt: "Produkt", tjanst: "Tjänst", bransch: "Bransch", material: "Material",
@@ -226,6 +228,8 @@ export default function KeywordUniversePage() {
             <TabsTrigger value="content" className="gap-1"><FileText className="h-3 w-3" />Content</TabsTrigger>
             <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal</TabsTrigger>
             <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa</TabsTrigger>
+            <TabsTrigger value="briefs" className="gap-1"><BookOpen className="h-3 w-3" />Briefs</TabsTrigger>
+            <TabsTrigger value="techseo" className="gap-1"><ShieldCheck className="h-3 w-3" />Teknisk SEO</TabsTrigger>
             <TabsTrigger value="strategy" className="gap-1"><Target className="h-3 w-3" />Strategi</TabsTrigger>
           </TabsList>
 
@@ -273,6 +277,12 @@ export default function KeywordUniversePage() {
           <TabsContent value="content"><KeywordTable items={contentOpps} /></TabsContent>
           <TabsContent value="local"><KeywordTable items={localOpps} /></TabsContent>
           <TabsContent value="negatives"><KeywordTable items={negatives} /></TabsContent>
+          <TabsContent value="briefs">
+            {analysisId && <ContentBriefsTab analysisId={analysisId} universe={universe} />}
+          </TabsContent>
+          <TabsContent value="techseo">
+            {analysisId && <TechSeoTab analysisId={analysisId} />}
+          </TabsContent>
           <TabsContent value="strategy">
             {analysisId && <StrategyTab projectId={id!} analysisId={analysisId} />}
           </TabsContent>
