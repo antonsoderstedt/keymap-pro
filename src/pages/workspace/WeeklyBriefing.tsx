@@ -195,7 +195,7 @@ export default function WeeklyBriefing() {
   );
 }
 
-function Column({ icon, title, items, emptyText, onSelect }: { icon: React.ReactNode; title: string; items: any[]; emptyText: string; onSelect: (it: DrillDownItem) => void }) {
+function Column({ icon, title, items, emptyText, onSelect, currency }: { icon: React.ReactNode; title: string; items: any[]; emptyText: string; onSelect: (it: DrillDownItem) => void; currency: Currency }) {
   return (
     <Card>
       <CardHeader>
@@ -221,7 +221,7 @@ function Column({ icon, title, items, emptyText, onSelect }: { icon: React.React
               {it.why && <div className="text-[11px] text-muted-foreground">{it.why}</div>}
               {typeof it.value_sek === "number" && it.value_sek > 0 && (
                 <Badge variant="outline" className={`text-[10px] ${valueClass(it.value_sek)}`}>
-                  {formatSEK(it.value_sek, { compact: true })}/år
+                  {formatMoney(it.value_sek, currency, { compact: true })}/år
                 </Badge>
               )}
             </button>
