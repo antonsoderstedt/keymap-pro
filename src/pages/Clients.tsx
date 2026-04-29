@@ -45,10 +45,11 @@ export default function Clients() {
 
     const ids = (projects || []).map((p: any) => p.id);
     const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
-    const [{ data: analyses }, { data: actions }, { data: briefings }] = await Promise.all([
+    const [{ data: analyses }, { data: actions }, { data: briefings }, { data: revSettings }] = await Promise.all([
       supabase.from("analyses").select("project_id, created_at").in("project_id", safeIds),
       supabase.from("action_items").select("project_id, status").in("project_id", safeIds),
       supabase.from("weekly_briefings").select("project_id, total_value_at_stake_sek, week_start").in("project_id", safeIds).order("week_start", { ascending: false }),
+      supabase.from("project_revenue_settings").select("project_id, currency").in("project_id", safeIds),
     ]);
 
     const enriched: ClientCard[] = ((projects as Project[]) || []).map((p) => {
@@ -58,12 +59,14 @@ export default function Clients() {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )[0];
       const latestBriefing = (briefings || []).find((b: any) => b.project_id === p.id);
+      const projCur = (revSettings || []).find((r: any) => r.project_id === p.id)?.currency;
       return {
         ...p,
         analyses_count: projAnalyses.length,
         open_actions: projActions.filter((a: any) => a.status !== "done" && a.status !== "archived").length,
         last_analysis_at: lastAnalysis?.created_at ?? null,
         weekly_value: latestBriefing?.total_value_at_stake_sek ?? null,
+        currency: isSupportedCurrency(projCur) ? projCur : "SEK",
       };
     });
 
