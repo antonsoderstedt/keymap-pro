@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, CheckCircle2, ListChecks } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ActionImpact } from "@/components/workspace/ActionImpact";
+import { supabase } from "@/integrations/supabase/client";
 
 const CATEGORIES = [
   { value: "seo", label: "SEO" },
@@ -203,10 +205,13 @@ export default function ActionTracker() {
                       <p className="text-xs text-primary mt-2">→ {item.expected_impact}</p>
                     )}
                     {item.implemented_at && (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 text-primary" />
-                        Implementerad {new Date(item.implemented_at).toLocaleDateString("sv-SE")}
-                      </p>
+                      <>
+                        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-primary" />
+                          Implementerad {new Date(item.implemented_at).toLocaleDateString("sv-SE")}
+                        </p>
+                        <ActionImpact actionId={item.id} />
+                      </>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
