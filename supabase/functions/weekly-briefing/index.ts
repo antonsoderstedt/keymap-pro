@@ -15,8 +15,14 @@ interface RevenueSettings {
   avg_order_value: number;
   conversion_rate_pct: number;
   gross_margin_pct: number;
+  currency?: string;
 }
-const DEFAULT_REV: RevenueSettings = { avg_order_value: 1000, conversion_rate_pct: 2, gross_margin_pct: 100 };
+const DEFAULT_REV: RevenueSettings = { avg_order_value: 1000, conversion_rate_pct: 2, gross_margin_pct: 100, currency: "SEK" };
+const SUPPORTED_CURRENCIES = ["SEK", "EUR", "USD", "GBP", "NOK", "DKK"];
+const CURRENCY_NAMES: Record<string, string> = {
+  SEK: "svenska kronor (kr)", EUR: "euro (€)", USD: "US-dollar ($)",
+  GBP: "brittiska pund (£)", NOK: "norska kronor (kr)", DKK: "danska kronor (kr)",
+};
 
 const CTR: Record<number, number> = { 1:0.319,2:0.247,3:0.187,4:0.137,5:0.099,6:0.072,7:0.054,8:0.04,9:0.031,10:0.025 };
 const ctrAt = (p: number) => p <= 10 ? CTR[Math.max(1, Math.round(p))] ?? 0.025 : p <= 20 ? 0.012 : p <= 30 ? 0.005 : 0.001;
