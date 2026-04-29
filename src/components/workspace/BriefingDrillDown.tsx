@@ -39,15 +39,19 @@ const fmtNum = (v: any) =>
 const isMoneyLabel = (label: string) => /värde|sek|kr/i.test(label);
 
 export default function BriefingDrillDown({
-  item, kind, open, onOpenChange,
+  item, kind, open, onOpenChange, currency = "SEK",
 }: {
   item: DrillDownItem | null;
   kind: "win" | "risk" | "action";
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  currency?: Currency;
 }) {
   if (!item) return null;
   const d = item.details || {};
+  // Item-specifik valuta vinner (för historiska briefingar genererade i annan valuta)
+  const itemCurrency: Currency =
+    isSupportedCurrency(d.settings?.currency) ? (d.settings!.currency as Currency) : currency;
   const valueLabel = kind === "risk" ? "Värde i risk" : kind === "win" ? "Hämtat värde" : "Potentiellt värde";
 
   return (
