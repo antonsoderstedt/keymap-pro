@@ -86,6 +86,8 @@ export default function ReportsLibrary() {
         </p>
       </div>
 
+      <WeeklyReportPanel projectId={id!} />
+
       {/* Available report types */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {REPORTS.map(r => {
@@ -153,3 +155,90 @@ export default function ReportsLibrary() {
     </div>
   );
 }
+
+function WeeklyReportPanel({ projectId }: { projectId: string }) {
+  const [latest, setLatest] = useState<any>(null);
+  const [running, setRunning] = useState(false);
+
+  const load = async () => {
+    const { data } = await supabase
+      .from("workspace_artifacts")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq("artifact_type", "weekly_report")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setLatest(data);
+  };
+
+  useEffect(() => { load(); }, [projectId]);
+
+  const runNow = async () => {
+    setRunning(true);
+    try {
+      const { error } = await supabase.functions.invoke("weekly-report", { body: { project_id: projectId } });
+      if (error) throw error;
+      toast.success("Veckorapport genererad");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const s = latest?.payload as any;
+  const fmtPct = (n: number | null | undefined) => n == null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
+
+  return (
+    <Card className="border-primary/30">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="font-serif text-lg flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" /> Veckorapport (auto)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Genereras automatiskt varje måndag 06:00. {latest && `Senaste: ${new Date(latest.created_at).toLocaleString("sv-SE")}`}
+            </p>
+          </div>
+          <Button size="sm" onClick={runNow} disabled={running} className="gap-1">
+            <Sparkles className="h-3 w-3" /> {running ? "Genererar…" : "Kör nu"}
+          </Button>
+        </div>
+      </CardHeader>
+      {s && (
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            {s.gsc && (
+              <div className="p-3 rounded-md border border-border">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">SEO klick</div>
+                <div className="font-mono text-lg">{s.gsc.clicks ?? "—"}</div>
+                <div className="text-xs text-muted-foreground">{fmtPct(s.gsc.delta?.clicks_pct)} vs förra veckan</div>
+              </div>
+            )}
+            {s.ga4 && (
+              <div className="p-3 rounded-md border border-border">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Sessioner</div>
+                <div className="font-mono text-lg">{s.ga4.sessions ?? "—"}</div>
+                <div className="text-xs text-muted-foreground">{fmtPct(s.ga4.delta?.sessions_pct)} vs förra veckan</div>
+              </div>
+            )}
+            <div className="p-3 rounded-md border border-border">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Åtgärder</div>
+              <div className="font-mono text-lg">{s.actions?.completed ?? 0} klara</div>
+              <div className="text-xs text-muted-foreground">{s.actions?.open ?? 0} öppna · {s.actions?.new ?? 0} nya</div>
+            </div>
+            <div className="p-3 rounded-md border border-border">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Alerts</div>
+              <div className="font-mono text-lg">{s.alerts?.total ?? 0}</div>
+              <div className="text-xs text-muted-foreground">{s.alerts?.critical ?? 0} kritiska</div>
+            </div>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
