@@ -74,7 +74,7 @@ export default function ExecutiveDashboard() {
               <div className="min-w-0">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Senaste briefing — v.{data.briefing.week_start}</div>
                 <div className="font-serif text-xl mt-0.5 truncate">
-                  Värde att hämta hem: <span className="text-primary">{formatSEK(data.briefing.total_value_at_stake_sek, { compact: true })}</span>
+                  Värde att hämta hem: <span className="text-primary">{formatMoney(data.briefing.total_value_at_stake_sek, currency, { compact: true })}</span>
                 </div>
               </div>
             </div>
