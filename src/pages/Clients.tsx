@@ -176,7 +176,7 @@ export default function Clients() {
                       "bg-primary/10 border-primary/30 text-primary"
                     }`}>
                       <Sparkles className="h-3 w-3" />
-                      <span className="text-xs font-medium">Veckans värde: {formatSEK(client.weekly_value, { compact: true })}</span>
+                      <span className="text-xs font-medium">Veckans värde: {formatMoney(client.weekly_value, client.currency, { compact: true })}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-border pt-3">
