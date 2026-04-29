@@ -8,7 +8,7 @@ interface ItemDetails {
   method?: string;
   inputs?: Record<string, any>;
   steps?: { label: string; value: number }[];
-  settings?: { avg_order_value: number; conversion_rate_pct: number; gross_margin_pct: number };
+  settings?: { avg_order_value: number; conversion_rate_pct: number; gross_margin_pct: number; currency?: string };
   source_table?: string;
   source_id?: string | null;
   source_snapshot?: any;
