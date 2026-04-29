@@ -289,23 +289,25 @@ Deno.serve(async (req) => {
     if (LOVABLE_API_KEY) {
       const prompt = `Du är senior digital strateg för ${project.name}${project.company ? ` (${project.company})` : ""}.
 Skriv en 1-sidig veckobriefing på svenska för vecka ${week_start}. Ton: rakt, konkret, affärsdrivet, INGA floskler.
+Alla monetära värden ska uttryckas i ${currencyName} (${currency}). Skriv ALDRIG "kr" eller "SEK" om valutan är något annat.
 Strukturera som markdown:
 ## Veckans bedömning
 (2-3 meningar — vad är läget?)
 ## Top vinster
-(för varje win: en mening + kronvärde)
+(för varje win: en mening + värde i ${currency})
 ## Top risker
-(för varje risk: en mening + kronvärde + vad som händer om vi inget gör)
+(för varje risk: en mening + värde i ${currency} + vad som händer om vi inget gör)
 ## Rekommenderade actions
-(för varje action: vad, varför, kronvärde, ungefärlig insats)
+(för varje action: vad, varför, värde i ${currency}, ungefärlig insats)
 ## En sak att fokusera på
 (en enda prioritet)
 
 Data:
+CURRENCY: ${currency}
 WINS: ${JSON.stringify(wins)}
 RISKS: ${JSON.stringify(risks)}
 ACTIONS: ${JSON.stringify(actions)}
-TOTAL_VALUE_AT_STAKE: ${totalValue} SEK`;
+TOTAL_VALUE_AT_STAKE: ${totalValue} ${currency}`;
 
       const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
