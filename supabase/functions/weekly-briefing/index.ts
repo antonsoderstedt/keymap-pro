@@ -315,7 +315,7 @@ TOTAL_VALUE_AT_STAKE: ${totalValue} ${currency}`;
         body: JSON.stringify({
           model: "google/gemini-2.5-pro",
           messages: [
-            { role: "system", content: "Du skriver koncisa, affärsdrivna strategibriefingar för B2B-marknadsföring. Aldrig generiska fraser. Alltid med kronvärde." },
+            { role: "system", content: `Du skriver koncisa, affärsdrivna strategibriefingar för B2B-marknadsföring. Aldrig generiska fraser. Alltid med monetärt värde i ${currency}.` },
             { role: "user", content: prompt },
           ],
         }),
