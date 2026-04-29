@@ -10,6 +10,8 @@ import Clients from "./pages/Clients";
 import ProjectWizard from "./pages/ProjectWizard";
 import Results from "./pages/Results";
 import KeywordUniverse from "./pages/KeywordUniverse";
+import WorkspaceKeywordUniverse from "./pages/workspace/WorkspaceKeywordUniverse";
+import WorkspaceSegments from "./pages/workspace/WorkspaceSegments";
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import WorkspaceOverview from "./pages/workspace/WorkspaceOverview";
@@ -70,8 +72,8 @@ const App = () => (
             <Route path="overview" element={<WorkspaceOverview />} />
             <Route path="actions" element={<ActionTracker />} />
             <Route path="artifacts" element={<WorkspaceArtifacts />} />
-            <Route path="keyword-universe" element={<ComingSoon title="Sökordsuniversum" description="Genvägen öppnar resultatvyn för senaste analys." phase="Snart inbakad i layouten" />} />
-            <Route path="segments" element={<ComingSoon title="Segment & paket" description="Segment med färdiga paket: landningssida, meta, Google Ads-kampanj." />} />
+            <Route path="keyword-universe" element={<WorkspaceKeywordUniverse />} />
+            <Route path="segments" element={<WorkspaceSegments />} />
             <Route path="reports" element={<ReportsLibrary />} />
             <Route path="seo" element={<SeoDashboard />} />
             <Route path="google-ads" element={<AuctionInsights />} />
