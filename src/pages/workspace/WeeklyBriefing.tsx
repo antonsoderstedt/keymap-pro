@@ -21,6 +21,7 @@ interface Briefing {
   risks: any[];
   actions: any[];
   total_value_at_stake_sek: number;
+  metadata: any;
   created_at: string;
 }
 
