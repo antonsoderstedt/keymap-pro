@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { formatSEK } from "@/lib/revenue";
+import { formatMoney, type Currency, isSupportedCurrency } from "@/lib/revenue";
 import { Calculator, Database, Settings2, ArrowRight } from "lucide-react";
 
 interface ItemDetails {
