@@ -169,6 +169,8 @@ export default function WeeklyBriefing() {
           </div>
         </div>
       )}
+
+      {id && <WeeklyBriefingHistory projectId={id} refreshKey={historyKey} />}
     </div>
   );
 }
