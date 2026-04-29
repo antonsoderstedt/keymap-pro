@@ -174,9 +174,9 @@ export default function WeeklyBriefing() {
 
           {/* Tre kolumner */}
           <div className="grid lg:grid-cols-3 gap-4">
-            <Column icon={<TrendingUp className="h-4 w-4 text-primary" />} title="Vinster" items={current.wins} emptyText="Inga mätbara vinster denna vecka." onSelect={(it) => setDrill({ item: it, kind: "win" })} />
-            <Column icon={<AlertTriangle className="h-4 w-4 text-destructive" />} title="Risker" items={current.risks} emptyText="Inga akuta risker upptäckta." onSelect={(it) => setDrill({ item: it, kind: "risk" })} />
-            <Column icon={<Target className="h-4 w-4 text-primary" />} title="Actions" items={current.actions} emptyText="Inga prioriterade actions just nu." onSelect={(it) => setDrill({ item: it, kind: "action" })} />
+            <Column currency={briefingCurrency} icon={<TrendingUp className="h-4 w-4 text-primary" />} title="Vinster" items={current.wins} emptyText="Inga mätbara vinster denna vecka." onSelect={(it) => setDrill({ item: it, kind: "win", currency: briefingCurrency })} />
+            <Column currency={briefingCurrency} icon={<AlertTriangle className="h-4 w-4 text-destructive" />} title="Risker" items={current.risks} emptyText="Inga akuta risker upptäckta." onSelect={(it) => setDrill({ item: it, kind: "risk", currency: briefingCurrency })} />
+            <Column currency={briefingCurrency} icon={<Target className="h-4 w-4 text-primary" />} title="Actions" items={current.actions} emptyText="Inga prioriterade actions just nu." onSelect={(it) => setDrill({ item: it, kind: "action", currency: briefingCurrency })} />
           </div>
         </div>
       )}
@@ -187,6 +187,7 @@ export default function WeeklyBriefing() {
       <BriefingDrillDown
         item={drill?.item || null}
         kind={drill?.kind || "win"}
+        currency={drill?.currency || briefingCurrency}
         open={!!drill}
         onOpenChange={(v) => !v && setDrill(null)}
       />
