@@ -9,13 +9,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { formatSEK, valueColor } from "@/lib/revenue";
+import { formatMoney, valueColor, isSupportedCurrency, type Currency } from "@/lib/revenue";
 
 interface ClientCard extends Project {
   analyses_count: number;
   open_actions: number;
   last_analysis_at: string | null;
   weekly_value: number | null;
+  currency: Currency;
 }
 
 export default function Clients() {
