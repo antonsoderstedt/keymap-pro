@@ -103,25 +103,56 @@ Deno.serve(async (req) => {
     // Wins: positiva outcomes
     for (const o of (outcomes.data || [])) {
       if (o.delta_pct && o.delta_pct > 5) {
+        const deltaClicks = Math.max(0, (o.current_value || 0) - (o.baseline_value || 0));
         const monetaryProxy = (o.current_value && o.baseline_value)
-          ? valueOfClicks(Math.max(0, o.current_value - o.baseline_value) * 30, rev)
+          ? valueOfClicks(deltaClicks * 30, rev)
           : 0;
         wins.push({
           title: `${o.metric_name} förbättrad ${o.delta_pct.toFixed(1)}%`,
           value_sek: monetaryProxy,
           source: "action_outcomes",
+          details: {
+            method: "Δ klick × 30 dgr × CR × AOV × marginal",
+            inputs: {
+              metric: o.metric_name,
+              baseline_value: o.baseline_value,
+              current_value: o.current_value,
+              delta_pct: o.delta_pct,
+              delta_absolute: deltaClicks,
+            },
+            steps: [
+              { label: "Δ per dag", value: deltaClicks },
+              { label: "Δ per månad (×30)", value: deltaClicks * 30 },
+              { label: "Estimerade konv. (× CR)", value: Math.round(deltaClicks * 30 * (rev.conversion_rate_pct / 100) * 10) / 10 },
+              { label: "Värde (× AOV × marginal)", value: monetaryProxy },
+            ],
+            settings: rev,
+            measured_at: o.measured_at,
+            source_table: "action_outcomes",
+            source_id: o.action_id,
+          },
         });
       }
     }
 
     // GSC opportunities (pos 4-15 = lågt hängande frukt)
     const gscRows: any[] = (gsc.data?.[0]?.rows as any[]) || [];
+    const gscMeta = gsc.data?.[0] ? { start_date: gsc.data[0].start_date, end_date: gsc.data[0].end_date } : null;
     const opps = gscRows
       .filter(r => r.position >= 4 && r.position <= 15 && (r.impressions || 0) > 50)
       .map(r => {
         const vol = r.impressions || 0;
-        const upliftValue = annualValueAtPos(vol, 3, rev) - annualValueAtPos(vol, r.position, rev);
-        return { keyword: r.keys?.[0] || r.query || "?", position: r.position, impressions: vol, upliftValue };
+        const valueAtCurrent = annualValueAtPos(vol, r.position, rev);
+        const valueAtTarget = annualValueAtPos(vol, 3, rev);
+        const upliftValue = valueAtTarget - valueAtCurrent;
+        return {
+          keyword: r.keys?.[0] || r.query || "?",
+          position: r.position,
+          impressions: vol,
+          clicks: r.clicks || 0,
+          ctr: r.ctr || 0,
+          valueAtCurrent, valueAtTarget, upliftValue,
+        };
       })
       .sort((a, b) => b.upliftValue - a.upliftValue)
       .slice(0, 5);
@@ -132,12 +163,34 @@ Deno.serve(async (req) => {
         value_sek: o.upliftValue,
         source: "gsc_opportunity",
         why: `${Math.round(o.impressions)} visningar/period — låg ansträngning för stor lyft`,
+        details: {
+          method: "Årligt värde vid pos 3 − årligt värde vid nuv. pos. CTR-kurva: AWR/Sistrix 2024.",
+          inputs: {
+            keyword: o.keyword,
+            current_position: o.position,
+            target_position: 3,
+            impressions: o.impressions,
+            clicks: o.clicks,
+            ctr: o.ctr,
+            ctr_at_current: ctrAt(o.position),
+            ctr_at_target: ctrAt(3),
+          },
+          steps: [
+            { label: "Värde vid nuv. pos (årligt)", value: o.valueAtCurrent },
+            { label: "Värde vid pos 3 (årligt)", value: o.valueAtTarget },
+            { label: "Uplift", value: o.upliftValue },
+          ],
+          settings: rev,
+          source_snapshot: gscMeta,
+          source_table: "gsc_snapshots",
+        },
       });
       totalValue += o.upliftValue;
     }
 
     // Risker: position-tapp (jämför två snapshots)
     const prevRows: any[] = (gsc.data?.[1]?.rows as any[]) || [];
+    const prevMeta = gsc.data?.[1] ? { start_date: gsc.data[1].start_date, end_date: gsc.data[1].end_date } : null;
     if (prevRows.length) {
       const prevMap = new Map(prevRows.map(r => [(r.keys?.[0] || r.query), r.position]));
       const drops = gscRows
@@ -147,8 +200,15 @@ Deno.serve(async (req) => {
           if (!prev || !r.position) return null;
           const drop = r.position - prev;
           if (drop < 1) return null;
-          const lostValue = annualValueAtPos(r.impressions || 0, prev, rev) - annualValueAtPos(r.impressions || 0, r.position, rev);
-          return { keyword: k, prev, now: r.position, lostValue };
+          const valueBefore = annualValueAtPos(r.impressions || 0, prev, rev);
+          const valueNow = annualValueAtPos(r.impressions || 0, r.position, rev);
+          const lostValue = valueBefore - valueNow;
+          return {
+            keyword: k, prev, now: r.position, drop,
+            impressions: r.impressions || 0,
+            clicks: r.clicks || 0,
+            valueBefore, valueNow, lostValue,
+          };
         })
         .filter(Boolean)
         .sort((a: any, b: any) => b!.lostValue - a!.lostValue)
@@ -158,6 +218,27 @@ Deno.serve(async (req) => {
           title: `"${d!.keyword}" tappat från pos ${d!.prev.toFixed(1)} → ${d!.now.toFixed(1)}`,
           value_sek: d!.lostValue,
           source: "position_drop",
+          details: {
+            method: "Årligt värde vid tidigare pos − årligt värde vid nuvarande pos.",
+            inputs: {
+              keyword: d!.keyword,
+              previous_position: d!.prev,
+              current_position: d!.now,
+              position_drop: d!.drop,
+              impressions: d!.impressions,
+              clicks: d!.clicks,
+              ctr_before: ctrAt(d!.prev),
+              ctr_after: ctrAt(d!.now),
+            },
+            steps: [
+              { label: "Värde innan (årligt)", value: d!.valueBefore },
+              { label: "Värde nu (årligt)", value: d!.valueNow },
+              { label: "Tappat värde", value: d!.lostValue },
+            ],
+            settings: rev,
+            source_snapshot: { current: gscMeta, previous: prevMeta },
+            source_table: "gsc_snapshots",
+          },
         });
         totalValue += d!.lostValue;
       }
@@ -165,17 +246,33 @@ Deno.serve(async (req) => {
 
     // Audit findings → actions
     for (const f of (audit.data || []).slice(0, 2)) {
+      const v = f.severity === "high" ? 25000 : f.severity === "medium" ? 10000 : 3000;
       actions.push({
         title: f.title,
-        value_sek: f.severity === "high" ? 25000 : f.severity === "medium" ? 10000 : 3000,
+        value_sek: v,
         source: "audit",
         why: f.recommendation || f.category,
+        details: {
+          method: "Schablonvärde per allvarlighetsgrad (high=25k, medium=10k, low=3k SEK).",
+          inputs: { severity: f.severity, category: f.category, affected_url: f.affected_url },
+          steps: [{ label: "Schablonvärde", value: v }],
+          source_table: "audit_findings",
+        },
       });
     }
 
     // Alerts → risks
     for (const a of (alerts.data || []).filter((a: any) => a.severity === "high" || a.severity === "critical").slice(0, 2)) {
-      risks.push({ title: a.title, value_sek: 0, source: "alert", why: a.message });
+      risks.push({
+        title: a.title, value_sek: 0, source: "alert", why: a.message,
+        details: {
+          method: "Alert utan direkt monetärt värde — kvalitativ risk.",
+          inputs: { severity: a.severity, category: a.category, type: a.type },
+          steps: [],
+          source_table: "alerts",
+          source_id: a.id,
+        },
+      });
     }
 
     // 4. AI-sammanfattning
