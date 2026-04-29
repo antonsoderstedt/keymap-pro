@@ -83,10 +83,27 @@ export default function ActionTracker() {
             Allt vi rekommenderat — och hur det går när det implementerats.
           </p>
         </div>
-        <Button onClick={() => setShowNew((s) => !s)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Ny åtgärd
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              toast({ title: "Mäter effekt…" });
+              const { data, error } = await supabase.functions.invoke("measure-action-impact", {
+                body: { project_id: projectId },
+              });
+              if (error) toast({ title: "Mätning misslyckades", description: error.message, variant: "destructive" });
+              else toast({ title: "Klart", description: `${data?.measured ?? 0} mätpunkter sparade.` });
+            }}
+            className="gap-2"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Mät effekt
+          </Button>
+          <Button onClick={() => setShowNew((s) => !s)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ny åtgärd
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
