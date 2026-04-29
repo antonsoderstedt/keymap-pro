@@ -317,22 +317,43 @@ export default function WorkspaceOverview() {
         </Card>
       </div>
 
-      {/* Coming soon banner */}
-      <Card className="border-dashed border-border bg-muted/20">
-        <CardContent className="p-5">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium">Kommer i kommande faser</p>
-              <p className="text-muted-foreground mt-1">
-                Always-on dashboards (SEO, Google Ads, GA4, Paid vs Organic), Auction Insights,
-                AI-alerts, SEO-audit med checkbox-actions, Brand Kit, schemalagda rapporter och
-                effektmätning på implementerade åtgärder. Allt knyts till samma kund-hem.
-              </p>
-            </div>
+      {/* Active capabilities checklist */}
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="font-serif text-lg flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Vad är aktivt för den här kunden
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <CapabilityRow ok={googleStatus.connected} label="Search Console-data" />
+            <CapabilityRow ok={googleStatus.connected} label="Google Analytics 4" />
+            <CapabilityRow ok={hasAdsScope} label="Google Ads (Auction Insights, kannibalisering)" />
+            <CapabilityRow ok={(stats?.total_analyses ?? 0) > 0} label="Sökordsuniversum & segment" />
+            <CapabilityRow ok={(stats?.open_actions ?? 0) + (stats?.done_actions ?? 0) > 0} label="Action Tracker med åtgärder" />
+            <CapabilityRow ok={true} label="AI-alerts (rule-based + LLM)" />
+            <CapabilityRow ok={true} label="SEO-audit med findings" />
+            <CapabilityRow ok={true} label="Brand Kit & artefakter" />
           </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Schemalagda rapporter och automation-regler kommer i nästa iteration.
+          </p>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function CapabilityRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {ok ? (
+        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+      ) : (
+        <XCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+      )}
+      <span className={ok ? "" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }
