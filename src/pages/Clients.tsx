@@ -9,13 +9,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { formatSEK, valueColor } from "@/lib/revenue";
+import { formatMoney, valueColor, isSupportedCurrency, type Currency } from "@/lib/revenue";
 
 interface ClientCard extends Project {
   analyses_count: number;
   open_actions: number;
   last_analysis_at: string | null;
   weekly_value: number | null;
+  currency: Currency;
 }
 
 export default function Clients() {
@@ -44,10 +45,11 @@ export default function Clients() {
 
     const ids = (projects || []).map((p: any) => p.id);
     const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
-    const [{ data: analyses }, { data: actions }, { data: briefings }] = await Promise.all([
+    const [{ data: analyses }, { data: actions }, { data: briefings }, { data: revSettings }] = await Promise.all([
       supabase.from("analyses").select("project_id, created_at").in("project_id", safeIds),
       supabase.from("action_items").select("project_id, status").in("project_id", safeIds),
       supabase.from("weekly_briefings").select("project_id, total_value_at_stake_sek, week_start").in("project_id", safeIds).order("week_start", { ascending: false }),
+      supabase.from("project_revenue_settings").select("project_id, currency").in("project_id", safeIds),
     ]);
 
     const enriched: ClientCard[] = ((projects as Project[]) || []).map((p) => {
@@ -57,12 +59,14 @@ export default function Clients() {
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )[0];
       const latestBriefing = (briefings || []).find((b: any) => b.project_id === p.id);
+      const projCur = (revSettings || []).find((r: any) => r.project_id === p.id)?.currency;
       return {
         ...p,
         analyses_count: projAnalyses.length,
         open_actions: projActions.filter((a: any) => a.status !== "done" && a.status !== "archived").length,
         last_analysis_at: lastAnalysis?.created_at ?? null,
         weekly_value: latestBriefing?.total_value_at_stake_sek ?? null,
+        currency: isSupportedCurrency(projCur) ? projCur : "SEK",
       };
     });
 
@@ -172,7 +176,7 @@ export default function Clients() {
                       "bg-primary/10 border-primary/30 text-primary"
                     }`}>
                       <Sparkles className="h-3 w-3" />
-                      <span className="text-xs font-medium">Veckans värde: {formatSEK(client.weekly_value, { compact: true })}</span>
+                      <span className="text-xs font-medium">Veckans värde: {formatMoney(client.weekly_value, client.currency, { compact: true })}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-border pt-3">

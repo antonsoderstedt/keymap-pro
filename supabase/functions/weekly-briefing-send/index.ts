@@ -95,6 +95,20 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Hämta projektets valuta för korrekt formatering i mailet
+      const { data: revRow } = await supabase
+        .from("project_revenue_settings")
+        .select("currency")
+        .eq("project_id", proj.id)
+        .maybeSingle();
+      const supportedCurrencies = ["SEK", "EUR", "USD", "GBP", "NOK", "DKK"];
+      const projectCurrency =
+        (briefing.metadata?.currency && supportedCurrencies.includes(briefing.metadata.currency))
+          ? briefing.metadata.currency
+          : (revRow?.currency && supportedCurrencies.includes(revRow.currency))
+            ? revRow.currency
+            : "SEK";
+
       let sent = 0;
       let failed = 0;
       for (const rcp of filtered) {
@@ -108,7 +122,9 @@ Deno.serve(async (req) => {
               recipientName: rcp.name || "",
               clientName: proj.company || proj.name,
               weekStart: briefing.week_start,
-              totalValueSek: briefing.total_value_at_stake_sek || 0,
+              currency: projectCurrency,
+              totalValue: briefing.total_value_at_stake_sek || 0,
+              totalValueSek: briefing.total_value_at_stake_sek || 0, // bakåtkompat
               wins: (briefing.wins || []).slice(0, 5),
               risks: (briefing.risks || []).slice(0, 5),
               actions: (briefing.actions || []).slice(0, 5),

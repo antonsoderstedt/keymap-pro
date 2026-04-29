@@ -1,14 +1,14 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { formatSEK } from "@/lib/revenue";
+import { formatMoney, type Currency, isSupportedCurrency } from "@/lib/revenue";
 import { Calculator, Database, Settings2, ArrowRight } from "lucide-react";
 
 interface ItemDetails {
   method?: string;
   inputs?: Record<string, any>;
   steps?: { label: string; value: number }[];
-  settings?: { avg_order_value: number; conversion_rate_pct: number; gross_margin_pct: number };
+  settings?: { avg_order_value: number; conversion_rate_pct: number; gross_margin_pct: number; currency?: string };
   source_table?: string;
   source_id?: string | null;
   source_snapshot?: any;
@@ -39,15 +39,19 @@ const fmtNum = (v: any) =>
 const isMoneyLabel = (label: string) => /värde|sek|kr/i.test(label);
 
 export default function BriefingDrillDown({
-  item, kind, open, onOpenChange,
+  item, kind, open, onOpenChange, currency = "SEK",
 }: {
   item: DrillDownItem | null;
   kind: "win" | "risk" | "action";
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  currency?: Currency;
 }) {
   if (!item) return null;
   const d = item.details || {};
+  // Item-specifik valuta vinner (för historiska briefingar genererade i annan valuta)
+  const itemCurrency: Currency =
+    isSupportedCurrency(d.settings?.currency) ? (d.settings!.currency as Currency) : currency;
   const valueLabel = kind === "risk" ? "Värde i risk" : kind === "win" ? "Hämtat värde" : "Potentiellt värde";
 
   return (
@@ -63,7 +67,7 @@ export default function BriefingDrillDown({
           <div className="p-4 rounded-md border border-primary/30 bg-primary/5">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{valueLabel}</div>
             <div className="font-serif text-3xl text-primary mt-1">
-              {item.value_sek > 0 ? formatSEK(item.value_sek, { compact: false }) : "—"}
+              {item.value_sek > 0 ? formatMoney(item.value_sek, itemCurrency, { compact: false }) : "—"}
             </div>
             {item.source && (
               <Badge variant="outline" className="mt-2 text-[10px]">
@@ -101,7 +105,7 @@ export default function BriefingDrillDown({
                   <div key={i} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-muted/30">
                     <span className="text-muted-foreground text-xs">{i + 1}. {s.label}</span>
                     <span className={`font-mono ${isMoneyLabel(s.label) ? "text-primary font-medium" : ""}`}>
-                      {isMoneyLabel(s.label) ? formatSEK(s.value, { compact: false }) : fmtNum(s.value)}
+                      {isMoneyLabel(s.label) ? formatMoney(s.value, itemCurrency, { compact: false }) : fmtNum(s.value)}
                     </span>
                   </div>
                 ))}
@@ -112,8 +116,9 @@ export default function BriefingDrillDown({
           {/* Revenue-settings använda */}
           {d.settings && (
             <Section icon={<Settings2 className="h-3.5 w-3.5" />} title="Revenue-inställningar (vid körning)">
-              <div className="grid grid-cols-3 gap-3 text-sm">
-                <Setting label="AOV" value={`${formatSEK(d.settings.avg_order_value)}`} />
+              <div className="grid grid-cols-4 gap-3 text-sm">
+                <Setting label="Valuta" value={itemCurrency} />
+                <Setting label="AOV" value={`${formatMoney(d.settings.avg_order_value, itemCurrency)}`} />
                 <Setting label="CR" value={`${d.settings.conversion_rate_pct}%`} />
                 <Setting label="Marginal" value={`${d.settings.gross_margin_pct}%`} />
               </div>

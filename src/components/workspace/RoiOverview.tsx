@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, ArrowRight, Coins, Zap, RefreshCw } from "lucide-react";
-import { formatSEK } from "@/lib/revenue";
+import { formatMoney } from "@/lib/revenue";
+import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { computeRoiOverview, type ClusterROI } from "@/lib/roi";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,6 +17,7 @@ interface Props {
 export default function RoiOverview({ projectId }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const currency = useProjectCurrency(projectId);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [overview, setOverview] = useState<ReturnType<typeof computeRoiOverview> | null>(null);
@@ -152,17 +154,17 @@ export default function RoiOverview({ projectId }: Props) {
         <div className="grid grid-cols-3 gap-3">
           <Metric
             label="Faktisk intäkt"
-            value={formatSEK(overview.total_actual_revenue_sek, { compact: true })}
+            value={formatMoney(overview.total_actual_revenue_sek, currency, { compact: true })}
             sub={hasGa4Revenue ? "GA4 senaste 28d" : "estimat (saknar GA4)"}
           />
           <Metric
             label="Estimerat årsvärde"
-            value={formatSEK(overview.total_estimated_value_sek, { compact: true })}
+            value={formatMoney(overview.total_estimated_value_sek, currency, { compact: true })}
             sub="vid nuvarande pos."
           />
           <Metric
             label="Uplift-potential"
-            value={formatSEK(overview.total_uplift_potential_sek, { compact: true })}
+            value={formatMoney(overview.total_uplift_potential_sek, currency, { compact: true })}
             sub="om alla → topp 3"
             accent
           />
@@ -173,7 +175,7 @@ export default function RoiOverview({ projectId }: Props) {
             Topp-kluster efter prioritet
           </div>
           {top.map((c, i) => (
-            <ClusterRow key={i} c={c} />
+            <ClusterRow key={i} c={c} currency={currency} />
           ))}
         </div>
 
@@ -195,7 +197,7 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
   );
 }
 
-function ClusterRow({ c }: { c: ClusterROI }) {
+function ClusterRow({ c, currency }: { c: ClusterROI; currency: import("@/lib/revenue").Currency }) {
   const variantMap: Record<ClusterROI["priority"], "destructive" | "default" | "secondary" | "outline"> = {
     kritisk: "destructive",
     hög: "default",
@@ -217,10 +219,10 @@ function ClusterRow({ c }: { c: ClusterROI }) {
       <div className="text-right shrink-0">
         <div className="text-sm font-medium text-primary flex items-center gap-1 justify-end">
           <Zap className="h-3 w-3" />
-          {formatSEK(c.uplift_potential_sek, { compact: true })}
+          {formatMoney(c.uplift_potential_sek, currency, { compact: true })}
         </div>
         <div className="text-[10px] text-muted-foreground">
-          värde {formatSEK(Math.max(c.actual_revenue_sek, c.estimated_value_sek), { compact: true })}
+          värde {formatMoney(Math.max(c.actual_revenue_sek, c.estimated_value_sek), currency, { compact: true })}
         </div>
       </div>
     </div>

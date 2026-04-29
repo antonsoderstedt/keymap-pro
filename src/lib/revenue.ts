@@ -78,12 +78,49 @@ export function estimateAdsWaste(
   return Math.max(0, expectedRevenue - (conversionsValue || 0));
 }
 
-export function formatSEK(amount: number, opts: { compact?: boolean } = {}): string {
+export type Currency = "SEK" | "EUR" | "USD" | "GBP" | "NOK" | "DKK";
+
+export const SUPPORTED_CURRENCIES: { code: Currency; label: string; locale: string; compactSuffix: string; compactBig: string }[] = [
+  { code: "SEK", label: "Svenska kronor (kr)", locale: "sv-SE", compactSuffix: "tkr", compactBig: "MSEK" },
+  { code: "EUR", label: "Euro (€)", locale: "de-DE", compactSuffix: "k €", compactBig: "M €" },
+  { code: "USD", label: "US dollar ($)", locale: "en-US", compactSuffix: "k $", compactBig: "M $" },
+  { code: "GBP", label: "Brittiska pund (£)", locale: "en-GB", compactSuffix: "k £", compactBig: "M £" },
+  { code: "NOK", label: "Norska kronor (kr)", locale: "nb-NO", compactSuffix: "tkr", compactBig: "MNOK" },
+  { code: "DKK", label: "Danska kronor (kr)", locale: "da-DK", compactSuffix: "tkr", compactBig: "MDKK" },
+];
+
+const CURRENCY_META: Record<Currency, { locale: string; compactSuffix: string; compactBig: string }> = SUPPORTED_CURRENCIES.reduce(
+  (acc, c) => ({ ...acc, [c.code]: { locale: c.locale, compactSuffix: c.compactSuffix, compactBig: c.compactBig } }),
+  {} as any,
+);
+
+export function isSupportedCurrency(c: string | null | undefined): c is Currency {
+  return !!c && (SUPPORTED_CURRENCIES.some((x) => x.code === c));
+}
+
+export function formatMoney(
+  amount: number,
+  currency: Currency = "SEK",
+  opts: { compact?: boolean } = {},
+): string {
   if (!isFinite(amount)) return "—";
+  const meta = CURRENCY_META[currency] || CURRENCY_META.SEK;
   const abs = Math.abs(amount);
-  if (opts.compact && abs >= 1_000_000) return `${(amount / 1_000_000).toFixed(1).replace(".", ",")} MSEK`;
-  if (opts.compact && abs >= 10_000) return `${Math.round(amount / 1000)} tkr`;
-  return new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 }).format(amount);
+  if (opts.compact && abs >= 1_000_000) {
+    return `${(amount / 1_000_000).toFixed(1).replace(".", ",")} ${meta.compactBig}`;
+  }
+  if (opts.compact && abs >= 10_000) {
+    return `${Math.round(amount / 1000).toLocaleString(meta.locale)} ${meta.compactSuffix}`;
+  }
+  return new Intl.NumberFormat(meta.locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+}
+
+/** Bakåtkompatibel — defaultar till SEK men accepterar valuta-override. */
+export function formatSEK(
+  amount: number,
+  opts: { compact?: boolean; currency?: Currency } = {},
+): string {
+  return formatMoney(amount, opts.currency || "SEK", { compact: opts.compact });
 }
 
 export function valueColor(amount: number): "green" | "yellow" | "red" | "neutral" {

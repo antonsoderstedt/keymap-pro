@@ -15,8 +15,14 @@ interface RevenueSettings {
   avg_order_value: number;
   conversion_rate_pct: number;
   gross_margin_pct: number;
+  currency?: string;
 }
-const DEFAULT_REV: RevenueSettings = { avg_order_value: 1000, conversion_rate_pct: 2, gross_margin_pct: 100 };
+const DEFAULT_REV: RevenueSettings = { avg_order_value: 1000, conversion_rate_pct: 2, gross_margin_pct: 100, currency: "SEK" };
+const SUPPORTED_CURRENCIES = ["SEK", "EUR", "USD", "GBP", "NOK", "DKK"];
+const CURRENCY_NAMES: Record<string, string> = {
+  SEK: "svenska kronor (kr)", EUR: "euro (€)", USD: "US-dollar ($)",
+  GBP: "brittiska pund (£)", NOK: "norska kronor (kr)", DKK: "danska kronor (kr)",
+};
 
 const CTR: Record<number, number> = { 1:0.319,2:0.247,3:0.187,4:0.137,5:0.099,6:0.072,7:0.054,8:0.04,9:0.031,10:0.025 };
 const ctrAt = (p: number) => p <= 10 ? CTR[Math.max(1, Math.round(p))] ?? 0.025 : p <= 20 ? 0.012 : p <= 30 ? 0.005 : 0.001;
@@ -81,6 +87,9 @@ Deno.serve(async (req) => {
       });
     }
     const rev: RevenueSettings = revSettings || DEFAULT_REV;
+    const currency = SUPPORTED_CURRENCIES.includes(String(rev.currency)) ? String(rev.currency) : "SEK";
+    rev.currency = currency;
+    const currencyName = CURRENCY_NAMES[currency] || currency;
 
     // 2. Samla data — senaste 28 dagar
     const since = new Date(); since.setDate(since.getDate() - 28);
@@ -280,23 +289,25 @@ Deno.serve(async (req) => {
     if (LOVABLE_API_KEY) {
       const prompt = `Du är senior digital strateg för ${project.name}${project.company ? ` (${project.company})` : ""}.
 Skriv en 1-sidig veckobriefing på svenska för vecka ${week_start}. Ton: rakt, konkret, affärsdrivet, INGA floskler.
+Alla monetära värden ska uttryckas i ${currencyName} (${currency}). Skriv ALDRIG "kr" eller "SEK" om valutan är något annat.
 Strukturera som markdown:
 ## Veckans bedömning
 (2-3 meningar — vad är läget?)
 ## Top vinster
-(för varje win: en mening + kronvärde)
+(för varje win: en mening + värde i ${currency})
 ## Top risker
-(för varje risk: en mening + kronvärde + vad som händer om vi inget gör)
+(för varje risk: en mening + värde i ${currency} + vad som händer om vi inget gör)
 ## Rekommenderade actions
-(för varje action: vad, varför, kronvärde, ungefärlig insats)
+(för varje action: vad, varför, värde i ${currency}, ungefärlig insats)
 ## En sak att fokusera på
 (en enda prioritet)
 
 Data:
+CURRENCY: ${currency}
 WINS: ${JSON.stringify(wins)}
 RISKS: ${JSON.stringify(risks)}
 ACTIONS: ${JSON.stringify(actions)}
-TOTAL_VALUE_AT_STAKE: ${totalValue} SEK`;
+TOTAL_VALUE_AT_STAKE: ${totalValue} ${currency}`;
 
       const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -304,7 +315,7 @@ TOTAL_VALUE_AT_STAKE: ${totalValue} SEK`;
         body: JSON.stringify({
           model: "google/gemini-2.5-pro",
           messages: [
-            { role: "system", content: "Du skriver koncisa, affärsdrivna strategibriefingar för B2B-marknadsföring. Aldrig generiska fraser. Alltid med kronvärde." },
+            { role: "system", content: `Du skriver koncisa, affärsdrivna strategibriefingar för B2B-marknadsföring. Aldrig generiska fraser. Alltid med monetärt värde i ${currency}.` },
             { role: "user", content: prompt },
           ],
         }),
@@ -325,7 +336,7 @@ TOTAL_VALUE_AT_STAKE: ${totalValue} SEK`;
       .upsert({
         project_id, week_start, summary_md, wins, risks, actions,
         total_value_at_stake_sek: Math.round(totalValue),
-        metadata: { generated_at: new Date().toISOString(), revenue_settings: rev },
+        metadata: { generated_at: new Date().toISOString(), revenue_settings: rev, currency },
       }, { onConflict: "project_id,week_start" })
       .select()
       .single();

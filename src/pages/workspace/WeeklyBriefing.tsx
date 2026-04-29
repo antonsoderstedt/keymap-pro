@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, TrendingUp, AlertTriangle, Target, RefreshCw, Download, Mail } from "lucide-react";
 import { toast } from "sonner";
-import { formatSEK, valueColor } from "@/lib/revenue";
+import { formatMoney, valueColor, isSupportedCurrency, type Currency } from "@/lib/revenue";
+import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import ReactMarkdown from "react-markdown";
 import WeeklyBriefingHistory from "@/components/workspace/WeeklyBriefingHistory";
 import BriefingDrillDown, { type DrillDownItem } from "@/components/workspace/BriefingDrillDown";
@@ -20,6 +21,7 @@ interface Briefing {
   risks: any[];
   actions: any[];
   total_value_at_stake_sek: number;
+  metadata: any;
   created_at: string;
 }
 
@@ -40,11 +42,12 @@ const valueClass = (v: number) => {
 
 export default function WeeklyBriefing() {
   const { id } = useParams<{ id: string }>();
+  const projectCurrency = useProjectCurrency(id);
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>(startOfIsoWeek(new Date()));
   const [generating, setGenerating] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
-  const [drill, setDrill] = useState<{ item: DrillDownItem; kind: "win" | "risk" | "action" } | null>(null);
+  const [drill, setDrill] = useState<{ item: DrillDownItem; kind: "win" | "risk" | "action"; currency: Currency } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
@@ -63,6 +66,11 @@ export default function WeeklyBriefing() {
     () => briefings.find(b => b.week_start === selectedWeek) || briefings[0],
     [briefings, selectedWeek],
   );
+
+  const briefingCurrency: Currency = useMemo(() => {
+    const stored = current?.metadata?.revenue_settings?.currency;
+    return isSupportedCurrency(stored) ? stored : projectCurrency;
+  }, [current, projectCurrency]);
 
   const generate = async () => {
     if (!id) return;
@@ -147,10 +155,10 @@ export default function WeeklyBriefing() {
             <CardContent className="p-8">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Värde att hämta hem denna vecka</div>
               <div className="font-serif text-5xl mt-2 text-primary">
-                {formatSEK(current.total_value_at_stake_sek, { compact: true })}
+                {formatMoney(current.total_value_at_stake_sek, briefingCurrency, { compact: true })}
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                Beräknat på dina sökord, positioner, annonsspill och åtgärder. Genererad {new Date(current.created_at).toLocaleString("sv-SE")}.
+                Beräknat på dina sökord, positioner, annonsspill och åtgärder. Valuta: {briefingCurrency}. Genererad {new Date(current.created_at).toLocaleString("sv-SE")}.
               </p>
             </CardContent>
           </Card>
@@ -166,9 +174,9 @@ export default function WeeklyBriefing() {
 
           {/* Tre kolumner */}
           <div className="grid lg:grid-cols-3 gap-4">
-            <Column icon={<TrendingUp className="h-4 w-4 text-primary" />} title="Vinster" items={current.wins} emptyText="Inga mätbara vinster denna vecka." onSelect={(it) => setDrill({ item: it, kind: "win" })} />
-            <Column icon={<AlertTriangle className="h-4 w-4 text-destructive" />} title="Risker" items={current.risks} emptyText="Inga akuta risker upptäckta." onSelect={(it) => setDrill({ item: it, kind: "risk" })} />
-            <Column icon={<Target className="h-4 w-4 text-primary" />} title="Actions" items={current.actions} emptyText="Inga prioriterade actions just nu." onSelect={(it) => setDrill({ item: it, kind: "action" })} />
+            <Column currency={briefingCurrency} icon={<TrendingUp className="h-4 w-4 text-primary" />} title="Vinster" items={current.wins} emptyText="Inga mätbara vinster denna vecka." onSelect={(it) => setDrill({ item: it, kind: "win", currency: briefingCurrency })} />
+            <Column currency={briefingCurrency} icon={<AlertTriangle className="h-4 w-4 text-destructive" />} title="Risker" items={current.risks} emptyText="Inga akuta risker upptäckta." onSelect={(it) => setDrill({ item: it, kind: "risk", currency: briefingCurrency })} />
+            <Column currency={briefingCurrency} icon={<Target className="h-4 w-4 text-primary" />} title="Actions" items={current.actions} emptyText="Inga prioriterade actions just nu." onSelect={(it) => setDrill({ item: it, kind: "action", currency: briefingCurrency })} />
           </div>
         </div>
       )}
@@ -179,6 +187,7 @@ export default function WeeklyBriefing() {
       <BriefingDrillDown
         item={drill?.item || null}
         kind={drill?.kind || "win"}
+        currency={drill?.currency || briefingCurrency}
         open={!!drill}
         onOpenChange={(v) => !v && setDrill(null)}
       />
@@ -186,7 +195,7 @@ export default function WeeklyBriefing() {
   );
 }
 
-function Column({ icon, title, items, emptyText, onSelect }: { icon: React.ReactNode; title: string; items: any[]; emptyText: string; onSelect: (it: DrillDownItem) => void }) {
+function Column({ icon, title, items, emptyText, onSelect, currency }: { icon: React.ReactNode; title: string; items: any[]; emptyText: string; onSelect: (it: DrillDownItem) => void; currency: Currency }) {
   return (
     <Card>
       <CardHeader>
@@ -212,7 +221,7 @@ function Column({ icon, title, items, emptyText, onSelect }: { icon: React.React
               {it.why && <div className="text-[11px] text-muted-foreground">{it.why}</div>}
               {typeof it.value_sek === "number" && it.value_sek > 0 && (
                 <Badge variant="outline" className={`text-[10px] ${valueClass(it.value_sek)}`}>
-                  {formatSEK(it.value_sek, { compact: true })}/år
+                  {formatMoney(it.value_sek, currency, { compact: true })}/år
                 </Badge>
               )}
             </button>
