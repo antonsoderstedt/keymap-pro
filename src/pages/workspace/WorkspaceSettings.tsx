@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import AutomationRules from "@/components/workspace/AutomationRules";
+import RevenueSettings from "@/components/workspace/RevenueSettings";
 
 interface KpiTarget {
   id: string;
@@ -167,6 +168,8 @@ export default function WorkspaceSettings() {
           )}
         </CardContent>
       </Card>
+
+      <RevenueSettings projectId={id!} />
 
       <AutomationRules projectId={id!} />
 
