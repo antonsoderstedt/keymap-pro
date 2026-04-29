@@ -87,6 +87,9 @@ Deno.serve(async (req) => {
       });
     }
     const rev: RevenueSettings = revSettings || DEFAULT_REV;
+    const currency = SUPPORTED_CURRENCIES.includes(String(rev.currency)) ? String(rev.currency) : "SEK";
+    rev.currency = currency;
+    const currencyName = CURRENCY_NAMES[currency] || currency;
 
     // 2. Samla data — senaste 28 dagar
     const since = new Date(); since.setDate(since.getDate() - 28);
