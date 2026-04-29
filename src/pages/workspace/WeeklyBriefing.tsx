@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { formatSEK, valueColor } from "@/lib/revenue";
 import ReactMarkdown from "react-markdown";
 import WeeklyBriefingHistory from "@/components/workspace/WeeklyBriefingHistory";
+import BriefingDrillDown, { type DrillDownItem } from "@/components/workspace/BriefingDrillDown";
 
 interface Briefing {
   id: string;
@@ -42,6 +43,7 @@ export default function WeeklyBriefing() {
   const [selectedWeek, setSelectedWeek] = useState<string>(startOfIsoWeek(new Date()));
   const [generating, setGenerating] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
+  const [drill, setDrill] = useState<{ item: DrillDownItem; kind: "win" | "risk" | "action" } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
