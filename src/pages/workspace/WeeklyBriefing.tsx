@@ -165,19 +165,26 @@ export default function WeeklyBriefing() {
 
           {/* Tre kolumner */}
           <div className="grid lg:grid-cols-3 gap-4">
-            <Column icon={<TrendingUp className="h-4 w-4 text-primary" />} title="Vinster" items={current.wins} emptyText="Inga mätbara vinster denna vecka." />
-            <Column icon={<AlertTriangle className="h-4 w-4 text-destructive" />} title="Risker" items={current.risks} emptyText="Inga akuta risker upptäckta." />
-            <Column icon={<Target className="h-4 w-4 text-primary" />} title="Actions" items={current.actions} emptyText="Inga prioriterade actions just nu." />
+            <Column icon={<TrendingUp className="h-4 w-4 text-primary" />} title="Vinster" items={current.wins} emptyText="Inga mätbara vinster denna vecka." onSelect={(it) => setDrill({ item: it, kind: "win" })} />
+            <Column icon={<AlertTriangle className="h-4 w-4 text-destructive" />} title="Risker" items={current.risks} emptyText="Inga akuta risker upptäckta." onSelect={(it) => setDrill({ item: it, kind: "risk" })} />
+            <Column icon={<Target className="h-4 w-4 text-primary" />} title="Actions" items={current.actions} emptyText="Inga prioriterade actions just nu." onSelect={(it) => setDrill({ item: it, kind: "action" })} />
           </div>
         </div>
       )}
 
       {id && <WeeklyBriefingHistory projectId={id} refreshKey={historyKey} />}
+
+      <BriefingDrillDown
+        item={drill?.item || null}
+        kind={drill?.kind || "win"}
+        open={!!drill}
+        onOpenChange={(v) => !v && setDrill(null)}
+      />
     </div>
   );
 }
 
-function Column({ icon, title, items, emptyText }: { icon: React.ReactNode; title: string; items: any[]; emptyText: string }) {
+function Column({ icon, title, items, emptyText, onSelect }: { icon: React.ReactNode; title: string; items: any[]; emptyText: string; onSelect: (it: DrillDownItem) => void }) {
   return (
     <Card>
       <CardHeader>
@@ -188,15 +195,25 @@ function Column({ icon, title, items, emptyText }: { icon: React.ReactNode; titl
           <p className="text-xs text-muted-foreground">{emptyText}</p>
         ) : (
           items.map((it, i) => (
-            <div key={i} className="p-3 rounded-md border border-border space-y-1">
-              <div className="text-sm font-medium leading-snug">{it.title}</div>
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect(it)}
+              className="w-full text-left p-3 rounded-md border border-border space-y-1 hover:border-primary/50 hover:bg-primary/[0.03] transition-colors group"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-sm font-medium leading-snug">{it.title}</div>
+                <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+                  Detaljer →
+                </span>
+              </div>
               {it.why && <div className="text-[11px] text-muted-foreground">{it.why}</div>}
               {typeof it.value_sek === "number" && it.value_sek > 0 && (
                 <Badge variant="outline" className={`text-[10px] ${valueClass(it.value_sek)}`}>
                   {formatSEK(it.value_sek, { compact: true })}/år
                 </Badge>
               )}
-            </div>
+            </button>
           ))
         )}
       </CardContent>
