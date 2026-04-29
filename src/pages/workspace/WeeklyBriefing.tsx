@@ -67,6 +67,11 @@ export default function WeeklyBriefing() {
     [briefings, selectedWeek],
   );
 
+  const briefingCurrency: Currency = useMemo(() => {
+    const stored = current?.metadata?.revenue_settings?.currency;
+    return isSupportedCurrency(stored) ? stored : projectCurrency;
+  }, [current, projectCurrency]);
+
   const generate = async () => {
     if (!id) return;
     setGenerating(true);
