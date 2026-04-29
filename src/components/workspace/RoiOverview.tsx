@@ -197,7 +197,7 @@ function Metric({ label, value, sub, accent }: { label: string; value: string; s
   );
 }
 
-function ClusterRow({ c }: { c: ClusterROI }) {
+function ClusterRow({ c, currency }: { c: ClusterROI; currency: import("@/lib/revenue").Currency }) {
   const variantMap: Record<ClusterROI["priority"], "destructive" | "default" | "secondary" | "outline"> = {
     kritisk: "destructive",
     hög: "default",
