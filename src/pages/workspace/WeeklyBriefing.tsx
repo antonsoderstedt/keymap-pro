@@ -155,10 +155,10 @@ export default function WeeklyBriefing() {
             <CardContent className="p-8">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Värde att hämta hem denna vecka</div>
               <div className="font-serif text-5xl mt-2 text-primary">
-                {formatSEK(current.total_value_at_stake_sek, { compact: true })}
+                {formatMoney(current.total_value_at_stake_sek, briefingCurrency, { compact: true })}
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                Beräknat på dina sökord, positioner, annonsspill och åtgärder. Genererad {new Date(current.created_at).toLocaleString("sv-SE")}.
+                Beräknat på dina sökord, positioner, annonsspill och åtgärder. Valuta: {briefingCurrency}. Genererad {new Date(current.created_at).toLocaleString("sv-SE")}.
               </p>
             </CardContent>
           </Card>
