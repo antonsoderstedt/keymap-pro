@@ -8,6 +8,7 @@ import { Activity, MousePointerClick, Target, Users, ListChecks, ArrowRight, Spa
 import { useNavigate } from "react-router-dom";
 import { useBrandKit } from "@/hooks/useBrandKit";
 import { formatSEK } from "@/lib/revenue";
+import RoiOverview from "@/components/workspace/RoiOverview";
 
 export default function ExecutiveDashboard() {
   const { id } = useParams<{ id: string }>();
@@ -117,6 +118,9 @@ export default function ExecutiveDashboard() {
           );
         })}
       </div>
+
+      {/* ROI Intelligence */}
+      {id && <RoiOverview projectId={id} />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Action summary */}
