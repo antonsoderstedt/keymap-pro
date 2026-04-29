@@ -35,16 +35,37 @@ function startOfIsoWeek(d: Date): string {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+  let jobId: string | null = null;
+  let project_id: string | undefined;
+  let week_start: string | undefined;
+
   try {
     const body = await req.json().catch(() => ({}));
-    const project_id = body.project_id as string | undefined;
+    project_id = body.project_id as string | undefined;
     if (!project_id) {
       return new Response(JSON.stringify({ error: "project_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const week_start = body.week_start || startOfIsoWeek(new Date());
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    week_start = body.week_start || startOfIsoWeek(new Date());
+    const trigger = body.trigger || "manual"; // manual | cron | api
+
+    // Skapa job-record för historik
+    const { data: job } = await supabase
+      .from("analysis_jobs")
+      .insert({
+        project_id,
+        job_type: "weekly_briefing",
+        status: "running",
+        started_at: new Date().toISOString(),
+        current_step: "collecting_data",
+        progress_pct: 10,
+        payload: { week_start, trigger },
+      })
+      .select("id")
+      .single();
+    jobId = job?.id || null;
 
     // 1. Hämta projekt + revenue-settings
     const [{ data: project }, { data: revSettings }] = await Promise.all([
@@ -52,6 +73,9 @@ Deno.serve(async (req) => {
       supabase.from("project_revenue_settings").select("*").eq("project_id", project_id).maybeSingle(),
     ]);
     if (!project) {
+      if (jobId) await supabase.from("analysis_jobs").update({
+        status: "failed", error_message: "project not found", completed_at: new Date().toISOString(),
+      }).eq("id", jobId);
       return new Response(JSON.stringify({ error: "project not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -210,12 +234,33 @@ TOTAL_VALUE_AT_STAKE: ${totalValue} SEK`;
       .single();
     if (saveErr) throw saveErr;
 
-    return new Response(JSON.stringify({ ok: true, briefing: saved }), {
+    if (jobId) {
+      await supabase.from("analysis_jobs").update({
+        status: "completed",
+        progress_pct: 100,
+        current_step: "done",
+        completed_at: new Date().toISOString(),
+        payload: {
+          week_start, briefing_id: saved.id,
+          counts: { wins: wins.length, risks: risks.length, actions: actions.length },
+          total_value_at_stake_sek: Math.round(totalValue),
+        },
+      }).eq("id", jobId);
+    }
+
+    return new Response(JSON.stringify({ ok: true, briefing: saved, job_id: jobId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("weekly-briefing error", e);
-    return new Response(JSON.stringify({ error: e?.message || "unknown" }), {
+    if (jobId) {
+      await supabase.from("analysis_jobs").update({
+        status: "failed",
+        error_message: String(e?.message || e),
+        completed_at: new Date().toISOString(),
+      }).eq("id", jobId);
+    }
+    return new Response(JSON.stringify({ error: e?.message || "unknown", job_id: jobId }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
