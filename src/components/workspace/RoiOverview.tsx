@@ -175,7 +175,7 @@ export default function RoiOverview({ projectId }: Props) {
             Topp-kluster efter prioritet
           </div>
           {top.map((c, i) => (
-            <ClusterRow key={i} c={c} />
+            <ClusterRow key={i} c={c} currency={currency} />
           ))}
         </div>
 
