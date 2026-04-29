@@ -6,15 +6,21 @@ Wizard, Keyword Universe, Briefs, Strategy, Ad drafts, Brand Kit, Artifacts, kli
 ## Fas 2 — KLART
 Workspace-layout, Google OAuth (GSC + GA4 + Ads), edge-funktioner, dashboards, KPI-mål, Alerts, Action Tracker, Audit, Ads-konto väljs per kund.
 
-## Fas 3 — Pågår
+## Fas 3 — KLART
 
-### KLART denna iteration
-- ✅ A1: Översikt-banner ersatt med "Vad är aktivt"-checklist baserad på faktisk koppling.
-- ✅ A2: `/keyword-universe` & `/segments` har riktiga sidor (`WorkspaceKeywordUniverse`, `WorkspaceSegments`) — inte `<ComingSoon>` längre.
-- ✅ A3: Ads-scope visas redan på Översikt (var redan byggt).
-- ✅ B4: Riktig SEO-kannibalisering — ny edge `ads-cannibalization` joinar GSC top-3 mot Ads search terms (30d), `PaidVsOrganic` visar tabell + potentiell besparing.
+- ✅ A1: Översikt — "Vad är aktivt"-checklist.
+- ✅ A2: `/keyword-universe` & `/segments` riktiga sidor.
+- ✅ A3: Ads-scope-badge på Översikt.
+- ✅ B4: SEO-kannibalisering (`ads-cannibalization`) i Paid vs Organic.
+- ✅ B5: Effektmätning i ActionTracker (`ActionImpact`-komponent visar delta% per metric och fönster). Knapp "Mät effekt" triggar `measure-action-impact`.
+- ✅ B6: Automation rules UI i Settings (`AutomationRules`-komponent — CRUD + toggle).
+- ✅ B7: Schemalagda rapporter — `weekly-report` edge function + `pg_cron` jobb varje måndag 06:00, `measure-action-impact` varje natt 02:00. UI i Reports Library med "Kör nu" + KPI-snapshot.
 
-### Återstår
-- ⬜ B5: Effektmätning i ActionTracker — visa `action_outcomes` per implementerad åtgärd (delta%).
-- ⬜ B6: Automation rules UI i Settings (regeltyper: kpi_breach, audit_critical, auction_loss_pct).
-- ⬜ B7: Schemalagda rapporter — cron + email leverans (kräver Resend-secret).
+### Bug-fixar
+- ✅ Google Ads v21: `pageSize` borttaget från GAQL-anrop (PAGE_SIZE_NOT_SUPPORTED).
+- ✅ Google Ads v21: `ads-fetch-auction-insights` förenklad till campaign-IS (UNRECOGNIZED_FIELD på `auction_insight_domain.*`).
+
+## Nästa steg (frivilligt — Fas 4)
+- Email-leverans av weekly-report (kräver Resend-domän + `RESEND_API_KEY`).
+- Faktisk PPTX-rendering via `generate-presentation` för weekly-report.
+- Auto-execution av automation rules (idag är de "suggest" / "alert" — `auto`-läget kräver Ads-mutation-stöd).
