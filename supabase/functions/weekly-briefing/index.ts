@@ -336,7 +336,7 @@ TOTAL_VALUE_AT_STAKE: ${totalValue} ${currency}`;
       .upsert({
         project_id, week_start, summary_md, wins, risks, actions,
         total_value_at_stake_sek: Math.round(totalValue),
-        metadata: { generated_at: new Date().toISOString(), revenue_settings: rev },
+        metadata: { generated_at: new Date().toISOString(), revenue_settings: rev, currency },
       }, { onConflict: "project_id,week_start" })
       .select()
       .single();
