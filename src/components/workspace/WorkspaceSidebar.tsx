@@ -38,6 +38,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
       title: "Översikt",
       items: [
         { to: `${base}`, label: "Executive", icon: LayoutDashboard },
+        { to: `${base}/briefing`, label: "Veckans briefing", icon: Sparkles, badge: "premium" },
         { to: `${base}/overview`, label: "Workspace-översikt", icon: ClipboardCheck },
       ],
     },

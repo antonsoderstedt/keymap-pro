@@ -4,16 +4,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight } from "lucide-react";
+import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { formatSEK, valueColor } from "@/lib/revenue";
 
 interface ClientCard extends Project {
   analyses_count: number;
   open_actions: number;
   last_analysis_at: string | null;
+  weekly_value: number | null;
 }
 
 export default function Clients() {
@@ -41,9 +43,11 @@ export default function Clients() {
     }
 
     const ids = (projects || []).map((p: any) => p.id);
-    const [{ data: analyses }, { data: actions }] = await Promise.all([
-      supabase.from("analyses").select("project_id, created_at").in("project_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
-      supabase.from("action_items").select("project_id, status").in("project_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+    const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
+    const [{ data: analyses }, { data: actions }, { data: briefings }] = await Promise.all([
+      supabase.from("analyses").select("project_id, created_at").in("project_id", safeIds),
+      supabase.from("action_items").select("project_id, status").in("project_id", safeIds),
+      supabase.from("weekly_briefings").select("project_id, total_value_at_stake_sek, week_start").in("project_id", safeIds).order("week_start", { ascending: false }),
     ]);
 
     const enriched: ClientCard[] = ((projects as Project[]) || []).map((p) => {
@@ -52,11 +56,13 @@ export default function Clients() {
       const lastAnalysis = projAnalyses.sort((a: any, b: any) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )[0];
+      const latestBriefing = (briefings || []).find((b: any) => b.project_id === p.id);
       return {
         ...p,
         analyses_count: projAnalyses.length,
         open_actions: projActions.filter((a: any) => a.status !== "done" && a.status !== "archived").length,
         last_analysis_at: lastAnalysis?.created_at ?? null,
+        weekly_value: latestBriefing?.total_value_at_stake_sek ?? null,
       };
     });
 
@@ -159,6 +165,16 @@ export default function Clients() {
                       </Badge>
                     )}
                   </div>
+                  {client.weekly_value !== null && client.weekly_value > 0 && (
+                    <div className={`flex items-center gap-2 p-2 rounded-md border ${
+                      valueColor(client.weekly_value) === "red" ? "bg-destructive/10 border-destructive/30 text-destructive" :
+                      valueColor(client.weekly_value) === "yellow" ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-500" :
+                      "bg-primary/10 border-primary/30 text-primary"
+                    }`}>
+                      <Sparkles className="h-3 w-3" />
+                      <span className="text-xs font-medium">Veckans värde: {formatSEK(client.weekly_value, { compact: true })}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-border pt-3">
                     <Calendar className="h-3 w-3" />
                     {client.last_analysis_at

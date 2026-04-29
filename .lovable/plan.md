@@ -1,26 +1,28 @@
 # KEYMAP — Plan-status
 
-## Fas 1 — KLART
-Wizard, Keyword Universe, Briefs, Strategy, Ad drafts, Brand Kit, Artifacts, klientlista.
+## Fas 1–3 — KLART
+Wizard, workspace, Google-integrationer, dashboards, KPI-mål, alerts, action tracker, audit, automation rules, weekly-report, ads-cannibalization.
 
-## Fas 2 — KLART
-Workspace-layout, Google OAuth (GSC + GA4 + Ads), edge-funktioner, dashboards, KPI-mål, Alerts, Action Tracker, Audit, Ads-konto väljs per kund.
+## Sprint 1 (Premium) — KLART
+Mål: värdet syns i kronor, AI-strateg varje vecka.
 
-## Fas 3 — KLART
+- ✅ `project_revenue_settings`-tabell + UI i Settings (AOV, CR, marginal)
+- ✅ `src/lib/revenue.ts` — CTR-kurva, kronvärde-beräkningar, formatSEK
+- ✅ `weekly_briefings`-tabell (RLS, unique per vecka/projekt)
+- ✅ `weekly-briefing` edge function — Lovable AI (Gemini 2.5 Pro), wins/risks/actions med €
+- ✅ `/clients/:id/briefing` — sida med hero-värde, AI-text, 3 kolumner, PDF-print
+- ✅ Sidebar: "Veckans briefing" (premium-badge)
+- ✅ Executive Dashboard: briefing-band överst med totalvärde
+- ✅ Klientlistan: "Veckans värde" per kund med färgkod
+- ✅ `action_items.expected_impact_sek` kolumn tillagd
 
-- ✅ A1: Översikt — "Vad är aktivt"-checklist.
-- ✅ A2: `/keyword-universe` & `/segments` riktiga sidor.
-- ✅ A3: Ads-scope-badge på Översikt.
-- ✅ B4: SEO-kannibalisering (`ads-cannibalization`) i Paid vs Organic.
-- ✅ B5: Effektmätning i ActionTracker (`ActionImpact`-komponent visar delta% per metric och fönster). Knapp "Mät effekt" triggar `measure-action-impact`.
-- ✅ B6: Automation rules UI i Settings (`AutomationRules`-komponent — CRUD + toggle).
-- ✅ B7: Schemalagda rapporter — `weekly-report` edge function + `pg_cron` jobb varje måndag 06:00, `measure-action-impact` varje natt 02:00. UI i Reports Library med "Kör nu" + KPI-snapshot.
+## Sprint 1.5 (kvar att göra om önskat)
+- Cron schedule för `weekly-briefing` varje måndag 05:30 (kräver supabase--insert med projektspecifik URL)
+- €-kolumner i Keyword Universe-tabell, SEO Dashboard KPI-kort, Paid vs Organic ROI-jämförelse
+- Email-leverans av briefing (kräver sender-domän)
 
-### Bug-fixar
-- ✅ Google Ads v21: `pageSize` borttaget från GAQL-anrop (PAGE_SIZE_NOT_SUPPORTED).
-- ✅ Google Ads v21: `ads-fetch-auction-insights` förenklad till campaign-IS (UNRECOGNIZED_FIELD på `auction_insight_domain.*`).
+## Sprint 2 (planerad)
+SERP/Competitor Radar + Forecast Planner.
 
-## Nästa steg (frivilligt — Fas 4)
-- Email-leverans av weekly-report (kräver Resend-domän + `RESEND_API_KEY`).
-- Faktisk PPTX-rendering via `generate-presentation` för weekly-report.
-- Auto-execution av automation rules (idag är de "suggest" / "alert" — `auto`-läget kräver Ads-mutation-stöd).
+## Sprint 3 (planerad)
+White-label, klientportal, Stripe-paketering, auto-execution.

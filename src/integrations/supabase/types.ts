@@ -22,6 +22,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           expected_impact: string | null
+          expected_impact_sek: number | null
           id: string
           implementation_notes: string | null
           implemented_at: string | null
@@ -42,6 +43,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           expected_impact?: string | null
+          expected_impact_sek?: number | null
           id?: string
           implementation_notes?: string | null
           implemented_at?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           expected_impact?: string | null
+          expected_impact_sek?: number | null
           id?: string
           implementation_notes?: string | null
           implemented_at?: string | null
@@ -828,6 +831,39 @@ export type Database = {
         }
         Relationships: []
       }
+      project_revenue_settings: {
+        Row: {
+          avg_order_value: number
+          conversion_rate_pct: number
+          created_at: string
+          currency: string
+          gross_margin_pct: number
+          id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          avg_order_value?: number
+          conversion_rate_pct?: number
+          created_at?: string
+          currency?: string
+          gross_margin_pct?: number
+          id?: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          avg_order_value?: number
+          conversion_rate_pct?: number
+          created_at?: string
+          currency?: string
+          gross_margin_pct?: number
+          id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           company: string
@@ -951,6 +987,45 @@ export type Database = {
           created_at?: string
           payload?: Json
           updated_at?: string
+        }
+        Relationships: []
+      }
+      weekly_briefings: {
+        Row: {
+          actions: Json
+          created_at: string
+          id: string
+          metadata: Json
+          project_id: string
+          risks: Json
+          summary_md: string | null
+          total_value_at_stake_sek: number
+          week_start: string
+          wins: Json
+        }
+        Insert: {
+          actions?: Json
+          created_at?: string
+          id?: string
+          metadata?: Json
+          project_id: string
+          risks?: Json
+          summary_md?: string | null
+          total_value_at_stake_sek?: number
+          week_start: string
+          wins?: Json
+        }
+        Update: {
+          actions?: Json
+          created_at?: string
+          id?: string
+          metadata?: Json
+          project_id?: string
+          risks?: Json
+          summary_md?: string | null
+          total_value_at_stake_sek?: number
+          week_start?: string
+          wins?: Json
         }
         Relationships: []
       }

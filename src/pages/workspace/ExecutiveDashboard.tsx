@@ -7,28 +7,31 @@ import { Button } from "@/components/ui/button";
 import { Activity, MousePointerClick, Target, Users, ListChecks, ArrowRight, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useBrandKit } from "@/hooks/useBrandKit";
+import { formatSEK } from "@/lib/revenue";
 
 export default function ExecutiveDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { palette } = useBrandKit(id);
-  const [data, setData] = useState<any>({ ga4: null, gsc: null, actions: [], targets: [] });
+  const [data, setData] = useState<any>({ ga4: null, gsc: null, actions: [], targets: [], briefing: null });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const [ga4, gsc, actions, targets] = await Promise.all([
+      const [ga4, gsc, actions, targets, briefing] = await Promise.all([
         supabase.from("ga4_snapshots").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("gsc_snapshots").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("action_items").select("*").eq("project_id", id),
         supabase.from("kpi_targets").select("*").eq("project_id", id).eq("is_active", true),
+        supabase.from("weekly_briefings").select("week_start,total_value_at_stake_sek,created_at").eq("project_id", id).order("week_start", { ascending: false }).limit(1).maybeSingle(),
       ]);
       setData({
         ga4: ga4.data,
         gsc: gsc.data,
         actions: actions.data || [],
         targets: targets.data || [],
+        briefing: briefing.data,
       });
       setLoading(false);
     })();
@@ -55,6 +58,43 @@ export default function ExecutiveDashboard() {
           Toppnivå-vy: KPIer, mål-progress och åtgärder. Brand Kit appliceras på exporter.
         </p>
       </div>
+
+      {/* Weekly briefing-band */}
+      {data.briefing ? (
+        <Card
+          className="bg-gradient-to-r from-primary/15 via-card to-card border-primary/30 cursor-pointer hover:border-primary/60 transition-colors"
+          onClick={() => navigate(`/clients/${id}/briefing`)}
+        >
+          <CardContent className="p-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <Sparkles className="h-5 w-5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Senaste briefing — v.{data.briefing.week_start}</div>
+                <div className="font-serif text-xl mt-0.5 truncate">
+                  Värde att hämta hem: <span className="text-primary">{formatSEK(data.briefing.total_value_at_stake_sek, { compact: true })}</span>
+                </div>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card
+          className="border-dashed border-primary/40 cursor-pointer hover:bg-card/80 transition-colors"
+          onClick={() => navigate(`/clients/${id}/briefing`)}
+        >
+          <CardContent className="p-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <div>
+                <div className="font-serif text-base">Generera veckans strategibriefing</div>
+                <div className="text-xs text-muted-foreground">AI summerar vinster, risker och prioriterade actions med kronvärde.</div>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

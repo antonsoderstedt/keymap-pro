@@ -28,6 +28,7 @@ import Alerts from "./pages/workspace/Alerts";
 import AuctionInsights from "./pages/workspace/AuctionInsights";
 import ReportsLibrary from "./pages/workspace/ReportsLibrary";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
+import WeeklyBriefing from "./pages/workspace/WeeklyBriefing";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
             <Route index element={<ExecutiveDashboard />} />
+            <Route path="briefing" element={<WeeklyBriefing />} />
             <Route path="overview" element={<WorkspaceOverview />} />
             <Route path="actions" element={<ActionTracker />} />
             <Route path="artifacts" element={<WorkspaceArtifacts />} />
