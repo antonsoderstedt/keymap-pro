@@ -234,12 +234,33 @@ TOTAL_VALUE_AT_STAKE: ${totalValue} SEK`;
       .single();
     if (saveErr) throw saveErr;
 
-    return new Response(JSON.stringify({ ok: true, briefing: saved }), {
+    if (jobId) {
+      await supabase.from("analysis_jobs").update({
+        status: "completed",
+        progress_pct: 100,
+        current_step: "done",
+        completed_at: new Date().toISOString(),
+        payload: {
+          week_start, briefing_id: saved.id,
+          counts: { wins: wins.length, risks: risks.length, actions: actions.length },
+          total_value_at_stake_sek: Math.round(totalValue),
+        },
+      }).eq("id", jobId);
+    }
+
+    return new Response(JSON.stringify({ ok: true, briefing: saved, job_id: jobId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("weekly-briefing error", e);
-    return new Response(JSON.stringify({ error: e?.message || "unknown" }), {
+    if (jobId) {
+      await supabase.from("analysis_jobs").update({
+        status: "failed",
+        error_message: String(e?.message || e),
+        completed_at: new Date().toISOString(),
+      }).eq("id", jobId);
+    }
+    return new Response(JSON.stringify({ error: e?.message || "unknown", job_id: jobId }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
