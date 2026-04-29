@@ -17,6 +17,7 @@ interface Props {
 export default function RoiOverview({ projectId }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const currency = useProjectCurrency(projectId);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [overview, setOverview] = useState<ReturnType<typeof computeRoiOverview> | null>(null);
