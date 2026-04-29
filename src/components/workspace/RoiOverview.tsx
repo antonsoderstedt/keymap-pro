@@ -222,7 +222,7 @@ function ClusterRow({ c, currency }: { c: ClusterROI; currency: import("@/lib/re
           {formatMoney(c.uplift_potential_sek, currency, { compact: true })}
         </div>
         <div className="text-[10px] text-muted-foreground">
-          värde {formatSEK(Math.max(c.actual_revenue_sek, c.estimated_value_sek), { compact: true })}
+          värde {formatMoney(Math.max(c.actual_revenue_sek, c.estimated_value_sek), currency, { compact: true })}
         </div>
       </div>
     </div>
