@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, CheckCircle2, ListChecks } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ActionImpact } from "@/components/workspace/ActionImpact";
+import { supabase } from "@/integrations/supabase/client";
 
 const CATEGORIES = [
   { value: "seo", label: "SEO" },
@@ -81,10 +83,27 @@ export default function ActionTracker() {
             Allt vi rekommenderat — och hur det går när det implementerats.
           </p>
         </div>
-        <Button onClick={() => setShowNew((s) => !s)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Ny åtgärd
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              toast({ title: "Mäter effekt…" });
+              const { data, error } = await supabase.functions.invoke("measure-action-impact", {
+                body: { project_id: projectId },
+              });
+              if (error) toast({ title: "Mätning misslyckades", description: error.message, variant: "destructive" });
+              else toast({ title: "Klart", description: `${data?.measured ?? 0} mätpunkter sparade.` });
+            }}
+            className="gap-2"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Mät effekt
+          </Button>
+          <Button onClick={() => setShowNew((s) => !s)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ny åtgärd
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -203,10 +222,13 @@ export default function ActionTracker() {
                       <p className="text-xs text-primary mt-2">→ {item.expected_impact}</p>
                     )}
                     {item.implemented_at && (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 text-primary" />
-                        Implementerad {new Date(item.implemented_at).toLocaleDateString("sv-SE")}
-                      </p>
+                      <>
+                        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-primary" />
+                          Implementerad {new Date(item.implemented_at).toLocaleDateString("sv-SE")}
+                        </p>
+                        <ActionImpact actionId={item.id} />
+                      </>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
