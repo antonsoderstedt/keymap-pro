@@ -10,6 +10,7 @@ import { formatSEK, valueColor } from "@/lib/revenue";
 import ReactMarkdown from "react-markdown";
 import WeeklyBriefingHistory from "@/components/workspace/WeeklyBriefingHistory";
 import BriefingDrillDown, { type DrillDownItem } from "@/components/workspace/BriefingDrillDown";
+import BriefingEmailPanel from "@/components/workspace/BriefingEmailPanel";
 
 interface Briefing {
   id: string;
@@ -172,6 +173,7 @@ export default function WeeklyBriefing() {
         </div>
       )}
 
+      {id && <BriefingEmailPanel projectId={id} weekStart={selectedWeek} />}
       {id && <WeeklyBriefingHistory projectId={id} refreshKey={historyKey} />}
 
       <BriefingDrillDown

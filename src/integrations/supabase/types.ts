@@ -553,6 +553,42 @@ export type Database = {
         }
         Relationships: []
       }
+      briefing_email_recipients: {
+        Row: {
+          auto_send: boolean
+          created_at: string
+          email: string
+          enabled: boolean
+          id: string
+          name: string | null
+          project_id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          auto_send?: boolean
+          created_at?: string
+          email: string
+          enabled?: boolean
+          id?: string
+          name?: string | null
+          project_id: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_send?: boolean
+          created_at?: string
+          email?: string
+          enabled?: boolean
+          id?: string
+          name?: string | null
+          project_id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       content_briefs: {
         Row: {
           analysis_id: string
