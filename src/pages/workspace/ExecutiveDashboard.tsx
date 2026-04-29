@@ -15,6 +15,7 @@ export default function ExecutiveDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { palette } = useBrandKit(id);
+  const currency = useProjectCurrency(id);
   const [data, setData] = useState<any>({ ga4: null, gsc: null, actions: [], targets: [], briefing: null });
   const [loading, setLoading] = useState(true);
 
