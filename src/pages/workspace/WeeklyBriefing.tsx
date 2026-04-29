@@ -10,6 +10,7 @@ import { formatSEK, valueColor } from "@/lib/revenue";
 import ReactMarkdown from "react-markdown";
 import WeeklyBriefingHistory from "@/components/workspace/WeeklyBriefingHistory";
 import BriefingDrillDown, { type DrillDownItem } from "@/components/workspace/BriefingDrillDown";
+import BriefingEmailPanel from "@/components/workspace/BriefingEmailPanel";
 
 interface Briefing {
   id: string;
