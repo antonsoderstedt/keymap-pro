@@ -42,11 +42,12 @@ const valueClass = (v: number) => {
 
 export default function WeeklyBriefing() {
   const { id } = useParams<{ id: string }>();
+  const projectCurrency = useProjectCurrency(id);
   const [briefings, setBriefings] = useState<Briefing[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<string>(startOfIsoWeek(new Date()));
   const [generating, setGenerating] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
-  const [drill, setDrill] = useState<{ item: DrillDownItem; kind: "win" | "risk" | "action" } | null>(null);
+  const [drill, setDrill] = useState<{ item: DrillDownItem; kind: "win" | "risk" | "action"; currency: Currency } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
