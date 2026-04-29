@@ -116,7 +116,8 @@ export default function BriefingDrillDown({
           {/* Revenue-settings använda */}
           {d.settings && (
             <Section icon={<Settings2 className="h-3.5 w-3.5" />} title="Revenue-inställningar (vid körning)">
-              <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-4 gap-3 text-sm">
+                <Setting label="Valuta" value={itemCurrency} />
                 <Setting label="AOV" value={`${formatMoney(d.settings.avg_order_value, itemCurrency)}`} />
                 <Setting label="CR" value={`${d.settings.conversion_rate_pct}%`} />
                 <Setting label="Marginal" value={`${d.settings.gross_margin_pct}%`} />
