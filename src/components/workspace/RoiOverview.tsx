@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, ArrowRight, Coins, Zap, RefreshCw } from "lucide-react";
-import { formatSEK } from "@/lib/revenue";
+import { formatMoney } from "@/lib/revenue";
+import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { computeRoiOverview, type ClusterROI } from "@/lib/roi";
 import { useToast } from "@/hooks/use-toast";
 
