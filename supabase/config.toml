@@ -2,3 +2,9 @@ project_id = "mejxsgutoonckmwnxvdp"
 
 [functions.google-oauth]
 verify_jwt = false
+
+[functions.weekly-report]
+verify_jwt = false
+
+[functions.measure-action-impact]
+verify_jwt = false
