@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Activity, MousePointerClick, Target, Users, ListChecks, ArrowRight, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useBrandKit } from "@/hooks/useBrandKit";
-import { formatSEK } from "@/lib/revenue";
+import { formatMoney } from "@/lib/revenue";
+import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import RoiOverview from "@/components/workspace/RoiOverview";
 
 export default function ExecutiveDashboard() {
