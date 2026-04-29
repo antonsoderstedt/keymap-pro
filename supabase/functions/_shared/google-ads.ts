@@ -100,7 +100,7 @@ export async function searchGaql(ctx: AdsContext, customerId: string, query: str
       "login-customer-id": ctx.loginCustomerId,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, pageSize: 10000 }),
+    body: JSON.stringify({ query }),
   });
   const text = await res.text();
   if (!res.ok) {
