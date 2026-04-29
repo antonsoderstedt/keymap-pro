@@ -173,6 +173,7 @@ export default function WeeklyBriefing() {
         </div>
       )}
 
+      {id && <BriefingEmailPanel projectId={id} weekStart={selectedWeek} />}
       {id && <WeeklyBriefingHistory projectId={id} refreshKey={historyKey} />}
 
       <BriefingDrillDown
