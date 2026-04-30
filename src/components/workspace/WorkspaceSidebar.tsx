@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Sparkles,
   ShieldCheck,
+  LineChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
       title: "Översikt",
       items: [
         { to: `${base}`, label: "Executive", icon: LayoutDashboard },
+        { to: `${base}/performance`, label: "Performance & mål", icon: LineChart },
         { to: `${base}/briefing`, label: "Veckans briefing", icon: Sparkles, badge: "premium" },
         { to: `${base}/overview`, label: "Workspace-översikt", icon: ClipboardCheck },
       ],

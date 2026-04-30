@@ -28,6 +28,7 @@ import Alerts from "./pages/workspace/Alerts";
 import AuctionInsights from "./pages/workspace/AuctionInsights";
 import ReportsLibrary from "./pages/workspace/ReportsLibrary";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
+import PerformanceTracker from "./pages/workspace/PerformanceTracker";
 import WeeklyBriefing from "./pages/workspace/WeeklyBriefing";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="segments" element={<WorkspaceSegments />} />
             <Route path="reports" element={<ReportsLibrary />} />
             <Route path="seo" element={<SeoDashboard />} />
+            <Route path="performance" element={<PerformanceTracker />} />
             <Route path="google-ads" element={<AuctionInsights />} />
             <Route path="auction-insights" element={<AuctionInsights />} />
             <Route path="ga4" element={<Ga4Dashboard />} />
