@@ -75,9 +75,8 @@ export function ClusterActionsTab({ projectId, universe }: Props) {
       category: a.type,
       priority: a.priority === "kritisk" ? "high" : a.priority === "hög" ? "high" : a.priority === "medel" ? "medium" : "low",
       expected_impact: `${formatMoney(a.expected_value, currency)}/år`,
-      expected_impact_sek: a.expected_value,
       source_type: "cluster_action",
-      source_payload: { cluster: a.cluster, type: a.type, top_keywords: a.top_keywords, metrics: a.metrics } as any,
+      source_payload: { cluster: a.cluster, type: a.type, expected_value: a.expected_value, top_keywords: a.top_keywords, metrics: a.metrics } as any,
     });
     if (res?.error) toast.error("Kunde inte spara åtgärd");
     else toast.success("Sparat i Action Tracker");
