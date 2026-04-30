@@ -1,11 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Target, BookOpen, ShieldCheck, Zap } from "lucide-react";
+import { Target, BookOpen, ShieldCheck, Zap, Layers } from "lucide-react";
 import { SectionHeader } from "../SectionHeader";
 import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
+import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import type { AnalysisResult, KeywordUniverse } from "@/lib/types";
 
 interface Props {
@@ -27,6 +28,7 @@ export function ActionSection({ result, universe, projectId, analysisId }: Props
       <Tabs defaultValue="quickwins">
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="quickwins" className="gap-1.5"><Zap className="h-3.5 w-3.5" />Quick wins</TabsTrigger>
+          <TabsTrigger value="cluster-actions" className="gap-1.5"><Layers className="h-3.5 w-3.5" />Klusteråtgärder</TabsTrigger>
           <TabsTrigger value="strategy" className="gap-1.5"><Target className="h-3.5 w-3.5" />Strategi</TabsTrigger>
           <TabsTrigger value="briefs" className="gap-1.5"><BookOpen className="h-3.5 w-3.5" />Content-briefs</TabsTrigger>
           <TabsTrigger value="techseo" className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Teknisk SEO</TabsTrigger>
