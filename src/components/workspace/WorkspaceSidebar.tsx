@@ -14,6 +14,7 @@ import {
   Sparkles,
   ShieldCheck,
   LineChart,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
       items: [
         { to: `${base}/keyword-universe`, label: "Sökordsuniversum", icon: Search },
         { to: `${base}/segments`, label: "Segment & paket", icon: Layers },
+        { to: `${base}/prelaunch`, label: "Pre-launch Blueprint", icon: Rocket, badge: "ny" },
       ],
     },
     {
