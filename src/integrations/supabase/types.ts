@@ -831,6 +831,101 @@ export type Database = {
         }
         Relationships: []
       }
+      prelaunch_blueprints: {
+        Row: {
+          brief_id: string
+          created_at: string
+          forecast: Json | null
+          id: string
+          keyword_universe: Json | null
+          market_analysis: Json | null
+          personas: Json | null
+          project_id: string
+          sitemap: Json | null
+          strategy: Json | null
+          updated_at: string
+        }
+        Insert: {
+          brief_id: string
+          created_at?: string
+          forecast?: Json | null
+          id?: string
+          keyword_universe?: Json | null
+          market_analysis?: Json | null
+          personas?: Json | null
+          project_id: string
+          sitemap?: Json | null
+          strategy?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          brief_id?: string
+          created_at?: string
+          forecast?: Json | null
+          id?: string
+          keyword_universe?: Json | null
+          market_analysis?: Json | null
+          personas?: Json | null
+          project_id?: string
+          sitemap?: Json | null
+          strategy?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prelaunch_blueprints_brief_id_fkey"
+            columns: ["brief_id"]
+            isOneToOne: false
+            referencedRelation: "prelaunch_briefs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prelaunch_briefs: {
+        Row: {
+          business_idea: string | null
+          competitors: string[]
+          created_at: string
+          error_message: string | null
+          existing_sitemap: Json | null
+          id: string
+          locations: string[]
+          project_id: string
+          status: string
+          target_audience: string | null
+          updated_at: string
+          usp: string | null
+        }
+        Insert: {
+          business_idea?: string | null
+          competitors?: string[]
+          created_at?: string
+          error_message?: string | null
+          existing_sitemap?: Json | null
+          id?: string
+          locations?: string[]
+          project_id: string
+          status?: string
+          target_audience?: string | null
+          updated_at?: string
+          usp?: string | null
+        }
+        Update: {
+          business_idea?: string | null
+          competitors?: string[]
+          created_at?: string
+          error_message?: string | null
+          existing_sitemap?: Json | null
+          id?: string
+          locations?: string[]
+          project_id?: string
+          status?: string
+          target_audience?: string | null
+          updated_at?: string
+          usp?: string | null
+        }
+        Relationships: []
+      }
       project_google_settings: {
         Row: {
           ads_customer_id: string | null
