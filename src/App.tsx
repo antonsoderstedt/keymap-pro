@@ -33,6 +33,7 @@ import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PerformanceTracker from "./pages/workspace/PerformanceTracker";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import WeeklyBriefing from "./pages/workspace/WeeklyBriefing";
+import AdsAudit from "./pages/workspace/AdsAudit";
 
 const queryClient = new QueryClient();
 
@@ -87,6 +88,7 @@ const App = () => (
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
             <Route path="google-ads" element={<AuctionInsights />} />
             <Route path="auction-insights" element={<AuctionInsights />} />
+            <Route path="ads-audit" element={<AdsAudit />} />
             <Route path="ga4" element={<Ga4Dashboard />} />
             <Route path="paid-vs-organic" element={<PaidVsOrganic />} />
             <Route path="audit" element={<SeoAudit />} />
