@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import Auth from "./pages/Auth";
+import Landing from "./pages/Landing";
+import Docs from "./pages/Docs";
 import Clients from "./pages/Clients";
 import ProjectWizard from "./pages/ProjectWizard";
 import Results from "./pages/Results";
@@ -56,7 +58,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/clients" replace />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/docs" element={<Docs />} />
           <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
 
           {/* Min byrå (klientlista) */}
