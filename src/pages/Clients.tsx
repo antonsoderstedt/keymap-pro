@@ -121,7 +121,7 @@ export default function Clients() {
       <main className="mx-auto max-w-7xl px-6 py-10">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="font-serif text-3xl">Mina kunder</h2>
+            <h2 className="font-serif text-3xl">Mina Kurder</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Varje kund är ett permanent hem för analyser, dashboards och åtgärder
             </p>
