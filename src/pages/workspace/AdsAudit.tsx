@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge } from "lucide-react";
+import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge, ListChecks } from "lucide-react";
 
 type Audit = { id: string; health_score: number | null; summary: any; created_at: string };
 type Wasted = { keyword: string; campaign: string; campaign_id?: string; ad_group_id?: string; criterion_id?: string; cost_sek: number; clicks: number; ctr: number; quality_score: number | null; suggested_action: string; match_type?: string };
