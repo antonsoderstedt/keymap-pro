@@ -120,7 +120,7 @@ export default function WorkspaceSegments() {
       ) : (
         <div className="space-y-3">
           {segments.map((s: any, i: number) => {
-            const cluster = s.cluster || s.name;
+            const cluster = s._clusterKey || s.cluster || s.name;
             const brief = briefs.find((b) => b.cluster === cluster);
             const ad = ads.find((a) => a.ad_group === cluster);
             return (
