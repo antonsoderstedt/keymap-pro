@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3 } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3, ChevronDown, ChevronRight, MessageSquare, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ActionImpact } from "@/components/workspace/ActionImpact";
 import { supabase } from "@/integrations/supabase/client";
