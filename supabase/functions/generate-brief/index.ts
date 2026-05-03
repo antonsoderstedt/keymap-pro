@@ -167,9 +167,17 @@ Krav:
     if (!toolCall?.function?.arguments) throw new Error("AI returned no brief");
     const brief = JSON.parse(toolCall.function.arguments);
 
-    await supabase.from("content_briefs").upsert({ analysis_id, cluster, payload: brief }, { onConflict: "analysis_id,cluster" });
+    const meta = {
+      match_kind: matchKind,
+      requested_cluster: cluster,
+      matched_cluster: matchedCluster,
+      available_clusters: availableClusters,
+    };
+    const payload = { ...brief, _meta: meta };
 
-    return new Response(JSON.stringify({ brief, cached: false }), {
+    await supabase.from("content_briefs").upsert({ analysis_id, cluster, payload }, { onConflict: "analysis_id,cluster" });
+
+    return new Response(JSON.stringify({ brief: payload, cached: false, meta }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
