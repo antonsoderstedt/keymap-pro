@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge } from "lucide-react";
+import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge, ListChecks } from "lucide-react";
 
 type Audit = { id: string; health_score: number | null; summary: any; created_at: string };
 type Wasted = { keyword: string; campaign: string; campaign_id?: string; ad_group_id?: string; criterion_id?: string; cost_sek: number; clicks: number; ctr: number; quality_score: number | null; suggested_action: string; match_type?: string };
@@ -39,6 +40,85 @@ export default function AdsAudit() {
   const [mutations, setMutations] = useState<Mutation[]>([]);
   const [pacing, setPacing] = useState<PacingAlert[]>([]);
   const [pacingLoading, setPacingLoading] = useState(false);
+  // Bulk-RSA: nyckel = `${ad_id}|${replIdx}|${candIdx}` → vald
+  const [rsaSelection, setRsaSelection] = useState<Record<string, boolean>>({});
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  const toggleSel = (k: string) => setRsaSelection((s) => ({ ...s, [k]: !s[k] }));
+  const clearSel = () => setRsaSelection({});
+  const selectAllFirstCandidate = () => {
+    const next: Record<string, boolean> = {};
+    rsa?.suggestions?.forEach((s) => {
+      s.replacements.forEach((r, i) => {
+        if (r.candidates.length > 0) next[`${s.ad_id}|${i}|0`] = true;
+      });
+    });
+    setRsaSelection(next);
+  };
+  const selectedCount = Object.values(rsaSelection).filter(Boolean).length;
+
+  const runBulkReplace = async () => {
+    if (!rsa || selectedCount === 0) return;
+    setBulkRunning(true);
+    // Gruppera per ad_id för att skicka EN mutation per annons med flera replacements
+    const byAd: Record<string, { ad_group_id: string; ad_group: string; items: { field: string; original_text: string; new_text: string }[] }> = {};
+    for (const s of rsa.suggestions) {
+      s.replacements.forEach((r, i) => {
+        r.candidates.forEach((c, j) => {
+          if (rsaSelection[`${s.ad_id}|${i}|${j}`]) {
+            byAd[s.ad_id] = byAd[s.ad_id] || { ad_group_id: s.ad_group_id, ad_group: s.ad_group, items: [] };
+            byAd[s.ad_id].items.push({ field: r.field, original_text: r.original, new_text: c });
+          }
+        });
+      });
+    }
+    let ok = 0, fail = 0;
+    for (const [ad_id, info] of Object.entries(byAd)) {
+      const { data, error } = await supabase.functions.invoke("ads-mutate", {
+        body: {
+          project_id: workspaceId,
+          action_type: "replace_rsa_asset",
+          payload: { ad_group_id: info.ad_group_id, ad_id, replacements: info.items },
+        },
+      });
+      if (error || data?.error) {
+        fail++;
+        console.error("[bulk-rsa]", ad_id, error || data?.error);
+      } else {
+        ok++;
+      }
+    }
+    setBulkRunning(false);
+    clearSel();
+    if (ok) toast.success(`${ok} annons${ok === 1 ? "" : "er"} uppdaterad${ok === 1 ? "" : "e"} i Google Ads`);
+    if (fail) toast.error(`${fail} misslyckades — se Logg-fliken`);
+    loadMutations();
+  };
+
+  const runBulkPauseAds = async () => {
+    if (!rsa) return;
+    // Pausa annonser som har minst en vald replacement (snabbväg vid total omstart)
+    const adIds = new Set<string>();
+    Object.keys(rsaSelection).forEach((k) => {
+      if (rsaSelection[k]) adIds.add(k.split("|")[0]);
+    });
+    if (adIds.size === 0) return;
+    setBulkRunning(true);
+    let ok = 0, fail = 0;
+    for (const ad_id of adIds) {
+      const s = rsa.suggestions.find((x) => x.ad_id === ad_id);
+      if (!s) continue;
+      const { data, error } = await supabase.functions.invoke("ads-mutate", {
+        body: { project_id: workspaceId, action_type: "pause_ad", payload: { ad_group_id: s.ad_group_id, ad_id } },
+      });
+      if (error || data?.error) fail++; else ok++;
+    }
+    setBulkRunning(false);
+    clearSel();
+    if (ok) toast.success(`${ok} annons${ok === 1 ? "" : "er"} pausade`);
+    if (fail) toast.error(`${fail} misslyckades — se Logg-fliken`);
+    loadMutations();
+  };
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -331,6 +411,37 @@ export default function AdsAudit() {
           </div>
 
           {rsa?.suggestions?.length ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-3">
+              <ListChecks className="h-4 w-4 text-primary" />
+              <span className="text-sm">
+                {selectedCount > 0 ? <><b>{selectedCount}</b> ändring{selectedCount === 1 ? "" : "ar"} markerade</> : "Bulk: markera kandidater nedan eller välj snabbval"}
+              </span>
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={selectAllFirstCandidate} disabled={bulkRunning}>
+                  Markera bästa förslag (alla)
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSel} disabled={bulkRunning || selectedCount === 0}>
+                  Rensa
+                </Button>
+                <ConfirmPush
+                  disabled={bulkRunning || selectedCount === 0}
+                  loading={bulkRunning}
+                  label={`Ersätt ${selectedCount} valda`}
+                  description={`Skickar ${selectedCount} headline-/description-byte till Google Ads. Allt loggas och kan ångras.`}
+                  onConfirm={runBulkReplace}
+                />
+                <ConfirmPush
+                  disabled={bulkRunning || selectedCount === 0}
+                  loading={bulkRunning}
+                  label="Pausa valda annonser"
+                  description={`Pausar alla annonser där minst en kandidat är vald (${new Set(Object.keys(rsaSelection).filter(k => rsaSelection[k]).map(k => k.split("|")[0])).size} st).`}
+                  onConfirm={runBulkPauseAds}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {rsa?.suggestions?.length ? (
             <div className="space-y-3">
               {rsa.suggestions.map((s) => (
                 <Card key={s.ad_id} className="p-4 space-y-3">
@@ -355,21 +466,32 @@ export default function AdsAudit() {
                           <span className="text-xs text-muted-foreground line-through font-mono">{r.original}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {r.candidates.map((c, j) => (
-                            <div key={j} className="flex items-center gap-1">
-                              <Badge variant="secondary" className="font-mono text-[11px]">{c}</Badge>
-                              <ConfirmPush
-                                disabled={pushing === `rsa-${s.ad_id}-${i}-${j}`}
-                                loading={pushing === `rsa-${s.ad_id}-${i}-${j}`}
-                                label="Ersätt"
-                                description={`Ersätter "${r.original}" med "${c}" i annonsen "${s.ad_group}". Live i Google Ads.`}
-                                onConfirm={() => pushMutation(`rsa-${s.ad_id}-${i}-${j}`, "replace_rsa_asset", {
-                                  ad_group_id: s.ad_group_id, ad_id: s.ad_id,
-                                  replacements: [{ field: r.field, original_text: r.original, new_text: c }],
-                                })}
-                              />
-                            </div>
-                          ))}
+                          {r.candidates.map((c, j) => {
+                            const selKey = `${s.ad_id}|${i}|${j}`;
+                            return (
+                              <div key={j} className="flex items-center gap-1">
+                                <Checkbox
+                                  id={selKey}
+                                  checked={!!rsaSelection[selKey]}
+                                  onCheckedChange={() => toggleSel(selKey)}
+                                  aria-label={`Välj ${c}`}
+                                />
+                                <label htmlFor={selKey}>
+                                  <Badge variant="secondary" className="font-mono text-[11px] cursor-pointer">{c}</Badge>
+                                </label>
+                                <ConfirmPush
+                                  disabled={pushing === `rsa-${s.ad_id}-${i}-${j}`}
+                                  loading={pushing === `rsa-${s.ad_id}-${i}-${j}`}
+                                  label="Ersätt"
+                                  description={`Ersätter "${r.original}" med "${c}" i annonsen "${s.ad_group}". Live i Google Ads.`}
+                                  onConfirm={() => pushMutation(`rsa-${s.ad_id}-${i}-${j}`, "replace_rsa_asset", {
+                                    ad_group_id: s.ad_group_id, ad_id: s.ad_id,
+                                    replacements: [{ field: r.field, original_text: r.original, new_text: c }],
+                                  })}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                         {r.rationale && <p className="text-xs text-muted-foreground">{r.rationale}</p>}
                       </div>

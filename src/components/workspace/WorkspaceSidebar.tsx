@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   LineChart,
   Rocket,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +52,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
         { to: `${base}/seo`, label: "SEO", icon: TrendingUp },
         { to: `${base}/google-ads`, label: "Google Ads", icon: Sparkles, badge: "preview" },
         { to: `${base}/ads-audit`, label: "Ads Audit", icon: ShieldCheck, badge: "ny" },
+        { to: `${base}/ads-chat`, label: "PPC-chat", icon: MessageSquare, badge: "ny" },
         { to: `${base}/ga4`, label: "GA4", icon: LayoutDashboard },
         { to: `${base}/paid-vs-organic`, label: "Paid vs Organic", icon: Layers },
       ],
