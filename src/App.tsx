@@ -90,6 +90,7 @@ const App = () => (
             <Route path="google-ads" element={<AuctionInsights />} />
             <Route path="auction-insights" element={<AuctionInsights />} />
             <Route path="ads-audit" element={<AdsAudit />} />
+            <Route path="ads-chat" element={<AdsChat />} />
             <Route path="ga4" element={<Ga4Dashboard />} />
             <Route path="paid-vs-organic" element={<PaidVsOrganic />} />
             <Route path="audit" element={<SeoAudit />} />
