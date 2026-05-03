@@ -25,6 +25,8 @@ export default function Clients() {
   const { user, signOut } = useAuth();
   const [clients, setClients] = useState<ClientCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
