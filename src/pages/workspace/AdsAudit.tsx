@@ -466,21 +466,32 @@ export default function AdsAudit() {
                           <span className="text-xs text-muted-foreground line-through font-mono">{r.original}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {r.candidates.map((c, j) => (
-                            <div key={j} className="flex items-center gap-1">
-                              <Badge variant="secondary" className="font-mono text-[11px]">{c}</Badge>
-                              <ConfirmPush
-                                disabled={pushing === `rsa-${s.ad_id}-${i}-${j}`}
-                                loading={pushing === `rsa-${s.ad_id}-${i}-${j}`}
-                                label="Ersätt"
-                                description={`Ersätter "${r.original}" med "${c}" i annonsen "${s.ad_group}". Live i Google Ads.`}
-                                onConfirm={() => pushMutation(`rsa-${s.ad_id}-${i}-${j}`, "replace_rsa_asset", {
-                                  ad_group_id: s.ad_group_id, ad_id: s.ad_id,
-                                  replacements: [{ field: r.field, original_text: r.original, new_text: c }],
-                                })}
-                              />
-                            </div>
-                          ))}
+                          {r.candidates.map((c, j) => {
+                            const selKey = `${s.ad_id}|${i}|${j}`;
+                            return (
+                              <div key={j} className="flex items-center gap-1">
+                                <Checkbox
+                                  id={selKey}
+                                  checked={!!rsaSelection[selKey]}
+                                  onCheckedChange={() => toggleSel(selKey)}
+                                  aria-label={`Välj ${c}`}
+                                />
+                                <label htmlFor={selKey}>
+                                  <Badge variant="secondary" className="font-mono text-[11px] cursor-pointer">{c}</Badge>
+                                </label>
+                                <ConfirmPush
+                                  disabled={pushing === `rsa-${s.ad_id}-${i}-${j}`}
+                                  loading={pushing === `rsa-${s.ad_id}-${i}-${j}`}
+                                  label="Ersätt"
+                                  description={`Ersätter "${r.original}" med "${c}" i annonsen "${s.ad_group}". Live i Google Ads.`}
+                                  onConfirm={() => pushMutation(`rsa-${s.ad_id}-${i}-${j}`, "replace_rsa_asset", {
+                                    ad_group_id: s.ad_group_id, ad_id: s.ad_id,
+                                    replacements: [{ field: r.field, original_text: r.original, new_text: c }],
+                                  })}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                         {r.rationale && <p className="text-xs text-muted-foreground">{r.rationale}</p>}
                       </div>
