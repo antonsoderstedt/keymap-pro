@@ -54,23 +54,24 @@ export default function WorkspaceSegments() {
     const clusterKeys = Array.from(new Set(universe.map((k: any) => k?.cluster).filter(Boolean))) as string[];
     setAvailableClusters(clusterKeys);
 
-    const resolveCluster = (s: any): string => {
+    const resolveCluster = (s: any): { key: string; kind: "exact" | "substring" | "none" } => {
       const candidates = [s.cluster, s.name, s.label, s.title].filter(Boolean).map(String);
-      // 1) exakt match
       for (const c of candidates) {
         const hit = clusterKeys.find((k) => k.toLowerCase() === c.toLowerCase());
-        if (hit) return hit;
+        if (hit) return { key: hit, kind: "exact" };
       }
-      // 2) substring match
       for (const c of candidates) {
         const needle = c.toLowerCase();
         const hit = clusterKeys.find((k) => k.toLowerCase().includes(needle) || needle.includes(k.toLowerCase()));
-        if (hit) return hit;
+        if (hit) return { key: hit, kind: "substring" };
       }
-      return candidates[0] || "";
+      return { key: candidates[0] || "", kind: "none" };
     };
 
-    const enriched = rawSegments.map((s) => ({ ...s, _clusterKey: resolveCluster(s) }));
+    const enriched = rawSegments.map((s) => {
+      const r = resolveCluster(s);
+      return { ...s, _clusterKey: r.key, _resolveKind: r.kind };
+    });
     setSegments(enriched);
 
     const [{ data: briefRows }, { data: adRows }] = await Promise.all([
