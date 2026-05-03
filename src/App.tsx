@@ -58,7 +58,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/clients" replace />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/docs" element={<Docs />} />
           <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
 
           {/* Min byrå (klientlista) */}
