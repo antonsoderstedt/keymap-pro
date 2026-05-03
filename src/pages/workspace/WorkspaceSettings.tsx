@@ -172,6 +172,8 @@ export default function WorkspaceSettings() {
 
       <RevenueSettings projectId={id!} />
 
+      <Ga4Filters projectId={id!} />
+
       <AutomationRules projectId={id!} />
 
       <GoogleAdsConnection projectId={id!} />
