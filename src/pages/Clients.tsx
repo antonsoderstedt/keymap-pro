@@ -219,6 +219,58 @@ export default function Clients() {
           </div>
         )}
       </main>
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Vilken typ av kund?</DialogTitle>
+            <DialogDescription>
+              Välj utgångsläge — vi anpassar onboarding och vy efter om kunden har historisk data eller inte.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2 mt-2">
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => createClient("established")}
+              className="text-left p-5 rounded-lg border border-border hover:border-primary/60 hover:bg-primary/5 transition-colors space-y-3 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <TrendingUp className="h-5 w-5" />
+                <span className="font-serif text-lg">Etablerad kund</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Har sajt, GA4, Search Console och/eller Google Ads. Vi importerar data och kör full analys.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>Koppla GA4, GSC, Google Ads</li>
+                <li>SEO-audit, sökordsanalys, åtgärder</li>
+                <li>Performance-tracking från dag 1</li>
+              </ul>
+            </button>
+
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => createClient("prelaunch")}
+              className="text-left p-5 rounded-lg border border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 transition-colors space-y-3 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <Rocket className="h-5 w-5" />
+                <span className="font-serif text-lg">Pre-launch</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ingen sajt eller data ännu. Vi bygger en marknadsplan, sökordsuniversum, sajtkarta och prognos från affärsidén.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>Brief: idé, målgrupp, USP, konkurrenter</li>
+                <li>AI + Firecrawl + DataForSEO genererar plan</li>
+                <li>Inga konton/integrationer krävs</li>
+              </ul>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
