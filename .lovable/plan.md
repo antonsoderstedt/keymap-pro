@@ -1,94 +1,95 @@
-# Roadmap: Agentisk Google Ads i Slay Station
 
-Tre sprintar som lyfter Slay Station från "data + ad-generator" till en agentisk PPC-analytiker. Varje sprint är fristående och kan släppas separat.
+# Översyn & nästa sprintar — Slay Station (uppdaterad)
 
----
-
-## Sprint 1 – Diagnostik & spara pengar (största värdet, snabbast)
-
-**Mål:** Visa kunden inom 30 sek var pengar slösas och vad som ska göras idag.
-
-### 1.1 PPC Audit Agent
-- Ny edge function `ads-audit` (anropar `searchGaql` för campaign/adgroup/keyword/asset, `metrics.cost_micros`, `quality_score`, `search_impression_share`, `conversions`).
-- Lovable AI (`google/gemini-3-flash-preview`) sammanfattar till strukturerad JSON via tool calling: health_score (1–10), strengths[], issues[] (severity+fix+impact_sek), quick_wins[].
-- Lagras i ny tabell `ads_audits` (project_id, score, summary jsonb, raw jsonb, created_at) med RLS via `projects.user_id`.
-- Ny sida `src/pages/workspace/AdsAudit.tsx` med score-gauge, issue-lista, "Kör nytt audit"-knapp, markdown-export.
-- Länk i `WorkspaceSidebar` under Ads-sektionen.
-
-### 1.2 Wasted Spend Finder
-- Edge function `ads-wasted-spend`: GAQL på `keyword_view` last 30d där `cost_micros > tröskel` och `conversions = 0` (samt `search_terms_view` för bredmatch-läckage).
-- Returnerar tabell: keyword, kampanj, kostnad, klick, ctr, föreslagen åtgärd (pausa / negativ / sänk bud).
-- Skriver in topp-5 som `action_items` automatiskt med `expected_savings_sek`.
-
-### 1.3 Negative Keyword Mining
-- Edge function `ads-negative-mining`: hämtar `search_term_view` 90d, skickar till Lovable AI som klustrar irrelevanta termer (tool call → `clusters: [{theme, terms[], wasted_sek, suggested_negative, match_type}]`).
-- UI: ny tab i AuctionInsights eller egen `NegativeKeywords.tsx`. Bulk-knapp "Lägg till som action items" + CSV-export i Google Ads Editor-format.
-
-**Leverans Sprint 1:** Audit-sida + Wasted Spend i ActionTracker + Negative Mining-tab. Migration för `ads_audits`. Ingen skrivåtkomst mot Google Ads ännu.
+Ja, planen täcker både **det du listade i meddelandet** och **det som var kvar från Sprint 1–2** (RSA write-back på asset-nivå, bulk-push, CSV-export, schemalagd pacing, bättre revert-logg, verifiera negative mining, status-UI). Plus de nya buggarna (Auction Insights, GA4, Results-tappet, Segment-klick, Action Tracker, SEO Audit, ROI, Brand Kit auto). Och nu även **GA4-exkludering** i inställningar.
 
 ---
 
-## Sprint 2 – Workflow & RSA-optimering ✅ KLAR
+## Vad jag hittade i koden (kort)
 
-**Levererat:**
-- Edge function `ads-rsa-performance` — analyserar `ad_group_ad_asset_view` (BEST/GOOD/LOW), AI-genererar 3 ersättningskandidater per LOW-asset matchat mot brand voice från `BrandKit`.
-- Edge function `ads-mutate` — write-back till Google Ads via `mutateAds`-helper i `_shared/google-ads.ts`. Stödjer: `add_negative_keyword`, `pause_keyword`, `resume_keyword`, `pause_ad`, `resume_ad`, `remove_resource`. Loggar i ny `ads_mutations`-tabell med `revert_payload`.
-- Edge function `ads-revert-mutation` — invertering av tidigare mutation.
-- Edge function `ads-pacing` — jämför 7d vs 30d baseline per kampanj och skapar `alerts` för pacing-overshoot, CPC-spikar och konverteringsras.
-- UI `AdsAudit.tsx` utökad med tre nya flikar: **RSA Optimizer**, **Pacing**, **Logg** (audit log med Återställ). Wasted Spend har Push-knapp per rad (Pausa / Lägg som negativ) med bekräftelse-dialog. Negative Mining har "Pusha N negativ"-knapp.
-- Migration: `ads_mutations` med RLS via `projects.user_id`.
-
-**Säkerhet:** Alla write-back kräver explicit confirm-dialog och loggas före + efter. Reverts möjliga för status-ändringar och add_negative.
+- **Results.tsx** hämtar senaste `analyses`-rad utan `result_json IS NOT NULL` → tappar gammal data när nytt jobb startas. Detta är "analyser försvinner"-buggen.
+- **WorkspaceSegments** — paket-korten saknar `onClick`.
+- **Ga4Dashboard** — ingen "uppdatera"-knapp, ingen filter, visar bara senaste snapshot.
+- **AuctionInsights** — fungerar men ingen schemalagd refresh och ingen åtgärds-koppling.
+- **ActionTracker** — saknar drill-down av `source_payload`, kommentarer och Review-&-push-knapp.
+- **SeoAudit** — bara checkbox; ingen "skapa åtgärd"-koppling.
+- **RoiOverview** — kräver `totals.kind=='revenue_by_page'` som inte alltid sätts av `ga4-revenue-fetch`.
+- **AdsAudit (RSA)** — säger själv i UI:t "write-back för enskilda assets kommer i nästa iteration" — det är kvar från Sprint 2.
+- **ads-negative-mining** — fixat (90d-bug) men saknar status-UI och historik.
+- **Brand Kit** — ingen "Hämta från sajt"-knapp.
 
 ---
 
-## Sprint 3 – Konversation & långsiktig intelligens
+## Sprint 3 — Fixa allt som är trasigt idag (~2,5h)
 
-**Mål:** Gör Slay Station till "AI PPC-analytiker du kan fråga".
+1. **Analyser försvinner inte** — `Results.tsx` hämtar nu senaste rad där `result_json IS NOT NULL`, behåller resultat under polling.
+2. **Segment & paket klickbart** — drawer öppnar brief/ads-innehåll, eller deep-link till Artefakter. Saknas paket → "Skapa nu"-knapp som triggar `generate-brief` / `generate-ads`.
+3. **Action Tracker drill-down + kommentarer + review-push**
+   - Expanderbar rad visar `source_payload` (kampanj, sökord, kostnad).
+   - Kommentarsfält (sparas i ny `action_items.notes jsonb[]`).
+   - "Review & push"-knapp för åtgärder med `source_type ∈ {ads_wasted, ads_negatives, ads_pacing}` → kör `ads-mutate` med bekräftelse.
+4. **SEO Audit → action items** — "Skapa åtgärd"-knapp per finding + bulk för topp-10 kritiska/höga.
+5. **Auction Insights komplett** — verifiera GAQL-datumklausul, lägg deltatrend mot föregående snapshot, "Skapa åtgärd" för konkurrenter med ökande overlap, schemalagd refresh (veckovis via pg_cron).
+6. **GA4 Dashboard funktionell** — "Hämta nu"-knapp som anropar `ga4-fetch`, daglig trend-graf, propertyId + senast uppdaterad, tom-state länkar Inställningar.
+7. **ROI/Attribution fixad** — `ga4-revenue-fetch` skriver `totals.kind`, RoiOverview faller tillbaka på revenue-rader om markör saknas, lägg till klusternedbrytning.
+8. **Negative mining status-UI** — "Senast körd / status / fel" + körningar loggas i `analysis_jobs` (job_type='negative_mining').
 
-### 3.1 Ask Your PPC Analyst (chat)
-- Edge function `ads-chat` (SSE-streaming enligt Lovable AI streaming-pattern).
-- System prompt har tillgång till tool calls: `get_campaign_metrics`, `get_search_terms`, `get_audit_summary`, `get_gsc_overlap`, `create_action_item`.
-- Modell: `google/gemini-2.5-pro` för djup, fallback till flash.
-- UI: collapsible chat-panel i WorkspaceLayout (höger sidebar) som följer med på alla workspace-sidor. Per-workspace chat history i ny tabell `workspace_chats`.
+---
 
-### 3.2 Quality Score & ranking-historik
-- Cron lägger snapshot per dag i ny tabell `ads_quality_snapshots` (keyword_id, qs, cpc, position, date).
-- UI: trend-graf i RSA Optimizer + i AdsAudit för att visa förbättring efter åtgärder.
-- Kopplas till `measure-action-impact` så agenten kan svara "Negativen du la till för 14 dagar sedan sparade 4 230 SEK".
+## Sprint 4 — RSA write-back, bulk, schemaläggning (~3h) — Sprint 2-leftover + dina nya önskemål
 
-### 3.3 Strategiska veckorapporter
-- Utöka `weekly-briefing` med Ads-sektion: audit-delta, top wins, top issues, rekommenderade åtgärder för nästa vecka.
-- Genereras som markdown + skickas via Resend till `briefing_email`.
+1. **Asset-nivå write-back i RSA Optimizer**
+   - Ny `action_type: replace_rsa_asset` i `ads-mutate`. Hämtar full RSA, ersätter matchande headline/description, kör `ads:mutate` med `updateMask`. Fallback: skapa ny RSA + pausa gammal för konton som inte stöder update. Revert-payload sparar original-array.
+2. **Bulk-godkänn & batch-push i RSA-fliken**
+   - Checkbox per förslag + "Pusha valda" → en batch-operation till Google Ads, loggas som en `ads_mutations`-rad (`action_type='rsa_batch'`).
+3. **CSV / Sheets-export för RSA-ersättningar**
+   - Kolumner: campaign, ad_group, field, original, candidate, performance_label, rationale.
+4. **Schemalagd pacing-monitoring + in-app notiser**
+   - `pg_cron` (07:00 dagligen) → wrapper `cron-ads-pacing` loopar projekt med `ads_customer_id`. Skriver i `alerts`. Sidomenyn får badge "Alerts (n)". Settings: dagligen / veckovis / av + e-postnotis (återanvänder `briefing_email_recipients`).
+5. **Bättre mutations- & revert-logg**
+   - Gruppera per dag, visa diff av vad som ändrats, "Ångra hela dagens push", filter på action_type/status/kampanj.
+6. **Verifiera negative mining + bulk-push** — UI som visar resultat efter fix; CSV-export i Google Ads Editor-format.
 
-**Leverans Sprint 3:** Chat-panel + QS-historik + Ads-sektion i veckobriefing.
+---
+
+## Sprint 5 — Brand Kit auto + GA4-exkludering + AI-chat (~2,5h)
+
+1. **Brand Kit "Generera från sajten"**
+   - Ny edge function `brand-kit-extract`: Firecrawl scrape → Gemini extraherar färger, fonts, tone of voice, logo. Förfyller fälten i `BrandKit.tsx`.
+
+2. **GA4-data-exkluderingar (NYTT)**
+   - Ny tabell `ga4_filters` (project_id, filter_type, dimension, operator, value, is_active). Exempel: `pagePath` not contains `/admin`, `sessionMedium` != `internal`, `country` != `Sweden` etc.
+   - UI: ny sektion i Inställningar "GA4-filter" med "Lägg till filter" och presets ("Exkludera /admin", "Exkludera intern trafik via IP-cookie", "Exkludera bot-trafik").
+   - `ga4-fetch` och `ga4-revenue-fetch` läser filtren och lägger till `dimensionFilter` i GA4-runReport-anropet (GA4 stödjer detta nativt via `dimensionFilter.filter.stringFilter`).
+   - Befintliga snapshots taggas med vilket filter-set som användes så vi kan jämföra "med/utan admin".
+
+3. **AI PPC-chat (Sprint 3-leftover från ursprungsplan)**
+   - `ads-chat` edge function med tool calls (`get_campaign_metrics`, `get_audit_summary`, `create_action_item`). Drawer i AdsAudit.
+
+4. **Auto-skapa åtgärder från alla anomali-källor**
+   - `ads-pacing`, `ads-cannibalization`, `auction_insights` skapar `action_items` med rik payload som Sprint 3:s Review-&-push-flöde kan konsumera.
 
 ---
 
 ## Tekniska detaljer
 
-**Nya tabeller (migrations):**
-- `ads_audits` — historik på health-checks
-- `ads_mutations` — audit log för write-back
-- `ads_quality_snapshots` — daglig QS-trend
-- `workspace_chats` — chat-historik per workspace
+**Migrations:**
+- `action_items.notes jsonb default '[]'::jsonb`
+- ny tabell `ga4_filters` med RLS via `projects.user_id`
 
-Alla med RLS via `EXISTS (SELECT 1 FROM projects WHERE projects.id = project_id AND projects.user_id = auth.uid())`.
+**Nya edge functions:** `brand-kit-extract`, `cron-ads-pacing`, `ads-chat`
 
-**Nya edge functions:** `ads-audit`, `ads-wasted-spend`, `ads-negative-mining`, `ads-rsa-performance`, `ads-mutate`, `ads-chat`. Alla återanvänder `_shared/google-ads.ts` (utökas med `mutateGaql`-helper i Sprint 2).
+**Uppdaterade edge functions:**
+- `ads-mutate` — `replace_rsa_asset`, `rsa_batch`
+- `ads-revert-mutation` — stöd för rsa_batch + asset-restore
+- `ga4-fetch` & `ga4-revenue-fetch` — applicera ga4_filters
+- `ads-fetch-auction-insights` — verifiera GAQL date-clause
+- `generate-brief` / `generate-ads` — anropas från Segment-drawer
 
-**Befintlig återanvändning:** `getAdsContext`, `searchGaql`, `project_google_settings.ads_customer_id`, `action_items`-tabellen, `alerts`-tabellen, `BrandKit` för ton-of-voice i RSA-förslag.
-
-**Risker:**
-- Google Ads write-API kräver att developer token har skrivåtkomst (kontrollera approval-status).
-- `mutate`-anrop är icke-atomiska — behövs robust error handling + ångra-flöde.
-- Ratelimits Google Ads: batcha mutations, exponential backoff.
+**pg_cron:** dagligen 07:00 Europe/Stockholm för pacing, veckovis sön 06:00 för Auction Insights.
 
 ---
 
-## Förslag på upplägg
-- **Vecka 1–2:** Sprint 1 (störst affärsvärde, ingen risk för kundkonton)
-- **Vecka 3–4:** Sprint 2 (write-API, kräver mest QA)
-- **Vecka 5–6:** Sprint 3 (chat + intelligence-lager)
+## Förslag
 
-Säg vilken sprint du vill köra först så bygger jag den efter godkännande.
+Kör **Sprint 3 först** (fixa det trasiga), sen **Sprint 4** (write-back & schemaläggning), sen **Sprint 5** (Brand Kit auto + GA4-filter + chat). Säg "kör sprint 3" så drar jag igång.
