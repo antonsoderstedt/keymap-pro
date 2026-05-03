@@ -40,6 +40,85 @@ export default function AdsAudit() {
   const [mutations, setMutations] = useState<Mutation[]>([]);
   const [pacing, setPacing] = useState<PacingAlert[]>([]);
   const [pacingLoading, setPacingLoading] = useState(false);
+  // Bulk-RSA: nyckel = `${ad_id}|${replIdx}|${candIdx}` → vald
+  const [rsaSelection, setRsaSelection] = useState<Record<string, boolean>>({});
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  const toggleSel = (k: string) => setRsaSelection((s) => ({ ...s, [k]: !s[k] }));
+  const clearSel = () => setRsaSelection({});
+  const selectAllFirstCandidate = () => {
+    const next: Record<string, boolean> = {};
+    rsa?.suggestions?.forEach((s) => {
+      s.replacements.forEach((r, i) => {
+        if (r.candidates.length > 0) next[`${s.ad_id}|${i}|0`] = true;
+      });
+    });
+    setRsaSelection(next);
+  };
+  const selectedCount = Object.values(rsaSelection).filter(Boolean).length;
+
+  const runBulkReplace = async () => {
+    if (!rsa || selectedCount === 0) return;
+    setBulkRunning(true);
+    // Gruppera per ad_id för att skicka EN mutation per annons med flera replacements
+    const byAd: Record<string, { ad_group_id: string; ad_group: string; items: { field: string; original_text: string; new_text: string }[] }> = {};
+    for (const s of rsa.suggestions) {
+      s.replacements.forEach((r, i) => {
+        r.candidates.forEach((c, j) => {
+          if (rsaSelection[`${s.ad_id}|${i}|${j}`]) {
+            byAd[s.ad_id] = byAd[s.ad_id] || { ad_group_id: s.ad_group_id, ad_group: s.ad_group, items: [] };
+            byAd[s.ad_id].items.push({ field: r.field, original_text: r.original, new_text: c });
+          }
+        });
+      });
+    }
+    let ok = 0, fail = 0;
+    for (const [ad_id, info] of Object.entries(byAd)) {
+      const { data, error } = await supabase.functions.invoke("ads-mutate", {
+        body: {
+          project_id: workspaceId,
+          action_type: "replace_rsa_asset",
+          payload: { ad_group_id: info.ad_group_id, ad_id, replacements: info.items },
+        },
+      });
+      if (error || data?.error) {
+        fail++;
+        console.error("[bulk-rsa]", ad_id, error || data?.error);
+      } else {
+        ok++;
+      }
+    }
+    setBulkRunning(false);
+    clearSel();
+    if (ok) toast.success(`${ok} annons${ok === 1 ? "" : "er"} uppdaterad${ok === 1 ? "" : "e"} i Google Ads`);
+    if (fail) toast.error(`${fail} misslyckades — se Logg-fliken`);
+    loadMutations();
+  };
+
+  const runBulkPauseAds = async () => {
+    if (!rsa) return;
+    // Pausa annonser som har minst en vald replacement (snabbväg vid total omstart)
+    const adIds = new Set<string>();
+    Object.keys(rsaSelection).forEach((k) => {
+      if (rsaSelection[k]) adIds.add(k.split("|")[0]);
+    });
+    if (adIds.size === 0) return;
+    setBulkRunning(true);
+    let ok = 0, fail = 0;
+    for (const ad_id of adIds) {
+      const s = rsa.suggestions.find((x) => x.ad_id === ad_id);
+      if (!s) continue;
+      const { data, error } = await supabase.functions.invoke("ads-mutate", {
+        body: { project_id: workspaceId, action_type: "pause_ad", payload: { ad_group_id: s.ad_group_id, ad_id } },
+      });
+      if (error || data?.error) fail++; else ok++;
+    }
+    setBulkRunning(false);
+    clearSel();
+    if (ok) toast.success(`${ok} annons${ok === 1 ? "" : "er"} pausade`);
+    if (fail) toast.error(`${fail} misslyckades — se Logg-fliken`);
+    loadMutations();
+  };
 
   useEffect(() => {
     if (!workspaceId) return;
