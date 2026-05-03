@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { ShieldCheck, Play, RefreshCw, AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { ShieldCheck, Play, RefreshCw, AlertTriangle, AlertCircle, Info, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 
 interface AuditRun {
@@ -81,6 +81,33 @@ export default function SeoAudit() {
     setFindings(findings.map(x => x.id === f.id ? { ...x, status: newStatus } : x));
   };
 
+  const sevToPriority = (s: string) =>
+    s === "critical" ? "critical" : s === "high" ? "high" : s === "medium" ? "medium" : "low";
+
+  const createActionForFinding = async (f: Finding) => {
+    if (!id) return;
+    const { error } = await supabase.from("action_items").insert({
+      project_id: id,
+      title: `[SEO] ${f.title}`,
+      description: f.description || f.recommendation || "",
+      category: "seo",
+      priority: sevToPriority(f.severity),
+      source_type: "seo_audit",
+      source_id: f.id,
+      source_payload: { affected_url: f.affected_url, recommendation: f.recommendation, severity: f.severity, category: f.category },
+    });
+    if (error) toast.error(error.message);
+    else toast.success("Åtgärd skapad");
+  };
+
+  const createActionsForCriticalAndHigh = async () => {
+    if (!id) return;
+    const top = findings.filter((f) => (f.severity === "critical" || f.severity === "high") && f.status !== "done").slice(0, 10);
+    if (!top.length) return toast.info("Inga öppna kritiska/höga findings");
+    for (const f of top) await createActionForFinding(f);
+    toast.success(`${top.length} åtgärder skapade`);
+  };
+
   const filtered = findings
     .filter(f => filter === "all" || (filter === "open" ? f.status !== "done" : f.status === "done"))
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
@@ -153,9 +180,12 @@ export default function SeoAudit() {
       {findings.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="font-serif text-lg">Findings ({filtered.length})</CardTitle>
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-center">
+                <Button size="sm" variant="outline" className="gap-1" onClick={createActionsForCriticalAndHigh}>
+                  <ListChecks className="h-3 w-3" /> Skapa åtgärder (topp-10)
+                </Button>
                 {(["open", "done", "all"] as const).map(f => (
                   <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)}>
                     {f === "open" ? "Öppna" : f === "done" ? "Klara" : "Alla"}
@@ -194,6 +224,11 @@ export default function SeoAudit() {
                       </a>
                     )}
                   </div>
+                  {f.status !== "done" && (
+                    <Button size="sm" variant="ghost" className="gap-1 shrink-0" onClick={() => createActionForFinding(f)}>
+                      <ListChecks className="h-3 w-3" /> Åtgärd
+                    </Button>
+                  )}
                 </div>
               );
             })}

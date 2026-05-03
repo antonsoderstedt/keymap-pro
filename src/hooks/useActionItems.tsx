@@ -17,6 +17,7 @@ export interface ActionItem {
   implemented_at: string | null;
   implementation_notes: string | null;
   due_date: string | null;
+  notes?: any;
   created_at: string;
   updated_at: string;
 }

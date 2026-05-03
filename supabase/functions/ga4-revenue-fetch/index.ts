@@ -18,23 +18,43 @@ Deno.serve(async (req) => {
     if (!projectId || !propertyId) return j({ error: "projectId & propertyId required" }, 400);
 
     // GA4 report: landingPage → sessions, conversions, totalRevenue, purchaseRevenue
+    // Apply project's GA4 filters (e.g. exclude /admin)
+    const sbAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: filterRows } = await sbAdmin
+      .from("ga4_filters").select("dimension, operator, value, exclude")
+      .eq("project_id", projectId).eq("is_active", true);
+    let dimensionFilter: any = undefined;
+    if (filterRows && filterRows.length) {
+      const expressions = filterRows.map((f: any) => {
+        const inner = { filter: { fieldName: f.dimension, stringFilter: { matchType: f.operator || "CONTAINS", value: f.value, caseSensitive: false } } };
+        return f.exclude ? { notExpression: inner } : inner;
+      });
+      dimensionFilter = expressions.length === 1 ? expressions[0] : { andGroup: { expressions } };
+    }
+
+    const reqBody: any = {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: "landingPagePlusQueryString" }],
+      metrics: [
+        { name: "sessions" },
+        { name: "conversions" },
+        { name: "totalRevenue" },
+        { name: "purchaseRevenue" },
+      ],
+      limit: 1000,
+      orderBys: [{ desc: true, metric: { metricName: "totalRevenue" } }],
+    };
+    if (dimensionFilter) reqBody.dimensionFilter = dimensionFilter;
+
     const res = await fetch(
       `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dateRanges: [{ startDate, endDate }],
-          dimensions: [{ name: "landingPagePlusQueryString" }],
-          metrics: [
-            { name: "sessions" },
-            { name: "conversions" },
-            { name: "totalRevenue" },
-            { name: "purchaseRevenue" },
-          ],
-          limit: 1000,
-          orderBys: [{ desc: true, metric: { metricName: "totalRevenue" } }],
-        }),
+        body: JSON.stringify(reqBody),
       },
     );
     const data = await res.json();

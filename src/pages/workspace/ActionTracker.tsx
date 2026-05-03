@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3 } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3, ChevronDown, ChevronRight, MessageSquare, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ActionImpact } from "@/components/workspace/ActionImpact";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,11 +47,48 @@ function priorityBadge(p: string) {
 
 export default function ActionTracker() {
   const { id: projectId } = useParams<{ id: string }>();
-  const { items, loading, create, update, remove, markImplemented } = useActionItems(projectId);
+  const { items, loading, create, update, remove, markImplemented, reload } = useActionItems(projectId);
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("open");
   const [showNew, setShowNew] = useState(false);
   const [draft, setDraft] = useState({ title: "", description: "", category: "general", priority: "medium" });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
+  const [pushing, setPushing] = useState<Record<string, boolean>>({});
+
+  const isPushable = (item: ActionItem) =>
+    ["ads_wasted", "ads_negatives", "ads_pacing", "ads_rsa"].includes(item.source_type || "");
+
+  const addNote = async (item: ActionItem) => {
+    const text = (noteDraft[item.id] || "").trim();
+    if (!text) return;
+    const existing = Array.isArray((item as any).notes) ? (item as any).notes : [];
+    const next = [...existing, { text, at: new Date().toISOString() }];
+    await update(item.id, { ...(item as any), notes: next } as any);
+    setNoteDraft({ ...noteDraft, [item.id]: "" });
+    toast({ title: "Kommentar sparad" });
+    reload();
+  };
+
+  const reviewAndPush = async (item: ActionItem) => {
+    if (!item.source_payload) return toast({ title: "Saknar payload", variant: "destructive" });
+    if (!confirm(`Pusha "${item.title}" till Google Ads?`)) return;
+    setPushing({ ...pushing, [item.id]: true });
+    try {
+      const { error } = await supabase.functions.invoke("ads-mutate", {
+        body: { project_id: projectId, source_action_item_id: item.id, ...(item.source_payload as any) },
+      });
+      if (error) throw error;
+      toast({ title: "Pushad till Google Ads" });
+      await update(item.id, { status: "done", implemented_at: new Date().toISOString() });
+      reload();
+    } catch (e: any) {
+      toast({ title: "Push misslyckades", description: e.message, variant: "destructive" });
+    } finally {
+      setPushing({ ...pushing, [item.id]: false });
+    }
+  };
+
 
   const filtered = items.filter((i) => {
     if (filter === "open") return i.status === "todo" || i.status === "in_progress";
@@ -229,6 +266,69 @@ export default function ActionTracker() {
                         </p>
                         <ActionImpact actionId={item.id} />
                       </>
+                    )}
+                    {/* Drilldown toggle */}
+                    {(item.source_payload || isPushable(item)) && (
+                      <button
+                        onClick={() => setExpanded({ ...expanded, [item.id]: !expanded[item.id] })}
+                        className="text-xs text-primary mt-2 inline-flex items-center gap-1 hover:underline"
+                      >
+                        {expanded[item.id] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        Detaljer & kommentarer
+                      </button>
+                    )}
+
+                    {expanded[item.id] && (
+                      <div className="mt-3 space-y-3 border-t border-border pt-3">
+                        {item.source_payload && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Källdata</div>
+                            <pre className="text-xs bg-muted/40 p-2 rounded border border-border overflow-auto max-h-48">
+{JSON.stringify(item.source_payload, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+
+                        {Array.isArray((item as any).notes) && (item as any).notes.length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Kommentarer</div>
+                            <div className="space-y-1">
+                              {(item as any).notes.map((n: any, i: number) => (
+                                <div key={i} className="text-xs p-2 rounded bg-muted/40 border border-border">
+                                  <div className="text-[10px] text-muted-foreground">{new Date(n.at).toLocaleString("sv-SE")}</div>
+                                  {n.text}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <Textarea
+                              value={noteDraft[item.id] || ""}
+                              onChange={(e) => setNoteDraft({ ...noteDraft, [item.id]: e.target.value })}
+                              placeholder="Lägg till kommentar…"
+                              rows={2}
+                              className="text-sm"
+                            />
+                          </div>
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => addNote(item)}>
+                            <MessageSquare className="h-3 w-3" /> Spara
+                          </Button>
+                          {isPushable(item) && item.status !== "done" && (
+                            <Button
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => reviewAndPush(item)}
+                              disabled={pushing[item.id]}
+                            >
+                              {pushing[item.id] ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                              Review & push
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-1">

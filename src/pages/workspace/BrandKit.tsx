@@ -10,7 +10,7 @@ import { useBrandKit, type BrandPalette } from "@/hooks/useBrandKit";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Save, Palette as PaletteIcon, Type, Mic } from "lucide-react";
+import { Upload, Save, Palette as PaletteIcon, Type, Mic, Sparkles } from "lucide-react";
 
 const TONE_OPTIONS = [
   { value: "professional", label: "Professionell / formell" },
@@ -32,6 +32,8 @@ export default function BrandKit() {
   const { brandKit, loading, save, palette, fonts } = useBrandKit(projectId);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genUrl, setGenUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Local form state derived from brand kit
@@ -90,6 +92,32 @@ export default function BrandKit() {
     else toast.success("Brand Kit sparad");
   };
 
+  const handleGenerate = async () => {
+    let url = genUrl.trim();
+    if (!url) {
+      const { data: proj } = await supabase.from("projects").select("domain").eq("id", projectId!).maybeSingle();
+      url = proj?.domain || "";
+    }
+    if (!url) return toast.error("Ange URL eller spara domän på projektet");
+    if (!url.startsWith("http")) url = "https://" + url;
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("brand-kit-extract", { body: { url } });
+      if (error) throw error;
+      if (data?.palette) setLocalPalette({ ...localPalette, ...data.palette });
+      if (data?.fonts?.heading) setHeadingFont(data.fonts.heading);
+      if (data?.fonts?.body) setBodyFont(data.fonts.body);
+      if (data?.tone) setTone(data.tone);
+      if (data?.voice_guidelines) setVoice(data.voice_guidelines);
+      if (data?.image_style) setImageStyle(data.image_style);
+      toast.success("Brand-profil hämtad — kontrollera och spara");
+    } catch (e: any) {
+      toast.error("Misslyckades: " + e.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6 lg:p-8 max-w-6xl mx-auto">
@@ -113,6 +141,22 @@ export default function BrandKit() {
           {saving ? "Sparar…" : "Spara Brand Kit"}
         </Button>
       </div>
+
+      {/* Auto-generate */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-sm font-medium">Generera Brand Kit från sajten</div>
+            <div className="text-xs text-muted-foreground">Vi scrapar sajten och låter AI extrahera färger, typsnitt och ton.</div>
+          </div>
+          <Input className="w-64" placeholder="https://exempel.se (valfritt)" value={genUrl} onChange={(e) => setGenUrl(e.target.value)} />
+          <Button onClick={handleGenerate} disabled={generating} className="gap-2">
+            <Sparkles className={`h-4 w-4 ${generating ? "animate-pulse" : ""}`} />
+            {generating ? "Hämtar…" : "Hämta från sajt"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Logo */}
       <Card>
