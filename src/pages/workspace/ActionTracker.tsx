@@ -47,11 +47,48 @@ function priorityBadge(p: string) {
 
 export default function ActionTracker() {
   const { id: projectId } = useParams<{ id: string }>();
-  const { items, loading, create, update, remove, markImplemented } = useActionItems(projectId);
+  const { items, loading, create, update, remove, markImplemented, reload } = useActionItems(projectId);
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("open");
   const [showNew, setShowNew] = useState(false);
   const [draft, setDraft] = useState({ title: "", description: "", category: "general", priority: "medium" });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
+  const [pushing, setPushing] = useState<Record<string, boolean>>({});
+
+  const isPushable = (item: ActionItem) =>
+    ["ads_wasted", "ads_negatives", "ads_pacing", "ads_rsa"].includes(item.source_type || "");
+
+  const addNote = async (item: ActionItem) => {
+    const text = (noteDraft[item.id] || "").trim();
+    if (!text) return;
+    const existing = Array.isArray((item as any).notes) ? (item as any).notes : [];
+    const next = [...existing, { text, at: new Date().toISOString() }];
+    await update(item.id, { ...(item as any), notes: next } as any);
+    setNoteDraft({ ...noteDraft, [item.id]: "" });
+    toast({ title: "Kommentar sparad" });
+    reload();
+  };
+
+  const reviewAndPush = async (item: ActionItem) => {
+    if (!item.source_payload) return toast({ title: "Saknar payload", variant: "destructive" });
+    if (!confirm(`Pusha "${item.title}" till Google Ads?`)) return;
+    setPushing({ ...pushing, [item.id]: true });
+    try {
+      const { error } = await supabase.functions.invoke("ads-mutate", {
+        body: { project_id: projectId, source_action_item_id: item.id, ...(item.source_payload as any) },
+      });
+      if (error) throw error;
+      toast({ title: "Pushad till Google Ads" });
+      await update(item.id, { status: "done", implemented_at: new Date().toISOString() });
+      reload();
+    } catch (e: any) {
+      toast({ title: "Push misslyckades", description: e.message, variant: "destructive" });
+    } finally {
+      setPushing({ ...pushing, [item.id]: false });
+    }
+  };
+
 
   const filtered = items.filter((i) => {
     if (filter === "open") return i.status === "todo" || i.status === "in_progress";
