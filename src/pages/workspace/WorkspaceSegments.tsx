@@ -43,15 +43,8 @@ export default function WorkspaceSegments() {
     const result = latest.result_json as any;
     const rawSegments: any[] = result?.segments || [];
 
-    // Hämta keyword universe för att kunna mappa segment → faktisk cluster-nyckel
-    const { data: full } = await supabase
-      .from("analyses")
-      .select("keyword_universe_json")
-      .eq("id", latest.id)
-      .maybeSingle();
-    const universe: any[] = Array.isArray(full?.keyword_universe_json)
-      ? (full!.keyword_universe_json as any[])
-      : ((full?.keyword_universe_json as any)?.keywords || []);
+    // Hämta keyword universe (cachat per analysis_id i klienten)
+    const universe = await getKeywordUniverse(latest.id);
     const clusterKeys = Array.from(new Set(universe.map((k: any) => k?.cluster).filter(Boolean))) as string[];
     setAvailableClusters(clusterKeys);
 
