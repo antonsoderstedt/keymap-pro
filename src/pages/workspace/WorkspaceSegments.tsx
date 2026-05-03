@@ -290,7 +290,7 @@ function PackageTile({ icon: Icon, label, ready, busy, onOpen, onGenerate }: any
 function PayloadView({ payload }: { payload: any }) {
   if (!payload) return <p className="text-sm text-muted-foreground">Inget innehåll.</p>;
   // Render common fields nicely, fall back to JSON
-  const entries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  const entries = Object.entries(payload).filter(([k, v]) => !k.startsWith("_") && v !== null && v !== undefined && v !== "");
   return (
     <div className="space-y-3">
       {entries.map(([k, v]) => (
