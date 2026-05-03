@@ -163,3 +163,75 @@ Deno.serve(async (req) => {
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+/**
+ * Replace specific RSA headlines/descriptions on an existing ad.
+ * Strategy: fetch current RSA via GAQL → build new headlines/descriptions arrays
+ * with replacements applied → update via ads:mutate with updateMask.
+ * Returns response + revert_payload (containing original arrays for undo).
+ */
+async function replaceRsaAssets(ctx: any, cid: string, payload: any) {
+  const { ad_group_id, ad_id, replacements } = payload;
+  const rn = `customers/${cid}/adGroupAds/${ad_group_id}~${ad_id}`;
+
+  // 1. Fetch current RSA
+  const gaql = `
+    SELECT
+      ad_group_ad.ad.id,
+      ad_group_ad.ad.responsive_search_ad.headlines,
+      ad_group_ad.ad.responsive_search_ad.descriptions,
+      ad_group_ad.ad.responsive_search_ad.path1,
+      ad_group_ad.ad.responsive_search_ad.path2,
+      ad_group_ad.ad.final_urls
+    FROM ad_group_ad
+    WHERE ad_group_ad.ad.id = ${ad_id}
+      AND ad_group.id = ${ad_group_id}
+    LIMIT 1
+  `;
+  const rows = await searchGaql(ctx, cid, gaql);
+  const ad = rows?.[0]?.adGroupAd?.ad;
+  const rsa = ad?.responsiveSearchAd;
+  if (!rsa) throw new Error("RSA_NOT_FOUND: Annonsen är inte en RSA eller hittades inte");
+
+  const originalHeadlines = [...(rsa.headlines || [])];
+  const originalDescriptions = [...(rsa.descriptions || [])];
+
+  const newHeadlines = originalHeadlines.map((a: any) => ({ ...a }));
+  const newDescriptions = originalDescriptions.map((a: any) => ({ ...a }));
+
+  for (const r of replacements) {
+    const isHeadline = String(r.field).toUpperCase().includes("HEADLINE");
+    const list = isHeadline ? newHeadlines : newDescriptions;
+    const idx = list.findIndex((a: any) => a.text === r.original_text);
+    if (idx >= 0 && r.new_text) {
+      list[idx] = { ...list[idx], text: String(r.new_text).slice(0, isHeadline ? 30 : 90) };
+    }
+  }
+
+  // 2. Validate min counts (RSA needs ≥3 headlines, ≥2 descriptions)
+  if (newHeadlines.length < 3) throw new Error("RSA_INVALID: minst 3 headlines krävs");
+  if (newDescriptions.length < 2) throw new Error("RSA_INVALID: minst 2 descriptions krävs");
+
+  // 3. Mutate
+  const op = {
+    update: {
+      resourceName: rn,
+      ad: {
+        responsiveSearchAd: {
+          headlines: newHeadlines,
+          descriptions: newDescriptions,
+        },
+      },
+    },
+    updateMask: "ad.responsive_search_ad.headlines,ad.responsive_search_ad.descriptions",
+  };
+  const response = await mutateAds(ctx, cid, "adGroupAds", [op]);
+  const revert = {
+    resource_name: rn,
+    rsa_revert: {
+      headlines: originalHeadlines,
+      descriptions: originalDescriptions,
+    },
+  };
+  return { response, revert };
+}
