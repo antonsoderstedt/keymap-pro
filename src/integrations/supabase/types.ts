@@ -200,6 +200,57 @@ export type Database = {
           },
         ]
       }
+      ads_mutations: {
+        Row: {
+          action_type: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          error_message: string | null
+          id: string
+          payload: Json
+          project_id: string
+          response: Json | null
+          revert_payload: Json | null
+          reverted_at: string | null
+          source_action_item_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          error_message?: string | null
+          id?: string
+          payload?: Json
+          project_id: string
+          response?: Json | null
+          revert_payload?: Json | null
+          reverted_at?: string | null
+          source_action_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          error_message?: string | null
+          id?: string
+          payload?: Json
+          project_id?: string
+          response?: Json | null
+          revert_payload?: Json | null
+          reverted_at?: string | null
+          source_action_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           category: string
