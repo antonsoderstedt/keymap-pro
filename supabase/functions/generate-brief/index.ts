@@ -59,6 +59,48 @@ const briefSchema = {
   additionalProperties: false,
 };
 
+export type ClusterMatchKind = "exact" | "substring" | "top";
+
+export function resolveClusterKws(
+  allKws: any[],
+  cluster: string,
+): {
+  keywords: any[];
+  matchKind: ClusterMatchKind;
+  matchedCluster: string;
+  availableClusters: string[];
+} {
+  const availableClusters = Array.from(
+    new Set(allKws.map((k) => k?.cluster).filter(Boolean)),
+  ) as string[];
+  const exact = allKws.filter((k) => k?.cluster === cluster);
+  if (exact.length > 0) {
+    return { keywords: exact, matchKind: "exact", matchedCluster: cluster, availableClusters };
+  }
+  const needle = String(cluster ?? "").toLowerCase();
+  const fuzzy = availableClusters.find(
+    (c) => c.toLowerCase().includes(needle) || needle.includes(c.toLowerCase()),
+  );
+  if (fuzzy) {
+    return {
+      keywords: allKws.filter((k) => k?.cluster === fuzzy),
+      matchKind: "substring",
+      matchedCluster: fuzzy,
+      availableClusters,
+    };
+  }
+  const top = allKws
+    .slice()
+    .sort((a, b) => (b?.searchVolume ?? 0) - (a?.searchVolume ?? 0))
+    .slice(0, 30);
+  return {
+    keywords: top,
+    matchKind: "top",
+    matchedCluster: "__top_30__",
+    availableClusters,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -84,29 +126,11 @@ serve(async (req) => {
 
     const universe: any = analysis.keyword_universe_json;
     const allKws = (universe?.keywords || []).filter((k: any) => !k.isNegative);
-    const availableClusters = Array.from(new Set(allKws.map((k: any) => k.cluster).filter(Boolean))) as string[];
-
-    let clusterKws = allKws.filter((k: any) => k.cluster === cluster);
-    let matchKind: "exact" | "substring" | "top" = "exact";
-    let matchedCluster: string = cluster;
-    if (clusterKws.length === 0) {
-      const needle = String(cluster).toLowerCase();
-      const fuzzyCluster = availableClusters.find(
-        (c) => c.toLowerCase().includes(needle) || needle.includes(c.toLowerCase())
-      );
-      if (fuzzyCluster) {
-        clusterKws = allKws.filter((k: any) => k.cluster === fuzzyCluster);
-        matchKind = "substring";
-        matchedCluster = fuzzyCluster;
-      } else {
-        clusterKws = allKws
-          .slice()
-          .sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
-          .slice(0, 30);
-        matchKind = "top";
-        matchedCluster = "__top_30__";
-      }
-    }
+    const resolved = resolveClusterKws(allKws, cluster);
+    const clusterKws = resolved.keywords;
+    const matchKind = resolved.matchKind;
+    const matchedCluster = resolved.matchedCluster;
+    const availableClusters = resolved.availableClusters;
     if (clusterKws.length === 0) throw new Error("No keywords found for cluster");
     console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} kind=${matchKind}`);
 
