@@ -1,57 +1,24 @@
+# Skapa migreringsdokumentation
 
-# Uppgraderad startsida för Slay Station
+Skapa filen `docs/MIGRATION.md` i projektet med den fullständiga migreringsplanen från Lovable Cloud till eget Supabase-konto.
 
-Målet: göra `/` till en visuellt levande produktsida som *visar* verktyget, inte bara beskriver det. Behåller dark theme + lime accent (`#b8f542` på `#0d0d0f`), JetBrains Mono / Playfair från memory.
+## Vad som skapas
 
-## Vad som byggs
+**Ny fil:** `docs/MIGRATION.md`
 
-### 1. Hero med rörlig bakgrund + live-mockup
-- Animerad gradient-mesh bakgrund (CSS `@keyframes` — långsamt drivande lime/grön glöd, blur-blobs)
-- Animerade "data particles" / grid-overlay (pure CSS, ingen tung lib)
-- Roterande headline-ord ("rankar.", "konverterar.", "växer.") med fade/slide
-- Höger sida: **mockup av Executive Dashboard** — en riktig komponent med:
-  - Animerad linjegraf (Recharts, redan i projektet) som ritar sig vid load
-  - 3 KPI-kort med count-up siffror (sessions, CR, ROI)
-  - Subtil tilt/hover och floating shadow
+Innehåll (Markdown):
+1. **Översikt** — syfte och mål med migreringen
+2. **Steg 1** — Förbered eget Supabase-projekt (konto, region, plan, nycklar)
+3. **Steg 2** — Exportera schema + data + storage + auth users från Lovable Cloud
+4. **Steg 3** — Importera schema, data, storage och users till nya projektet
+5. **Steg 4** — Flytta secrets (DataForSEO, SEMrush, Firecrawl, Google OAuth/Ads, AI-nyckel, Resend)
+6. **Steg 5** — Anpassa edge functions (ersätt Lovable AI Gateway + connector-gateway-anrop)
+7. **Steg 6** — Uppdatera frontend (env-variabler, OAuth redirect, regenerera types)
+8. **Steg 7** — DNS, custom domain, custom SMTP, smoke-test
+9. **Steg 8** — Cutover (read-only, delta-export, switch, backup-period)
+10. **Tekniska risker & motåtgärder** (tabell)
+11. **Tidsåtgång** (~6–10h aktivt arbete)
+12. **Kostnadsjämförelse** Lovable Cloud vs eget Supabase Pro
+13. **Rekommendation** — stanna på Lovable Cloud tills konkret behov uppstår
 
-### 2. "Se verktyget" — Product Showcase-sektion (ny)
-Tre stora cards som visar moduler med inbäddade mini-mockups (riktiga Recharts/CSS-grafer, inte screenshots):
-- **Pre-launch Blueprint** — sajtkarta som node-graf (SVG)
-- **Sökordsuniversum** — bubble chart med kluster
-- **Performance Tracker** — area chart med GSC-style trend
-Varje med scroll-triggered fade-in (IntersectionObserver-hook).
-
-### 3. Animerad workflow (steg 1–4)
-Ersätt nuvarande statiska siffror med en horisontell tidslinje där en lime "puls" rör sig mellan stegen, och ikoner pop:ar in vid scroll.
-
-### 4. Live metrics-strip
-Bandets över "For who" — animerade siffror ("12k+ sökord analyserade", "48h från idé till blueprint", etc.) med count-up vid synlighet.
-
-### 5. Logos / "byggt på"-rad
-Liten rad med tech-stack badges (Lovable AI · Firecrawl · DataForSEO · GSC · GA4) — diskret, lime hover-glow.
-
-### 6. Polerad CTA-sektion
-Behåller men lägger till animerad lime gradient-border och floating lime "spark"-partiklar.
-
-## Tekniska detaljer
-
-**Filer som ändras/skapas:**
-- `src/pages/Landing.tsx` — full omskrivning
-- `src/components/landing/HeroMockup.tsx` (ny) — Recharts dashboard-mockup
-- `src/components/landing/AnimatedBackground.tsx` (ny) — gradient mesh + grid
-- `src/components/landing/ProductShowcase.tsx` (ny) — 3 modul-mockups med Recharts/SVG
-- `src/components/landing/CountUp.tsx` (ny) — IntersectionObserver + count-up hook
-- `src/components/landing/SitemapGraph.tsx` (ny) — SVG node-graf för pre-launch
-- `src/components/landing/KeywordBubbles.tsx` (ny) — SVG bubble cluster
-- `src/index.css` — lägger till keyframes: `gradient-drift`, `pulse-glow`, `draw-line`, `float`
-
-**Bibliotek:** Använder befintliga (recharts, lucide-react, tailwind-animate). Inga nya deps.
-
-**Performance:** Allt CSS/SVG-baserat eller lätta Recharts-mockups. Inga tunga videos eller Lottie. Animationer pausas vid `prefers-reduced-motion`.
-
-**Brand:** Säkerställer dark bg `#0d0d0f`, lime accent `#b8f542`, Playfair för rubriker, JetBrains Mono för siffror — enligt memory.
-
-## Inte med
-- Inga riktiga screenshots/bildfiler (allt genereras inline för crisp visuell kvalitet och dark mode-konsistens)
-- Ingen video-fil (tung; gradient + SVG-animation ger samma "rörlig" känsla)
-- Inga ändringar i `/docs` eller andra sidor
+Inga kodändringar görs — endast dokumentationsfilen skapas.
