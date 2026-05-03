@@ -11,6 +11,7 @@ import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw } 
 import { toast } from "sonner";
 import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
+import Ga4Filters from "@/components/workspace/Ga4Filters";
 
 interface KpiTarget {
   id: string;
