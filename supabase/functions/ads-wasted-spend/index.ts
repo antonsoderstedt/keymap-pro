@@ -26,10 +26,10 @@ Deno.serve(async (req) => {
 
     const minMicros = Math.round(min_cost_sek * 1_000_000);
     const rows = await searchGaql(ctx, settings.ads_customer_id, `
-      SELECT ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
+      SELECT ad_group_criterion.criterion_id, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
         ad_group_criterion.quality_info.quality_score,
         metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.ctr, metrics.conversions,
-        campaign.name, ad_group.name
+        campaign.id, campaign.name, ad_group.id, ad_group.name
       FROM keyword_view
       WHERE segments.date DURING LAST_30_DAYS
         AND metrics.conversions = 0
@@ -50,8 +50,11 @@ Deno.serve(async (req) => {
       return {
         keyword: r.adGroupCriterion?.keyword?.text,
         match_type: r.adGroupCriterion?.keyword?.matchType,
+        criterion_id: String(r.adGroupCriterion?.criterionId ?? ""),
         campaign: r.campaign?.name,
+        campaign_id: String(r.campaign?.id ?? ""),
         ad_group: r.adGroup?.name,
+        ad_group_id: String(r.adGroup?.id ?? ""),
         cost_sek: cost,
         clicks,
         ctr: Math.round(ctr * 10000) / 100,
