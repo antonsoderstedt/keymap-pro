@@ -93,3 +93,13 @@ Ja, planen täcker både **det du listade i meddelandet** och **det som var kvar
 ## Förslag
 
 Kör **Sprint 3 först** (fixa det trasiga), sen **Sprint 4** (write-back & schemaläggning), sen **Sprint 5** (Brand Kit auto + GA4-filter + chat). Säg "kör sprint 3" så drar jag igång.
+
+---
+
+## Status (Sprint 3-5 fortsättning)
+- ✅ Brand Kit auto-extract från sajt (`brand-kit-extract` + UI-knapp)
+- ✅ GA4-filter (tabell, Settings-UI, applicering i `ga4-fetch` & `ga4-revenue-fetch`)
+- ✅ GA4 Dashboard refresh-knapp + datumväljare + persist
+- ✅ Action Tracker drilldown, kommentarer (notes), Review & push för ads-källor
+- ✅ SEO Audit "Skapa åtgärd" per finding + bulk topp-10
+- ✅ `cron-ads-pacing` wrapper (cron-schemat sätts senare via insert-tool)
