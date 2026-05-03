@@ -81,6 +81,33 @@ export default function SeoAudit() {
     setFindings(findings.map(x => x.id === f.id ? { ...x, status: newStatus } : x));
   };
 
+  const sevToPriority = (s: string) =>
+    s === "critical" ? "critical" : s === "high" ? "high" : s === "medium" ? "medium" : "low";
+
+  const createActionForFinding = async (f: Finding) => {
+    if (!id) return;
+    const { error } = await supabase.from("action_items").insert({
+      project_id: id,
+      title: `[SEO] ${f.title}`,
+      description: f.description || f.recommendation || "",
+      category: "seo",
+      priority: sevToPriority(f.severity),
+      source_type: "seo_audit",
+      source_id: f.id,
+      source_payload: { affected_url: f.affected_url, recommendation: f.recommendation, severity: f.severity, category: f.category },
+    });
+    if (error) toast.error(error.message);
+    else toast.success("Åtgärd skapad");
+  };
+
+  const createActionsForCriticalAndHigh = async () => {
+    if (!id) return;
+    const top = findings.filter((f) => (f.severity === "critical" || f.severity === "high") && f.status !== "done").slice(0, 10);
+    if (!top.length) return toast.info("Inga öppna kritiska/höga findings");
+    for (const f of top) await createActionForFinding(f);
+    toast.success(`${top.length} åtgärder skapade`);
+  };
+
   const filtered = findings
     .filter(f => filter === "all" || (filter === "open" ? f.status !== "done" : f.status === "done"))
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
