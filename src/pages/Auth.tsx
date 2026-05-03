@@ -44,7 +44,7 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="text-center">
-          <CardTitle className="font-serif text-3xl text-primary">KEYMAP</CardTitle>
+          <CardTitle className="font-serif text-3xl text-primary">Slay Station</CardTitle>
           <CardDescription className="text-muted-foreground">
             {isLogin ? "Logga in på ditt konto" : "Skapa ett nytt konto"}
           </CardDescription>

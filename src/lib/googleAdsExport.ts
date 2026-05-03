@@ -201,7 +201,7 @@ export async function buildGoogleAdsEditorZip(
 
   // README
   zip.file("README.txt",
-`KEYMAP Pro — Google Ads Editor Export
+`Slay Station Pro — Google Ads Editor Export
 Genererad: ${new Date().toISOString()}
 
 Hur du importerar:

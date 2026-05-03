@@ -138,7 +138,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <h1 className="font-serif text-2xl text-primary">KEYMAP</h1>
+          <h1 className="font-serif text-2xl text-primary">Slay Station</h1>
           <div className="flex items-center gap-3">
             {googleConnected ? (
               <>
