@@ -1,7 +1,8 @@
 // Write-back to Google Ads. Audit-loggar i ads_mutations.
-// Stödda action_type: add_negative_keyword, pause_keyword, pause_ad, resume_keyword, resume_ad
+// Stödda action_type: add_negative_keyword, pause_keyword, pause_ad, resume_keyword, resume_ad,
+// remove_resource, replace_rsa_asset, rsa_batch
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getAdsContext, mutateAds } from "../_shared/google-ads.ts";
+import { getAdsContext, mutateAds, searchGaql } from "../_shared/google-ads.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
