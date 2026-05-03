@@ -34,6 +34,7 @@ import PerformanceTracker from "./pages/workspace/PerformanceTracker";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import WeeklyBriefing from "./pages/workspace/WeeklyBriefing";
 import AdsAudit from "./pages/workspace/AdsAudit";
+import AdsChat from "./pages/workspace/AdsChat";
 
 const queryClient = new QueryClient();
 
