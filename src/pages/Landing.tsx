@@ -191,13 +191,13 @@ export default function Landing() {
             Allt för organisk tillväxt.
           </h2>
         </div>
-        <div className="grid gap-px bg-border rounded-2xl overflow-hidden border border-border">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden border border-border">
           {features.map((f) => {
             const Icon = f.icon;
             return (
-              <div key={f.title} className="group bg-background hover:bg-card transition-colors p-6 md:p-8 md:[&:nth-child(3n+1)]:border-l-0">
+              <div key={f.title} className="group bg-background hover:bg-card transition-colors p-6 md:p-8">
                 <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
@@ -209,12 +209,6 @@ export default function Landing() {
             );
           })}
         </div>
-        <style>{`
-          .grid.gap-px > div { display: block; }
-          @media (min-width: 768px) {
-            section .grid.gap-px { grid-template-columns: repeat(3, 1fr); }
-          }
-        `}</style>
       </section>
 
       {/* Flow / timeline */}
