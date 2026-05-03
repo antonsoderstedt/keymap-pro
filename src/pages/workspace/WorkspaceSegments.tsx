@@ -35,7 +35,37 @@ export default function WorkspaceSegments() {
     }
     setAnalysisId(latest.id);
     const result = latest.result_json as any;
-    setSegments(result?.segments || []);
+    const rawSegments: any[] = result?.segments || [];
+
+    // Hämta keyword universe för att kunna mappa segment → faktisk cluster-nyckel
+    const { data: full } = await supabase
+      .from("analyses")
+      .select("keyword_universe_json")
+      .eq("id", latest.id)
+      .maybeSingle();
+    const universe: any[] = Array.isArray(full?.keyword_universe_json)
+      ? (full!.keyword_universe_json as any[])
+      : ((full?.keyword_universe_json as any)?.keywords || []);
+    const clusterKeys = Array.from(new Set(universe.map((k: any) => k?.cluster).filter(Boolean))) as string[];
+
+    const resolveCluster = (s: any): string => {
+      const candidates = [s.cluster, s.name, s.label, s.title].filter(Boolean).map(String);
+      // 1) exakt match
+      for (const c of candidates) {
+        const hit = clusterKeys.find((k) => k.toLowerCase() === c.toLowerCase());
+        if (hit) return hit;
+      }
+      // 2) substring match
+      for (const c of candidates) {
+        const needle = c.toLowerCase();
+        const hit = clusterKeys.find((k) => k.toLowerCase().includes(needle) || needle.includes(k.toLowerCase()));
+        if (hit) return hit;
+      }
+      return candidates[0] || "";
+    };
+
+    const enriched = rawSegments.map((s) => ({ ...s, _clusterKey: resolveCluster(s) }));
+    setSegments(enriched);
 
     const [{ data: briefRows }, { data: adRows }] = await Promise.all([
       supabase.from("content_briefs").select("cluster, payload").eq("analysis_id", latest.id),
@@ -90,7 +120,7 @@ export default function WorkspaceSegments() {
       ) : (
         <div className="space-y-3">
           {segments.map((s: any, i: number) => {
-            const cluster = s.cluster || s.name;
+            const cluster = s._clusterKey || s.cluster || s.name;
             const brief = briefs.find((b) => b.cluster === cluster);
             const ad = ads.find((a) => a.ad_group === cluster);
             return (
