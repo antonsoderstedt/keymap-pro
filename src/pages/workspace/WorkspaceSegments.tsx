@@ -4,42 +4,67 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Layers, ArrowRight, FileText, Megaphone } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Layers, ArrowRight, FileText, Megaphone, Loader2, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
 
 export default function WorkspaceSegments() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [segments, setSegments] = useState<any[]>([]);
   const [briefs, setBriefs] = useState<any[]>([]);
   const [ads, setAds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<{ kind: "brief" | "ad"; data: any; segment: any } | null>(null);
 
-  useEffect(() => {
+  const load = async () => {
     if (!id) return;
-    (async () => {
-      const { data: analyses } = await supabase
-        .from("analyses")
-        .select("id, result_json")
-        .eq("project_id", id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const latest = analyses?.[0];
-      if (!latest) {
-        setLoading(false);
-        return;
-      }
-      const result = latest.result_json as any;
-      setSegments(result?.segments || []);
-
-      const [{ data: briefRows }, { data: adRows }] = await Promise.all([
-        supabase.from("content_briefs").select("cluster, payload").eq("analysis_id", latest.id),
-        supabase.from("ad_drafts").select("ad_group, payload").eq("analysis_id", latest.id),
-      ]);
-      setBriefs(briefRows || []);
-      setAds(adRows || []);
+    const { data: analyses } = await supabase
+      .from("analyses")
+      .select("id, result_json")
+      .eq("project_id", id)
+      .not("result_json", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const latest = analyses?.[0];
+    if (!latest) {
       setLoading(false);
-    })();
-  }, [id]);
+      return;
+    }
+    setAnalysisId(latest.id);
+    const result = latest.result_json as any;
+    setSegments(result?.segments || []);
+
+    const [{ data: briefRows }, { data: adRows }] = await Promise.all([
+      supabase.from("content_briefs").select("cluster, payload").eq("analysis_id", latest.id),
+      supabase.from("ad_drafts").select("ad_group, payload").eq("analysis_id", latest.id),
+    ]);
+    setBriefs(briefRows || []);
+    setAds(adRows || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [id]);
+
+  const generate = async (kind: "brief" | "ad", cluster: string) => {
+    if (!analysisId) return;
+    setGenerating(`${kind}-${cluster}`);
+    try {
+      const fn = kind === "brief" ? "generate-brief" : "generate-ads";
+      const { error } = await supabase.functions.invoke(fn, {
+        body: { analysis_id: analysisId, cluster },
+      });
+      if (error) throw error;
+      toast.success(kind === "brief" ? "Brief genererad" : "Ads-paket genererat");
+      load();
+    } catch (e: any) {
+      toast.error("Misslyckades: " + (e.message || "okänt fel"));
+    } finally {
+      setGenerating(null);
+    }
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -48,7 +73,7 @@ export default function WorkspaceSegments() {
           <Layers className="h-7 w-7 text-primary" /> Segment & paket
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          AI-identifierade segment med färdiga paket: landningssida-brief och Google Ads-kampanj.
+          Klicka på ett paket för att se innehållet eller generera direkt.
         </p>
       </div>
 
@@ -83,22 +108,22 @@ export default function WorkspaceSegments() {
                     {s.size && <Badge variant="secondary" className="text-[10px]">{s.size}</Badge>}
                   </div>
                   <div className="grid sm:grid-cols-2 gap-2">
-                    <div className={`p-3 rounded-md border ${brief ? "border-primary/30 bg-primary/5" : "border-border border-dashed"}`}>
-                      <div className="flex items-center gap-2 text-xs font-medium">
-                        <FileText className="h-3 w-3" /> Content brief
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {brief ? "Klar — öppna i Artefakter" : "Ej genererad"}
-                      </div>
-                    </div>
-                    <div className={`p-3 rounded-md border ${ad ? "border-primary/30 bg-primary/5" : "border-border border-dashed"}`}>
-                      <div className="flex items-center gap-2 text-xs font-medium">
-                        <Megaphone className="h-3 w-3" /> Ads-kampanj
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {ad ? "Klar — öppna i Artefakter" : "Ej genererad"}
-                      </div>
-                    </div>
+                    <PackageTile
+                      icon={FileText}
+                      label="Content brief"
+                      ready={!!brief}
+                      busy={generating === `brief-${cluster}`}
+                      onOpen={() => brief && setDrawer({ kind: "brief", data: brief.payload, segment: s })}
+                      onGenerate={() => generate("brief", cluster)}
+                    />
+                    <PackageTile
+                      icon={Megaphone}
+                      label="Ads-kampanj"
+                      ready={!!ad}
+                      busy={generating === `ad-${cluster}`}
+                      onOpen={() => ad && setDrawer({ kind: "ad", data: ad.payload, segment: s })}
+                      onGenerate={() => generate("ad", cluster)}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -109,6 +134,73 @@ export default function WorkspaceSegments() {
           </Button>
         </div>
       )}
+
+      <Sheet open={!!drawer} onOpenChange={(o) => !o && setDrawer(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          {drawer && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-serif">
+                  {drawer.kind === "brief" ? "Content brief" : "Ads-kampanj"} — {drawer.segment?.name || drawer.segment?.cluster}
+                </SheetTitle>
+                <SheetDescription>
+                  Förhandsvisning. Fullständig version i Artefakter.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
+                <PayloadView payload={drawer.data} />
+                <Button variant="outline" className="gap-2" onClick={() => navigate(`/clients/${id}/artifacts`)}>
+                  Öppna i Artefakter <ExternalLink className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function PackageTile({ icon: Icon, label, ready, busy, onOpen, onGenerate }: any) {
+  return (
+    <button
+      type="button"
+      onClick={ready ? onOpen : onGenerate}
+      disabled={busy}
+      className={`text-left p-3 rounded-md border transition-colors hover:border-primary/60 ${ready ? "border-primary/30 bg-primary/5" : "border-border border-dashed"}`}
+    >
+      <div className="flex items-center gap-2 text-xs font-medium">
+        <Icon className="h-3 w-3" /> {label}
+      </div>
+      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+        {busy ? (<><Loader2 className="h-3 w-3 animate-spin" /> Genererar…</>) : ready ? "Klar — klicka för att se" : "Klicka för att generera"}
+      </div>
+    </button>
+  );
+}
+
+function PayloadView({ payload }: { payload: any }) {
+  if (!payload) return <p className="text-sm text-muted-foreground">Inget innehåll.</p>;
+  // Render common fields nicely, fall back to JSON
+  const entries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  return (
+    <div className="space-y-3">
+      {entries.map(([k, v]) => (
+        <div key={k} className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{k.replace(/_/g, " ")}</div>
+          {Array.isArray(v) ? (
+            <ul className="text-sm space-y-1 pl-4 list-disc">
+              {v.slice(0, 30).map((item, i) => (
+                <li key={i}>{typeof item === "string" ? item : JSON.stringify(item)}</li>
+              ))}
+            </ul>
+          ) : typeof v === "object" ? (
+            <pre className="text-xs bg-muted/30 p-3 rounded overflow-x-auto">{JSON.stringify(v, null, 2)}</pre>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap">{String(v)}</p>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
