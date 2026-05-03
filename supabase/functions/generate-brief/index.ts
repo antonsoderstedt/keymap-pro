@@ -84,29 +84,11 @@ serve(async (req) => {
 
     const universe: any = analysis.keyword_universe_json;
     const allKws = (universe?.keywords || []).filter((k: any) => !k.isNegative);
-    const availableClusters = Array.from(new Set(allKws.map((k: any) => k.cluster).filter(Boolean))) as string[];
-
-    let clusterKws = allKws.filter((k: any) => k.cluster === cluster);
-    let matchKind: "exact" | "substring" | "top" = "exact";
-    let matchedCluster: string = cluster;
-    if (clusterKws.length === 0) {
-      const needle = String(cluster).toLowerCase();
-      const fuzzyCluster = availableClusters.find(
-        (c) => c.toLowerCase().includes(needle) || needle.includes(c.toLowerCase())
-      );
-      if (fuzzyCluster) {
-        clusterKws = allKws.filter((k: any) => k.cluster === fuzzyCluster);
-        matchKind = "substring";
-        matchedCluster = fuzzyCluster;
-      } else {
-        clusterKws = allKws
-          .slice()
-          .sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
-          .slice(0, 30);
-        matchKind = "top";
-        matchedCluster = "__top_30__";
-      }
-    }
+    const resolved = resolveClusterKws(allKws, cluster);
+    const clusterKws = resolved.keywords;
+    const matchKind = resolved.matchKind;
+    const matchedCluster = resolved.matchedCluster;
+    const availableClusters = resolved.availableClusters;
     if (clusterKws.length === 0) throw new Error("No keywords found for cluster");
     console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} kind=${matchKind}`);
 
