@@ -86,6 +86,36 @@ export const DOCS: DocSection[] = [
 
   // ===== Moduler =====
   {
+    id: "executive",
+    category: "Moduler",
+    title: "Executive Dashboard",
+    summary: "Topplinjevy med trafik, ranking, intäkt och åtgärdsstatus i en blick.",
+    body: [
+      {
+        text:
+          "Executive Dashboard är förstasidan i ett kund-workspace. Den aggregerar de viktigaste KPI:erna från GSC, GA4 och Action Tracker till en exekutiv översikt — tänkt för veckomöten och för att snabbt kunna svara 'hur går det?'.",
+      },
+      {
+        heading: "Vad du ser",
+        bullets: [
+          "KPI-kort: organisk trafik, topp-3 rankings, konvertering, intäkt",
+          "Trendgraf 90 dagar (GSC clicks + GA4 sessions)",
+          "Action-status: öppna, pågående, levererade",
+          "Senaste vinster och varningar från weekly briefing",
+        ],
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/ExecutiveDashboard.tsx",
+          "Data: läses live från projects + analyses-tabellerna och cachat GSC/GA4-snapshot",
+          "KPI-beräkningar: src/lib/performance.ts + src/lib/roi.ts",
+          "Inga AI-anrop — ren aggregering, snabb laddning",
+        ],
+      },
+    ],
+  },
+  {
     id: "prelaunch",
     title: "Pre-launch Blueprint",
     category: "Moduler",
