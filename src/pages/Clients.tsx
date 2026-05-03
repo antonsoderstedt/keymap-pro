@@ -92,7 +92,7 @@ export default function Clients() {
       <header className="border-b border-border px-6 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div>
-            <h1 className="font-serif text-2xl text-primary">KEYMAP</h1>
+            <h1 className="font-serif text-2xl text-primary">Slay Station</h1>
             <p className="text-xs text-muted-foreground">Min byrå</p>
           </div>
           <div className="flex items-center gap-3">
