@@ -411,6 +411,37 @@ export default function AdsAudit() {
           </div>
 
           {rsa?.suggestions?.length ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-3">
+              <ListChecks className="h-4 w-4 text-primary" />
+              <span className="text-sm">
+                {selectedCount > 0 ? <><b>{selectedCount}</b> ändring{selectedCount === 1 ? "" : "ar"} markerade</> : "Bulk: markera kandidater nedan eller välj snabbval"}
+              </span>
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={selectAllFirstCandidate} disabled={bulkRunning}>
+                  Markera bästa förslag (alla)
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSel} disabled={bulkRunning || selectedCount === 0}>
+                  Rensa
+                </Button>
+                <ConfirmPush
+                  disabled={bulkRunning || selectedCount === 0}
+                  loading={bulkRunning}
+                  label={`Ersätt ${selectedCount} valda`}
+                  description={`Skickar ${selectedCount} headline-/description-byte till Google Ads. Allt loggas och kan ångras.`}
+                  onConfirm={runBulkReplace}
+                />
+                <ConfirmPush
+                  disabled={bulkRunning || selectedCount === 0}
+                  loading={bulkRunning}
+                  label="Pausa valda annonser"
+                  description={`Pausar alla annonser där minst en kandidat är vald (${new Set(Object.keys(rsaSelection).filter(k => rsaSelection[k]).map(k => k.split("|")[0])).size} st).`}
+                  onConfirm={runBulkPauseAds}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {rsa?.suggestions?.length ? (
             <div className="space-y-3">
               {rsa.suggestions.map((s) => (
                 <Card key={s.ad_id} className="p-4 space-y-3">
