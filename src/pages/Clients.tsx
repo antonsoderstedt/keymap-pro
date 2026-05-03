@@ -141,7 +141,7 @@ export default function Clients() {
               Varje kund är ett permanent hem för analyser, dashboards och åtgärder
             </p>
           </div>
-          <Button onClick={createClient} className="gap-2">
+          <Button onClick={() => setPickerOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
             Ny kund
           </Button>
