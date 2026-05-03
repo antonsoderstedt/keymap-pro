@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import Auth from "./pages/Auth";
+import Landing from "./pages/Landing";
+import Docs from "./pages/Docs";
 import Clients from "./pages/Clients";
 import ProjectWizard from "./pages/ProjectWizard";
 import Results from "./pages/Results";
