@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       SELECT search_term_view.search_term, metrics.clicks, metrics.cost_micros,
         metrics.conversions, campaign.name
       FROM search_term_view
-      WHERE segments.date DURING LAST_90_DAYS
+      WHERE segments.date BETWEEN '${isoDaysAgo(90)}' AND '${isoDaysAgo(1)}'
         AND metrics.cost_micros >= ${minMicros}
       ORDER BY metrics.cost_micros DESC
       LIMIT 200
