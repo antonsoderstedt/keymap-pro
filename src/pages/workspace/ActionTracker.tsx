@@ -267,7 +267,6 @@ export default function ActionTracker() {
                         <ActionImpact actionId={item.id} />
                       </>
                     )}
-                  </div>
                     {/* Drilldown toggle */}
                     {(item.source_payload || isPushable(item)) && (
                       <button
