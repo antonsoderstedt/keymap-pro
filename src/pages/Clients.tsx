@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles, Home, BookOpen } from "lucide-react";
+import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles, Home, BookOpen, Rocket, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { formatMoney, valueColor, isSupportedCurrency, type Currency } from "@/lib/revenue";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface ClientCard extends Project {
   analyses_count: number;
@@ -24,6 +25,8 @@ export default function Clients() {
   const { user, signOut } = useAuth();
   const [clients, setClients] = useState<ClientCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -75,16 +78,28 @@ export default function Clients() {
     setLoading(false);
   };
 
-  const createClient = async () => {
+  const createClient = async (kind: "established" | "prelaunch") => {
+    setCreating(true);
+    const defaults =
+      kind === "prelaunch"
+        ? { name: "Ny pre-launch", company: "", market: "se-sv", description: "Pre-launch — ingen historisk data ännu" }
+        : { name: "Ny kund", company: "", market: "se-sv" };
     const { data, error } = await supabase
       .from("projects")
-      .insert({ name: "Ny kund", company: "", market: "se-sv", user_id: user!.id } as any)
+      .insert({ ...defaults, user_id: user!.id } as any)
       .select()
       .single();
+    setCreating(false);
+    setPickerOpen(false);
     if (error) {
       toast({ title: "Fel", description: error.message, variant: "destructive" });
+      return;
+    }
+    const id = (data as Project).id;
+    if (kind === "prelaunch") {
+      navigate(`/clients/${id}/prelaunch`);
     } else {
-      navigate(`/project/${(data as Project).id}`);
+      navigate(`/project/${id}`);
     }
   };
 
@@ -126,7 +141,7 @@ export default function Clients() {
               Varje kund är ett permanent hem för analyser, dashboards och åtgärder
             </p>
           </div>
-          <Button onClick={createClient} className="gap-2">
+          <Button onClick={() => setPickerOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
             Ny kund
           </Button>
@@ -143,7 +158,7 @@ export default function Clients() {
             <CardContent className="flex flex-col items-center justify-center py-20">
               <Building2 className="mb-4 h-12 w-12 text-muted-foreground" />
               <p className="text-lg text-muted-foreground">Inga kunder ännu</p>
-              <Button onClick={createClient} className="mt-4 gap-2">
+              <Button onClick={() => setPickerOpen(true)} className="mt-4 gap-2">
                 <Plus className="h-4 w-4" />
                 Skapa din första kund
               </Button>
@@ -204,6 +219,58 @@ export default function Clients() {
           </div>
         )}
       </main>
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Vilken typ av kund?</DialogTitle>
+            <DialogDescription>
+              Välj utgångsläge — vi anpassar onboarding och vy efter om kunden har historisk data eller inte.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2 mt-2">
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => createClient("established")}
+              className="text-left p-5 rounded-lg border border-border hover:border-primary/60 hover:bg-primary/5 transition-colors space-y-3 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <TrendingUp className="h-5 w-5" />
+                <span className="font-serif text-lg">Etablerad kund</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Har sajt, GA4, Search Console och/eller Google Ads. Vi importerar data och kör full analys.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>Koppla GA4, GSC, Google Ads</li>
+                <li>SEO-audit, sökordsanalys, åtgärder</li>
+                <li>Performance-tracking från dag 1</li>
+              </ul>
+            </button>
+
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => createClient("prelaunch")}
+              className="text-left p-5 rounded-lg border border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 transition-colors space-y-3 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-primary">
+                <Rocket className="h-5 w-5" />
+                <span className="font-serif text-lg">Pre-launch</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ingen sajt eller data ännu. Vi bygger en marknadsplan, sökordsuniversum, sajtkarta och prognos från affärsidén.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>Brief: idé, målgrupp, USP, konkurrenter</li>
+                <li>AI + Firecrawl + DataForSEO genererar plan</li>
+                <li>Inga konton/integrationer krävs</li>
+              </ul>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
