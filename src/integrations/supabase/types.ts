@@ -681,6 +681,48 @@ export type Database = {
         }
         Relationships: []
       }
+      cluster_resolution_logs: {
+        Row: {
+          analysis_id: string
+          available_clusters: Json
+          created_at: string
+          function_name: string
+          id: string
+          match_kind: string
+          matched_cluster: string | null
+          matched_keywords_count: number
+          project_id: string | null
+          requested_cluster: string
+          similar_clusters: Json
+        }
+        Insert: {
+          analysis_id: string
+          available_clusters?: Json
+          created_at?: string
+          function_name?: string
+          id?: string
+          match_kind: string
+          matched_cluster?: string | null
+          matched_keywords_count?: number
+          project_id?: string | null
+          requested_cluster: string
+          similar_clusters?: Json
+        }
+        Update: {
+          analysis_id?: string
+          available_clusters?: Json
+          created_at?: string
+          function_name?: string
+          id?: string
+          match_kind?: string
+          matched_cluster?: string | null
+          matched_keywords_count?: number
+          project_id?: string | null
+          requested_cluster?: string
+          similar_clusters?: Json
+        }
+        Relationships: []
+      }
       content_briefs: {
         Row: {
           analysis_id: string
