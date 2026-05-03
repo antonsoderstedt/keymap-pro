@@ -130,6 +130,15 @@ export default function WorkspaceSegments() {
             const cluster = s._clusterKey || s.cluster || s.name;
             const brief = briefs.find((b) => b.cluster === cluster);
             const ad = ads.find((a) => a.ad_group === cluster);
+            const briefMeta = brief?.payload?._meta;
+            const briefFallback = briefMeta && briefMeta.match_kind && briefMeta.match_kind !== "exact";
+            const resolveFallback = s._resolveKind && s._resolveKind !== "exact";
+            const showWarning = briefFallback || resolveFallback;
+            const warningText = briefFallback
+              ? briefMeta.match_kind === "top"
+                ? `Briefen byggdes på top-30 sökord (ingen klustermatch hittades för "${briefMeta.requested_cluster}").`
+                : `Briefen matchades fuzzy: "${briefMeta.requested_cluster}" → "${briefMeta.matched_cluster}".`
+              : `Segmentet matchas inte exakt mot något kluster (${s._resolveKind}). Välj rätt kluster för bästa resultat.`;
             return (
               <Card key={i}>
                 <CardHeader className="pb-3">
@@ -143,7 +152,27 @@ export default function WorkspaceSegments() {
                     {s.intent && <Badge variant="outline" className="text-[10px]">{s.intent}</Badge>}
                     {s.priority && <Badge variant="default" className="text-[10px]">prio: {s.priority}</Badge>}
                     {s.size && <Badge variant="secondary" className="text-[10px]">{s.size}</Badge>}
+                    <Badge variant="outline" className="text-[10px] font-mono">cluster: {cluster || "—"}</Badge>
                   </div>
+                  {showWarning && (
+                    <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-1">
+                        <p className="text-foreground">{warningText}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[11px]"
+                          onClick={() => {
+                            setReassign({ segment: s, current: cluster });
+                            setReassignChoice(cluster);
+                          }}
+                        >
+                          Välj rätt kluster
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid sm:grid-cols-2 gap-2">
                     <PackageTile
                       icon={FileText}
