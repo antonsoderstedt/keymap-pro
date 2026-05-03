@@ -162,6 +162,44 @@ export type Database = {
         }
         Relationships: []
       }
+      ads_audits: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          health_score: number | null
+          id: string
+          project_id: string
+          raw: Json
+          summary: Json
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          health_score?: number | null
+          id?: string
+          project_id: string
+          raw?: Json
+          summary?: Json
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          health_score?: number | null
+          id?: string
+          project_id?: string
+          raw?: Json
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_audits_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           category: string
