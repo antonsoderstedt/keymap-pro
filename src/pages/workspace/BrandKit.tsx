@@ -10,7 +10,7 @@ import { useBrandKit, type BrandPalette } from "@/hooks/useBrandKit";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Save, Palette as PaletteIcon, Type, Mic } from "lucide-react";
+import { Upload, Save, Palette as PaletteIcon, Type, Mic, Sparkles } from "lucide-react";
 
 const TONE_OPTIONS = [
   { value: "professional", label: "Professionell / formell" },
