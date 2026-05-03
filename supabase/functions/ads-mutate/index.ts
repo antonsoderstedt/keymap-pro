@@ -1,7 +1,8 @@
 // Write-back to Google Ads. Audit-loggar i ads_mutations.
-// Stödda action_type: add_negative_keyword, pause_keyword, pause_ad, resume_keyword, resume_ad
+// Stödda action_type: add_negative_keyword, pause_keyword, pause_ad, resume_keyword, resume_ad,
+// remove_resource, replace_rsa_asset, rsa_batch
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getAdsContext, mutateAds } from "../_shared/google-ads.ts";
+import { getAdsContext, mutateAds, searchGaql } from "../_shared/google-ads.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -95,6 +96,30 @@ Deno.serve(async (req) => {
         if (!payload.service || !payload.resource_name) throw new Error("MISSING_REVERT");
         const op = { remove: payload.resource_name };
         response = await mutateAds(ctx, cid, payload.service, [op]);
+      } else if (action_type === "replace_rsa_asset") {
+        // payload: { ad_group_id, ad_id, replacements: [{ field: 'HEADLINE'|'DESCRIPTION', original_text, new_text }] }
+        if (!payload.ad_group_id || !payload.ad_id || !Array.isArray(payload.replacements)) {
+          throw new Error("MISSING_IDS");
+        }
+        const result = await replaceRsaAssets(ctx, cid, payload);
+        response = result.response;
+        revertPayload = result.revert;
+      } else if (action_type === "rsa_batch") {
+        // payload: { items: [{ ad_group_id, ad_id, replacements: [...] }] }
+        if (!Array.isArray(payload.items) || payload.items.length === 0) throw new Error("MISSING_IDS");
+        const results: any[] = [];
+        const reverts: any[] = [];
+        for (const item of payload.items) {
+          try {
+            const r = await replaceRsaAssets(ctx, cid, item);
+            results.push({ ad_id: item.ad_id, ok: true, response: r.response });
+            reverts.push({ ad_id: item.ad_id, ...r.revert });
+          } catch (err: any) {
+            results.push({ ad_id: item.ad_id, ok: false, error: err.message });
+          }
+        }
+        response = { batch: results, success: results.filter(r => r.ok).length, total: results.length };
+        revertPayload = { items: reverts };
       } else {
         throw new Error(`UNSUPPORTED_ACTION: ${action_type}`);
       }
@@ -137,4 +162,76 @@ Deno.serve(async (req) => {
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+/**
+ * Replace specific RSA headlines/descriptions on an existing ad.
+ * Strategy: fetch current RSA via GAQL → build new headlines/descriptions arrays
+ * with replacements applied → update via ads:mutate with updateMask.
+ * Returns response + revert_payload (containing original arrays for undo).
+ */
+async function replaceRsaAssets(ctx: any, cid: string, payload: any) {
+  const { ad_group_id, ad_id, replacements } = payload;
+  const rn = `customers/${cid}/adGroupAds/${ad_group_id}~${ad_id}`;
+
+  // 1. Fetch current RSA
+  const gaql = `
+    SELECT
+      ad_group_ad.ad.id,
+      ad_group_ad.ad.responsive_search_ad.headlines,
+      ad_group_ad.ad.responsive_search_ad.descriptions,
+      ad_group_ad.ad.responsive_search_ad.path1,
+      ad_group_ad.ad.responsive_search_ad.path2,
+      ad_group_ad.ad.final_urls
+    FROM ad_group_ad
+    WHERE ad_group_ad.ad.id = ${ad_id}
+      AND ad_group.id = ${ad_group_id}
+    LIMIT 1
+  `;
+  const rows = await searchGaql(ctx, cid, gaql);
+  const ad = rows?.[0]?.adGroupAd?.ad;
+  const rsa = ad?.responsiveSearchAd;
+  if (!rsa) throw new Error("RSA_NOT_FOUND: Annonsen är inte en RSA eller hittades inte");
+
+  const originalHeadlines = [...(rsa.headlines || [])];
+  const originalDescriptions = [...(rsa.descriptions || [])];
+
+  const newHeadlines = originalHeadlines.map((a: any) => ({ ...a }));
+  const newDescriptions = originalDescriptions.map((a: any) => ({ ...a }));
+
+  for (const r of replacements) {
+    const isHeadline = String(r.field).toUpperCase().includes("HEADLINE");
+    const list = isHeadline ? newHeadlines : newDescriptions;
+    const idx = list.findIndex((a: any) => a.text === r.original_text);
+    if (idx >= 0 && r.new_text) {
+      list[idx] = { ...list[idx], text: String(r.new_text).slice(0, isHeadline ? 30 : 90) };
+    }
+  }
+
+  // 2. Validate min counts (RSA needs ≥3 headlines, ≥2 descriptions)
+  if (newHeadlines.length < 3) throw new Error("RSA_INVALID: minst 3 headlines krävs");
+  if (newDescriptions.length < 2) throw new Error("RSA_INVALID: minst 2 descriptions krävs");
+
+  // 3. Mutate
+  const op = {
+    update: {
+      resourceName: rn,
+      ad: {
+        responsiveSearchAd: {
+          headlines: newHeadlines,
+          descriptions: newDescriptions,
+        },
+      },
+    },
+    updateMask: "ad.responsive_search_ad.headlines,ad.responsive_search_ad.descriptions",
+  };
+  const response = await mutateAds(ctx, cid, "adGroupAds", [op]);
+  const revert = {
+    resource_name: rn,
+    rsa_revert: {
+      headlines: originalHeadlines,
+      descriptions: originalDescriptions,
+    },
+  };
+  return { response, revert };
 }

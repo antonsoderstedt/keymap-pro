@@ -350,13 +350,25 @@ export default function AdsAudit() {
                   <div className="space-y-2">
                     {s.replacements.map((r, i) => (
                       <div key={i} className="border-l-2 border-border pl-3 space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="outline">{r.field}</Badge>
                           <span className="text-xs text-muted-foreground line-through font-mono">{r.original}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {r.candidates.map((c, j) => (
-                            <Badge key={j} variant="secondary" className="font-mono text-[11px]">{c}</Badge>
+                            <div key={j} className="flex items-center gap-1">
+                              <Badge variant="secondary" className="font-mono text-[11px]">{c}</Badge>
+                              <ConfirmPush
+                                disabled={pushing === `rsa-${s.ad_id}-${i}-${j}`}
+                                loading={pushing === `rsa-${s.ad_id}-${i}-${j}`}
+                                label="Ersätt"
+                                description={`Ersätter "${r.original}" med "${c}" i annonsen "${s.ad_group}". Live i Google Ads.`}
+                                onConfirm={() => pushMutation(`rsa-${s.ad_id}-${i}-${j}`, "replace_rsa_asset", {
+                                  ad_group_id: s.ad_group_id, ad_id: s.ad_id,
+                                  replacements: [{ field: r.field, original_text: r.original, new_text: c }],
+                                })}
+                              />
+                            </div>
                           ))}
                         </div>
                         {r.rationale && <p className="text-xs text-muted-foreground">{r.rationale}</p>}
@@ -364,9 +376,9 @@ export default function AdsAudit() {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Tips: kopiera bästa kandidaten in i Google Ads UI för att lägga till nytt asset (RSA-assets kräver
-                    nuvarande full annons-payload via Google Ads API — write-back för enskilda assets kommer i nästa iteration).
+                    Klicka "Ersätt" för att skicka ändringen till Google Ads. Allt loggas och kan återställas i Logg-fliken.
                   </p>
+
                 </Card>
               ))}
             </div>

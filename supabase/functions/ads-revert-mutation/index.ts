@@ -39,6 +39,28 @@ Deno.serve(async (req) => {
       const rn = m.revert_payload?.resource_name;
       const prev = m.revert_payload?.prev_status || "ENABLED";
       response = await mutateAds(ctx, cid, "adGroupAds", [{ update: { resourceName: rn, status: prev }, updateMask: "status" }]);
+    } else if (m.action_type === "replace_rsa_asset") {
+      const rn = m.revert_payload?.resource_name;
+      const rsa = m.revert_payload?.rsa_revert;
+      if (!rn || !rsa) throw new Error("NO_REVERT_DATA");
+      response = await mutateAds(ctx, cid, "adGroupAds", [{
+        update: {
+          resourceName: rn,
+          ad: { responsiveSearchAd: { headlines: rsa.headlines, descriptions: rsa.descriptions } },
+        },
+        updateMask: "ad.responsive_search_ad.headlines,ad.responsive_search_ad.descriptions",
+      }]);
+    } else if (m.action_type === "rsa_batch") {
+      const items = m.revert_payload?.items || [];
+      const ops = items.map((it: any) => ({
+        update: {
+          resourceName: it.resource_name,
+          ad: { responsiveSearchAd: { headlines: it.rsa_revert?.headlines, descriptions: it.rsa_revert?.descriptions } },
+        },
+        updateMask: "ad.responsive_search_ad.headlines,ad.responsive_search_ad.descriptions",
+      })).filter((o: any) => o.update.resourceName);
+      if (ops.length === 0) throw new Error("NO_REVERT_DATA");
+      response = await mutateAds(ctx, cid, "adGroupAds", ops, true);
     } else {
       throw new Error("UNSUPPORTED_REVERT");
     }

@@ -41,13 +41,29 @@ export default function Results() {
     const { data: project } = await supabase.from("projects").select("name").eq("id", id!).single();
     if (project) setProjectName((project as any).name);
 
-    const { data, error } = await supabase
+    // Hämta senaste analys MED resultat först — så att gamla resultat inte försvinner
+    // bara för att en ny analys precis startat och ännu inte sparat result_json.
+    const { data: completed } = await supabase
       .from("analyses")
-      .select("id, result_json, keyword_universe_json")
+      .select("id, result_json, keyword_universe_json, created_at")
       .eq("project_id", id!)
+      .not("result_json", "is", null)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    // Kolla samtidigt om det pågår en nyare analys (ingen result_json ännu)
+    const { data: pendingRow } = await supabase
+      .from("analyses")
+      .select("id, created_at")
+      .eq("project_id", id!)
+      .is("result_json", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const data = completed || pendingRow;
+    const error = !data ? new Error("no_analyses") : null;
 
     if (error || !data) {
       toast({ title: "Inga resultat", description: "Ingen analys hittad för projektet.", variant: "destructive" });
@@ -57,14 +73,15 @@ export default function Results() {
     }
 
     const nextResult = ((data as any).result_json ?? null) as AnalysisResult | null;
-    const pending = !nextResult;
+    // Pending = vi har en nyare rad utan resultat (oavsett om vi visar gammalt resultat)
+    const pending = !!pendingRow && (!completed || new Date(pendingRow.created_at) > new Date((completed as any).created_at));
     const failureMessage = nextResult && typeof nextResult === "object" && "__error" in nextResult
       ? String((nextResult as any).__error || "")
       : null;
 
     setAnalysisId((data as any).id);
-    setResult(failureMessage ? null : nextResult);
-    setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
+    if (nextResult && !failureMessage) setResult(nextResult);
+    if ((data as any).keyword_universe_json) setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
     setAnalysisPending(pending);
     setAnalysisError(failureMessage || null);
     setLoading(false);
