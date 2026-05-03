@@ -350,22 +350,6 @@ export default function AdsAudit() {
                   <div className="space-y-2">
                     {s.replacements.map((r, i) => (
                       <div key={i} className="border-l-2 border-border pl-3 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{r.field}</Badge>
-                          <span className="text-xs text-muted-foreground line-through font-mono">{r.original}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {r.candidates.map((c, j) => (
-                            <Badge key={j} variant="secondary" className="font-mono text-[11px]">{c}</Badge>
-                          ))}
-                        </div>
-                        {r.rationale && <p className="text-xs text-muted-foreground">{r.rationale}</p>}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    {s.replacements.map((r, i) => (
-                      <div key={i} className="border-l-2 border-border pl-3 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="outline">{r.field}</Badge>
                           <span className="text-xs text-muted-foreground line-through font-mono">{r.original}</span>
