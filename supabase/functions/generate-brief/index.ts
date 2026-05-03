@@ -131,8 +131,46 @@ serve(async (req) => {
     const matchKind = resolved.matchKind;
     const matchedCluster = resolved.matchedCluster;
     const availableClusters = resolved.availableClusters;
+
+    // Beräkna top-10 mest liknande kluster (enkel score: substring + Jaccard på ord)
+    const needle = String(cluster ?? "").toLowerCase();
+    const tokens = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9åäö]+/i).filter(Boolean));
+    const needleTokens = tokens(cluster ?? "");
+    const similarClusters = availableClusters
+      .map((c) => {
+        const cl = c.toLowerCase();
+        const ct = tokens(c);
+        const inter = [...needleTokens].filter((t) => ct.has(t)).length;
+        const union = new Set([...needleTokens, ...ct]).size || 1;
+        const jaccard = inter / union;
+        const sub = cl.includes(needle) || needle.includes(cl) ? 0.5 : 0;
+        return { cluster: c, score: jaccard + sub };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} kind=${matchKind} matchedCluster="${matchedCluster}"`);
+    console.log(`[brief] similar=${JSON.stringify(similarClusters)}`);
+    console.log(`[brief] available(${availableClusters.length})=${JSON.stringify(availableClusters.slice(0, 30))}`);
+
+    // Spara felsökningslogg (best-effort, blockera inte vid fel)
+    try {
+      await supabase.from("cluster_resolution_logs").insert({
+        analysis_id,
+        project_id: analysis.project_id,
+        function_name: "generate-brief",
+        requested_cluster: String(cluster ?? ""),
+        matched_cluster: matchedCluster,
+        match_kind: matchKind,
+        matched_keywords_count: clusterKws.length,
+        available_clusters: availableClusters,
+        similar_clusters: similarClusters,
+      });
+    } catch (logErr) {
+      console.error("[brief] failed to write resolution log", logErr);
+    }
+
     if (clusterKws.length === 0) throw new Error("No keywords found for cluster");
-    console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} kind=${matchKind}`);
 
     const otherClusters = Array.from(new Set((universe?.keywords || []).map((k: any) => k.cluster).filter((c: string) => c !== cluster))).slice(0, 25);
     const topKws = clusterKws.sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)).slice(0, 20);
