@@ -180,9 +180,12 @@ export default function SeoAudit() {
       {findings.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="font-serif text-lg">Findings ({filtered.length})</CardTitle>
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-center">
+                <Button size="sm" variant="outline" className="gap-1" onClick={createActionsForCriticalAndHigh}>
+                  <ListChecks className="h-3 w-3" /> Skapa åtgärder (topp-10)
+                </Button>
                 {(["open", "done", "all"] as const).map(f => (
                   <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)}>
                     {f === "open" ? "Öppna" : f === "done" ? "Klara" : "Alla"}
