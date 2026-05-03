@@ -158,7 +158,7 @@ export default function Clients() {
             <CardContent className="flex flex-col items-center justify-center py-20">
               <Building2 className="mb-4 h-12 w-12 text-muted-foreground" />
               <p className="text-lg text-muted-foreground">Inga kunder ännu</p>
-              <Button onClick={createClient} className="mt-4 gap-2">
+              <Button onClick={() => setPickerOpen(true)} className="mt-4 gap-2">
                 <Plus className="h-4 w-4" />
                 Skapa din första kund
               </Button>
