@@ -78,16 +78,28 @@ export default function Clients() {
     setLoading(false);
   };
 
-  const createClient = async () => {
+  const createClient = async (kind: "established" | "prelaunch") => {
+    setCreating(true);
+    const defaults =
+      kind === "prelaunch"
+        ? { name: "Ny pre-launch", company: "", market: "se-sv", description: "Pre-launch — ingen historisk data ännu" }
+        : { name: "Ny kund", company: "", market: "se-sv" };
     const { data, error } = await supabase
       .from("projects")
-      .insert({ name: "Ny kund", company: "", market: "se-sv", user_id: user!.id } as any)
+      .insert({ ...defaults, user_id: user!.id } as any)
       .select()
       .single();
+    setCreating(false);
+    setPickerOpen(false);
     if (error) {
       toast({ title: "Fel", description: error.message, variant: "destructive" });
+      return;
+    }
+    const id = (data as Project).id;
+    if (kind === "prelaunch") {
+      navigate(`/clients/${id}/prelaunch`);
     } else {
-      navigate(`/project/${(data as Project).id}`);
+      navigate(`/project/${id}`);
     }
   };
 
