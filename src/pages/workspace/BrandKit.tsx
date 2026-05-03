@@ -142,6 +142,22 @@ export default function BrandKit() {
         </Button>
       </div>
 
+      {/* Auto-generate */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-sm font-medium">Generera Brand Kit från sajten</div>
+            <div className="text-xs text-muted-foreground">Vi scrapar sajten och låter AI extrahera färger, typsnitt och ton.</div>
+          </div>
+          <Input className="w-64" placeholder="https://exempel.se (valfritt)" value={genUrl} onChange={(e) => setGenUrl(e.target.value)} />
+          <Button onClick={handleGenerate} disabled={generating} className="gap-2">
+            <Sparkles className={`h-4 w-4 ${generating ? "animate-pulse" : ""}`} />
+            {generating ? "Hämtar…" : "Hämta från sajt"}
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Logo */}
       <Card>
         <CardHeader>
