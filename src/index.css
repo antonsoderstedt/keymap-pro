@@ -147,6 +147,56 @@
   }
 }
 
+@layer utilities {
+  @keyframes gradient-drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%      { transform: translate(8%, -6%) scale(1.1); }
+    66%      { transform: translate(-6%, 8%) scale(0.95); }
+  }
+  @keyframes float-y {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-12px); }
+  }
+  @keyframes draw-line {
+    from { stroke-dashoffset: 1000; }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes spark {
+    0%   { opacity: 0; transform: translateY(0) scale(0.5); }
+    50%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-80px) scale(1); }
+  }
+  @keyframes word-cycle {
+    0%, 25%   { opacity: 1; transform: translateY(0); }
+    33%, 100% { opacity: 0; transform: translateY(-12px); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-gradient-drift { animation: gradient-drift 18s ease-in-out infinite; }
+  .animate-float-y        { animation: float-y 6s ease-in-out infinite; }
+  .animate-draw-line      { stroke-dasharray: 1000; animation: draw-line 2.4s ease-out forwards; }
+  .animate-spark          { animation: spark 3s ease-out infinite; }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.25), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 3s linear infinite;
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .mask-radial-fade {
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-gradient-drift, .animate-float-y, .animate-spark, .animate-shimmer { animation: none; }
+  }
+}
+
 @layer components {
   .stat-value {
     @apply font-mono text-3xl font-semibold tracking-tight;
