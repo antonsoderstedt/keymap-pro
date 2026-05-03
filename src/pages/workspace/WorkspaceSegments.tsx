@@ -52,6 +52,7 @@ export default function WorkspaceSegments() {
       ? (full!.keyword_universe_json as any[])
       : ((full?.keyword_universe_json as any)?.keywords || []);
     const clusterKeys = Array.from(new Set(universe.map((k: any) => k?.cluster).filter(Boolean))) as string[];
+    setAvailableClusters(clusterKeys);
 
     const resolveCluster = (s: any): string => {
       const candidates = [s.cluster, s.name, s.label, s.title].filter(Boolean).map(String);
