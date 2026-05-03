@@ -20,6 +20,9 @@ export default function WorkspaceSegments() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<{ kind: "brief" | "ad"; data: any; segment: any } | null>(null);
+  const [availableClusters, setAvailableClusters] = useState<string[]>([]);
+  const [reassign, setReassign] = useState<{ segment: any; current: string } | null>(null);
+  const [reassignChoice, setReassignChoice] = useState<string>("");
 
   const load = async () => {
     if (!id) return;
