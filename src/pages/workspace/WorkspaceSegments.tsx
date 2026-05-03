@@ -223,6 +223,48 @@ export default function WorkspaceSegments() {
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={!!reassign} onOpenChange={(o) => !o && setReassign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-serif">Välj kluster för segmentet</DialogTitle>
+            <DialogDescription>
+              Välj vilket sökordskluster "{reassign?.segment?.name || reassign?.current}" ska kopplas mot. Detta används vid generering av brief och Ads.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Select value={reassignChoice} onValueChange={setReassignChoice}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj kluster" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {availableClusters.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReassign(null)}>Avbryt</Button>
+            <Button
+              onClick={async () => {
+                if (!reassign || !reassignChoice) return;
+                setSegments((prev) =>
+                  prev.map((x) =>
+                    x === reassign.segment
+                      ? { ...x, _clusterKey: reassignChoice, _resolveKind: "exact" }
+                      : x
+                  )
+                );
+                setReassign(null);
+                toast.success(`Kluster satt till "${reassignChoice}". Generera om för att uppdatera brief.`);
+              }}
+            >
+              Spara
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
