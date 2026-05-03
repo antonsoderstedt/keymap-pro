@@ -27,6 +27,7 @@ export type Database = {
           implementation_notes: string | null
           implemented_at: string | null
           implemented_by: string | null
+          notes: Json
           priority: string
           project_id: string
           source_id: string | null
@@ -48,6 +49,7 @@ export type Database = {
           implementation_notes?: string | null
           implemented_at?: string | null
           implemented_by?: string | null
+          notes?: Json
           priority?: string
           project_id: string
           source_id?: string | null
@@ -69,6 +71,7 @@ export type Database = {
           implementation_notes?: string | null
           implemented_at?: string | null
           implemented_by?: string | null
+          notes?: Json
           priority?: string
           project_id?: string
           source_id?: string | null
@@ -748,6 +751,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ga4_filters: {
+        Row: {
+          created_at: string
+          dimension: string
+          exclude: boolean
+          id: string
+          is_active: boolean
+          label: string
+          operator: string
+          project_id: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          dimension: string
+          exclude?: boolean
+          id?: string
+          is_active?: boolean
+          label: string
+          operator?: string
+          project_id: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          dimension?: string
+          exclude?: boolean
+          id?: string
+          is_active?: boolean
+          label?: string
+          operator?: string
+          project_id?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
       }
       ga4_snapshots: {
         Row: {
