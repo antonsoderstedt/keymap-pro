@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Layers, ArrowRight, FileText, Megaphone, Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { getKeywordUniverse } from "@/lib/keywordUniverseCache";
 
 export default function WorkspaceSegments() {
   const { id } = useParams<{ id: string }>();
