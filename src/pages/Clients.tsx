@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles, Home, BookOpen } from "lucide-react";
+import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles, Home, BookOpen, Rocket, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { formatMoney, valueColor, isSupportedCurrency, type Currency } from "@/lib/revenue";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface ClientCard extends Project {
   analyses_count: number;
