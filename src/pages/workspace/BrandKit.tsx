@@ -32,6 +32,8 @@ export default function BrandKit() {
   const { brandKit, loading, save, palette, fonts } = useBrandKit(projectId);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genUrl, setGenUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Local form state derived from brand kit
