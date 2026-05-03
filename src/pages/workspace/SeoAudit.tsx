@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { ShieldCheck, Play, RefreshCw, AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { ShieldCheck, Play, RefreshCw, AlertTriangle, AlertCircle, Info, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 
 interface AuditRun {
