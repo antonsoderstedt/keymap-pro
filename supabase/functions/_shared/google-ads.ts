@@ -114,3 +114,39 @@ export async function searchGaql(ctx: AdsContext, customerId: string, query: str
     throw new Error(`ADS_API_ERROR: Oväntat svar från Google (inte JSON): ${text.slice(0, 200)}`);
   }
 }
+
+/**
+ * Generic mutate helper for any Google Ads service that supports `:mutate`.
+ * service: e.g. "campaignCriteria", "adGroupCriteria", "ads", "campaigns"
+ * operations: array of operation objects { create | update | remove | updateMask }
+ */
+export async function mutateAds(
+  ctx: AdsContext,
+  customerId: string,
+  service: string,
+  operations: any[],
+  partialFailure = false,
+): Promise<any> {
+  const cid = customerId.replace(/[^0-9]/g, "");
+  const url = `${ADS_BASE}/customers/${cid}/${service}:mutate`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ctx.accessToken}`,
+      "developer-token": ctx.developerToken,
+      "login-customer-id": ctx.loginCustomerId,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ operations, partialFailure, validateOnly: false }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    console.error("mutateAds failed", { service, customerId: cid, status: res.status, body: text.slice(0, 800) });
+    throw new Error(classifyAdsError(res.status, text));
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`ADS_API_ERROR: Oväntat svar från Google (inte JSON): ${text.slice(0, 200)}`);
+  }
+}
