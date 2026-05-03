@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Layers, ArrowRight, FileText, Megaphone, Loader2, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Layers, ArrowRight, FileText, Megaphone, Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WorkspaceSegments() {
@@ -18,6 +20,9 @@ export default function WorkspaceSegments() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<{ kind: "brief" | "ad"; data: any; segment: any } | null>(null);
+  const [availableClusters, setAvailableClusters] = useState<string[]>([]);
+  const [reassign, setReassign] = useState<{ segment: any; current: string } | null>(null);
+  const [reassignChoice, setReassignChoice] = useState<string>("");
 
   const load = async () => {
     if (!id) return;
@@ -47,24 +52,26 @@ export default function WorkspaceSegments() {
       ? (full!.keyword_universe_json as any[])
       : ((full?.keyword_universe_json as any)?.keywords || []);
     const clusterKeys = Array.from(new Set(universe.map((k: any) => k?.cluster).filter(Boolean))) as string[];
+    setAvailableClusters(clusterKeys);
 
-    const resolveCluster = (s: any): string => {
+    const resolveCluster = (s: any): { key: string; kind: "exact" | "substring" | "none" } => {
       const candidates = [s.cluster, s.name, s.label, s.title].filter(Boolean).map(String);
-      // 1) exakt match
       for (const c of candidates) {
         const hit = clusterKeys.find((k) => k.toLowerCase() === c.toLowerCase());
-        if (hit) return hit;
+        if (hit) return { key: hit, kind: "exact" };
       }
-      // 2) substring match
       for (const c of candidates) {
         const needle = c.toLowerCase();
         const hit = clusterKeys.find((k) => k.toLowerCase().includes(needle) || needle.includes(k.toLowerCase()));
-        if (hit) return hit;
+        if (hit) return { key: hit, kind: "substring" };
       }
-      return candidates[0] || "";
+      return { key: candidates[0] || "", kind: "none" };
     };
 
-    const enriched = rawSegments.map((s) => ({ ...s, _clusterKey: resolveCluster(s) }));
+    const enriched = rawSegments.map((s) => {
+      const r = resolveCluster(s);
+      return { ...s, _clusterKey: r.key, _resolveKind: r.kind };
+    });
     setSegments(enriched);
 
     const [{ data: briefRows }, { data: adRows }] = await Promise.all([
@@ -123,6 +130,15 @@ export default function WorkspaceSegments() {
             const cluster = s._clusterKey || s.cluster || s.name;
             const brief = briefs.find((b) => b.cluster === cluster);
             const ad = ads.find((a) => a.ad_group === cluster);
+            const briefMeta = brief?.payload?._meta;
+            const briefFallback = briefMeta && briefMeta.match_kind && briefMeta.match_kind !== "exact";
+            const resolveFallback = s._resolveKind && s._resolveKind !== "exact";
+            const showWarning = briefFallback || resolveFallback;
+            const warningText = briefFallback
+              ? briefMeta.match_kind === "top"
+                ? `Briefen byggdes på top-30 sökord (ingen klustermatch hittades för "${briefMeta.requested_cluster}").`
+                : `Briefen matchades fuzzy: "${briefMeta.requested_cluster}" → "${briefMeta.matched_cluster}".`
+              : `Segmentet matchas inte exakt mot något kluster (${s._resolveKind}). Välj rätt kluster för bästa resultat.`;
             return (
               <Card key={i}>
                 <CardHeader className="pb-3">
@@ -136,7 +152,27 @@ export default function WorkspaceSegments() {
                     {s.intent && <Badge variant="outline" className="text-[10px]">{s.intent}</Badge>}
                     {s.priority && <Badge variant="default" className="text-[10px]">prio: {s.priority}</Badge>}
                     {s.size && <Badge variant="secondary" className="text-[10px]">{s.size}</Badge>}
+                    <Badge variant="outline" className="text-[10px] font-mono">cluster: {cluster || "—"}</Badge>
                   </div>
+                  {showWarning && (
+                    <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-1">
+                        <p className="text-foreground">{warningText}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[11px]"
+                          onClick={() => {
+                            setReassign({ segment: s, current: cluster });
+                            setReassignChoice(cluster);
+                          }}
+                        >
+                          Välj rätt kluster
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid sm:grid-cols-2 gap-2">
                     <PackageTile
                       icon={FileText}
@@ -187,6 +223,48 @@ export default function WorkspaceSegments() {
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={!!reassign} onOpenChange={(o) => !o && setReassign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-serif">Välj kluster för segmentet</DialogTitle>
+            <DialogDescription>
+              Välj vilket sökordskluster "{reassign?.segment?.name || reassign?.current}" ska kopplas mot. Detta används vid generering av brief och Ads.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Select value={reassignChoice} onValueChange={setReassignChoice}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj kluster" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {availableClusters.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReassign(null)}>Avbryt</Button>
+            <Button
+              onClick={async () => {
+                if (!reassign || !reassignChoice) return;
+                setSegments((prev) =>
+                  prev.map((x) =>
+                    x === reassign.segment
+                      ? { ...x, _clusterKey: reassignChoice, _resolveKind: "exact" }
+                      : x
+                  )
+                );
+                setReassign(null);
+                toast.success(`Kluster satt till "${reassignChoice}". Generera om för att uppdatera brief.`);
+              }}
+            >
+              Spara
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -212,7 +290,7 @@ function PackageTile({ icon: Icon, label, ready, busy, onOpen, onGenerate }: any
 function PayloadView({ payload }: { payload: any }) {
   if (!payload) return <p className="text-sm text-muted-foreground">Inget innehåll.</p>;
   // Render common fields nicely, fall back to JSON
-  const entries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  const entries = Object.entries(payload).filter(([k, v]) => !k.startsWith("_") && v !== null && v !== undefined && v !== "");
   return (
     <div className="space-y-3">
       {entries.map(([k, v]) => (

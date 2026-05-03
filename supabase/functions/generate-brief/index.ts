@@ -84,26 +84,31 @@ serve(async (req) => {
 
     const universe: any = analysis.keyword_universe_json;
     const allKws = (universe?.keywords || []).filter((k: any) => !k.isNegative);
+    const availableClusters = Array.from(new Set(allKws.map((k: any) => k.cluster).filter(Boolean))) as string[];
+
     let clusterKws = allKws.filter((k: any) => k.cluster === cluster);
-    let usedFallback = false;
+    let matchKind: "exact" | "substring" | "top" = "exact";
+    let matchedCluster: string = cluster;
     if (clusterKws.length === 0) {
-      // No exact cluster match (e.g. caller passed a segment name). Fall back to
-      // fuzzy match on cluster substring, otherwise use top keywords from universe.
       const needle = String(cluster).toLowerCase();
-      clusterKws = allKws.filter((k: any) =>
-        String(k.cluster || "").toLowerCase().includes(needle) ||
-        String(k.keyword || "").toLowerCase().includes(needle)
+      const fuzzyCluster = availableClusters.find(
+        (c) => c.toLowerCase().includes(needle) || needle.includes(c.toLowerCase())
       );
-      if (clusterKws.length === 0) {
+      if (fuzzyCluster) {
+        clusterKws = allKws.filter((k: any) => k.cluster === fuzzyCluster);
+        matchKind = "substring";
+        matchedCluster = fuzzyCluster;
+      } else {
         clusterKws = allKws
           .slice()
           .sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
           .slice(0, 30);
-        usedFallback = true;
+        matchKind = "top";
+        matchedCluster = "__top_30__";
       }
     }
     if (clusterKws.length === 0) throw new Error("No keywords found for cluster");
-    console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} fallback=${usedFallback}`);
+    console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} kind=${matchKind}`);
 
     const otherClusters = Array.from(new Set((universe?.keywords || []).map((k: any) => k.cluster).filter((c: string) => c !== cluster))).slice(0, 25);
     const topKws = clusterKws.sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)).slice(0, 20);
@@ -162,9 +167,17 @@ Krav:
     if (!toolCall?.function?.arguments) throw new Error("AI returned no brief");
     const brief = JSON.parse(toolCall.function.arguments);
 
-    await supabase.from("content_briefs").upsert({ analysis_id, cluster, payload: brief }, { onConflict: "analysis_id,cluster" });
+    const meta = {
+      match_kind: matchKind,
+      requested_cluster: cluster,
+      matched_cluster: matchedCluster,
+      available_clusters: availableClusters,
+    };
+    const payload = { ...brief, _meta: meta };
 
-    return new Response(JSON.stringify({ brief, cached: false }), {
+    await supabase.from("content_briefs").upsert({ analysis_id, cluster, payload }, { onConflict: "analysis_id,cluster" });
+
+    return new Response(JSON.stringify({ brief: payload, cached: false, meta }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
