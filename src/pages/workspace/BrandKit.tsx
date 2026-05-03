@@ -117,6 +117,8 @@ export default function BrandKit() {
       setGenerating(false);
     }
   };
+
+  if (loading) {
     return (
       <div className="p-6 lg:p-8 max-w-6xl mx-auto">
         <div className="animate-pulse text-sm text-muted-foreground">Laddar Brand Kit…</div>
