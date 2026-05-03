@@ -224,6 +224,11 @@ export default function SeoAudit() {
                       </a>
                     )}
                   </div>
+                  {f.status !== "done" && (
+                    <Button size="sm" variant="ghost" className="gap-1 shrink-0" onClick={() => createActionForFinding(f)}>
+                      <ListChecks className="h-3 w-3" /> Åtgärd
+                    </Button>
+                  )}
                 </div>
               );
             })}
