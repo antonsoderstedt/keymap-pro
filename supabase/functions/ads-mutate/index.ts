@@ -96,6 +96,30 @@ Deno.serve(async (req) => {
         if (!payload.service || !payload.resource_name) throw new Error("MISSING_REVERT");
         const op = { remove: payload.resource_name };
         response = await mutateAds(ctx, cid, payload.service, [op]);
+      } else if (action_type === "replace_rsa_asset") {
+        // payload: { ad_group_id, ad_id, replacements: [{ field: 'HEADLINE'|'DESCRIPTION', original_text, new_text }] }
+        if (!payload.ad_group_id || !payload.ad_id || !Array.isArray(payload.replacements)) {
+          throw new Error("MISSING_IDS");
+        }
+        const result = await replaceRsaAssets(ctx, cid, payload);
+        response = result.response;
+        revertPayload = result.revert;
+      } else if (action_type === "rsa_batch") {
+        // payload: { items: [{ ad_group_id, ad_id, replacements: [...] }] }
+        if (!Array.isArray(payload.items) || payload.items.length === 0) throw new Error("MISSING_IDS");
+        const results: any[] = [];
+        const reverts: any[] = [];
+        for (const item of payload.items) {
+          try {
+            const r = await replaceRsaAssets(ctx, cid, item);
+            results.push({ ad_id: item.ad_id, ok: true, response: r.response });
+            reverts.push({ ad_id: item.ad_id, ...r.revert });
+          } catch (err: any) {
+            results.push({ ad_id: item.ad_id, ok: false, error: err.message });
+          }
+        }
+        response = { batch: results, success: results.filter(r => r.ok).length, total: results.length };
+        revertPayload = { items: reverts };
       } else {
         throw new Error(`UNSUPPORTED_ACTION: ${action_type}`);
       }
