@@ -83,8 +83,27 @@ serve(async (req) => {
     const { data: project } = await supabase.from("projects").select("*").eq("id", analysis.project_id).single();
 
     const universe: any = analysis.keyword_universe_json;
-    const clusterKws = (universe?.keywords || []).filter((k: any) => k.cluster === cluster && !k.isNegative);
+    const allKws = (universe?.keywords || []).filter((k: any) => !k.isNegative);
+    let clusterKws = allKws.filter((k: any) => k.cluster === cluster);
+    let usedFallback = false;
+    if (clusterKws.length === 0) {
+      // No exact cluster match (e.g. caller passed a segment name). Fall back to
+      // fuzzy match on cluster substring, otherwise use top keywords from universe.
+      const needle = String(cluster).toLowerCase();
+      clusterKws = allKws.filter((k: any) =>
+        String(k.cluster || "").toLowerCase().includes(needle) ||
+        String(k.keyword || "").toLowerCase().includes(needle)
+      );
+      if (clusterKws.length === 0) {
+        clusterKws = allKws
+          .slice()
+          .sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
+          .slice(0, 30);
+        usedFallback = true;
+      }
+    }
     if (clusterKws.length === 0) throw new Error("No keywords found for cluster");
+    console.log(`[brief] cluster="${cluster}" matched=${clusterKws.length} fallback=${usedFallback}`);
 
     const otherClusters = Array.from(new Set((universe?.keywords || []).map((k: any) => k.cluster).filter((c: string) => c !== cluster))).slice(0, 25);
     const topKws = clusterKws.sort((a: any, b: any) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)).slice(0, 20);
