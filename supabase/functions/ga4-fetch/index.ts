@@ -1,21 +1,46 @@
-// GA4: list properties + run a basic report
+// GA4: list properties + run a basic report. Applies project ga4_filters when projectId given.
 import { getGoogleAccessToken } from "../_shared/google-token.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function buildDimensionFilter(projectId?: string, auth?: string | null) {
+  if (!projectId) return undefined;
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const sb = createClient(url, key, { global: { headers: { Authorization: auth || "" } } });
+  const { data } = await sb
+    .from("ga4_filters")
+    .select("dimension, operator, value, exclude")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+  const filters = (data || []) as any[];
+  if (!filters.length) return undefined;
+  const expressions = filters.map((f) => {
+    const inner = {
+      filter: {
+        fieldName: f.dimension,
+        stringFilter: { matchType: f.operator || "CONTAINS", value: f.value, caseSensitive: false },
+      },
+    };
+    return f.exclude ? { notExpression: inner } : inner;
+  });
+  return expressions.length === 1 ? expressions[0] : { andGroup: { expressions } };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { token } = await getGoogleAccessToken(req.headers.get("Authorization"));
+    const auth = req.headers.get("Authorization");
+    const { token } = await getGoogleAccessToken(auth);
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const action = body.action || "properties";
 
     if (action === "properties") {
-      // List GA4 account summaries (includes property IDs)
       const res = await fetch("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -26,30 +51,73 @@ Deno.serve(async (req) => {
     if (action === "report") {
       const {
         propertyId,
+        projectId,
         startDate = "28daysAgo",
         endDate = "today",
         dimensions = [{ name: "date" }],
         metrics = [{ name: "sessions" }, { name: "totalUsers" }],
         limit = 100,
+        persist = false,
       } = body;
       if (!propertyId) return json({ error: "propertyId required" }, 400);
+
+      const dimensionFilter = await buildDimensionFilter(projectId, auth);
+
+      const reqBody: any = { dateRanges: [{ startDate, endDate }], dimensions, metrics, limit };
+      if (dimensionFilter) reqBody.dimensionFilter = dimensionFilter;
+
       const res = await fetch(
         `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            dateRanges: [{ startDate, endDate }],
-            dimensions,
-            metrics,
-            limit,
-          }),
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(reqBody),
         },
       );
       const data = await res.json();
+      if (!res.ok) return json(data, res.status);
+
+      // Optionally persist as snapshot
+      if (persist && projectId) {
+        const url = Deno.env.get("SUPABASE_URL")!;
+        const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const sb = createClient(url, key, { global: { headers: { Authorization: auth || "" } } });
+        const dimNames = (dimensions as any[]).map((d) => d.name);
+        const metNames = (metrics as any[]).map((m) => m.name);
+        const rows = (data.rows || []).map((r: any) => {
+          const row: any = {};
+          dimNames.forEach((n, i) => (row[n] = r.dimensionValues?.[i]?.value));
+          metNames.forEach((n, i) => (row[n] = Number(r.metricValues?.[i]?.value || 0)));
+          // Friendly aliases
+          if (row.sessions !== undefined) row.sessions = Number(row.sessions);
+          if (row.totalUsers !== undefined) row.users = Number(row.totalUsers);
+          if (row.screenPageViews !== undefined) row.pageviews = Number(row.screenPageViews);
+          if (row.conversions !== undefined) row.conversions = Number(row.conversions);
+          return row;
+        });
+        const totals: any = {};
+        metNames.forEach((n) => {
+          totals[n] = rows.reduce((s: number, r: any) => s + (Number(r[n]) || 0), 0);
+        });
+        if (totals.totalUsers !== undefined) totals.users = totals.totalUsers;
+        if (totals.screenPageViews !== undefined) totals.pageviews = totals.screenPageViews;
+
+        const today = new Date();
+        const end = endDate === "today" ? today : new Date(endDate);
+        const start = startDate.endsWith("daysAgo")
+          ? new Date(today.getTime() - parseInt(startDate) * 86400000)
+          : new Date(startDate);
+
+        await sb.from("ga4_snapshots").insert({
+          project_id: projectId,
+          property_id: String(propertyId),
+          start_date: start.toISOString().slice(0, 10),
+          end_date: end.toISOString().slice(0, 10),
+          rows,
+          totals,
+        });
+      }
+
       return json(data, res.status);
     }
 
