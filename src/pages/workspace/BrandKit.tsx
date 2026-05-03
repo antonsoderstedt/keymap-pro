@@ -92,7 +92,31 @@ export default function BrandKit() {
     else toast.success("Brand Kit sparad");
   };
 
-  if (loading) {
+  const handleGenerate = async () => {
+    let url = genUrl.trim();
+    if (!url) {
+      const { data: proj } = await supabase.from("projects").select("domain").eq("id", projectId!).maybeSingle();
+      url = proj?.domain || "";
+    }
+    if (!url) return toast.error("Ange URL eller spara domän på projektet");
+    if (!url.startsWith("http")) url = "https://" + url;
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("brand-kit-extract", { body: { url } });
+      if (error) throw error;
+      if (data?.palette) setLocalPalette({ ...localPalette, ...data.palette });
+      if (data?.fonts?.heading) setHeadingFont(data.fonts.heading);
+      if (data?.fonts?.body) setBodyFont(data.fonts.body);
+      if (data?.tone) setTone(data.tone);
+      if (data?.voice_guidelines) setVoice(data.voice_guidelines);
+      if (data?.image_style) setImageStyle(data.image_style);
+      toast.success("Brand-profil hämtad — kontrollera och spara");
+    } catch (e: any) {
+      toast.error("Misslyckades: " + e.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
     return (
       <div className="p-6 lg:p-8 max-w-6xl mx-auto">
         <div className="animate-pulse text-sm text-muted-foreground">Laddar Brand Kit…</div>
