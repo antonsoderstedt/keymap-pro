@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles } from "lucide-react";
+import { Plus, LogOut, Calendar, BarChart3, Building2, ArrowRight, Sparkles, Home, BookOpen } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/types";
@@ -95,7 +96,19 @@ export default function Clients() {
             <h1 className="font-serif text-2xl text-primary">Slay Station</h1>
             <p className="text-xs text-muted-foreground">Min byrå</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Home className="h-4 w-4" />
+                Startsida
+              </Button>
+            </Link>
+            <Link to="/docs">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                Knowledge base
+              </Button>
+            </Link>
             <ThemeToggle />
             <span className="text-xs text-muted-foreground">{user?.email}</span>
             <Button variant="ghost" size="icon" onClick={signOut}>
