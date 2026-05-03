@@ -28,27 +28,17 @@ Tre sprintar som lyfter Slay Station från "data + ad-generator" till en agentis
 
 ---
 
-## Sprint 2 – Workflow & RSA-optimering
+## Sprint 2 – Workflow & RSA-optimering ✅ KLAR
 
-**Mål:** Stäng loopen från insikt till genomförd ändring.
+**Levererat:**
+- Edge function `ads-rsa-performance` — analyserar `ad_group_ad_asset_view` (BEST/GOOD/LOW), AI-genererar 3 ersättningskandidater per LOW-asset matchat mot brand voice från `BrandKit`.
+- Edge function `ads-mutate` — write-back till Google Ads via `mutateAds`-helper i `_shared/google-ads.ts`. Stödjer: `add_negative_keyword`, `pause_keyword`, `resume_keyword`, `pause_ad`, `resume_ad`, `remove_resource`. Loggar i ny `ads_mutations`-tabell med `revert_payload`.
+- Edge function `ads-revert-mutation` — invertering av tidigare mutation.
+- Edge function `ads-pacing` — jämför 7d vs 30d baseline per kampanj och skapar `alerts` för pacing-overshoot, CPC-spikar och konverteringsras.
+- UI `AdsAudit.tsx` utökad med tre nya flikar: **RSA Optimizer**, **Pacing**, **Logg** (audit log med Återställ). Wasted Spend har Push-knapp per rad (Pausa / Lägg som negativ) med bekräftelse-dialog. Negative Mining har "Pusha N negativ"-knapp.
+- Migration: `ads_mutations` med RLS via `projects.user_id`.
 
-### 2.1 RSA Asset Performance
-- Edge function `ads-rsa-performance`: GAQL på `ad_group_ad_asset_view` (asset.text, performance_label PENDING/LOW/GOOD/BEST, impressions, conversions).
-- Lovable AI föreslår ersättare för LOW-assets baserat på BEST-mönster + brand voice från `BrandKit`.
-- Utbyggnad av `generate-ads`: tar nu `replace_asset_id` och genererar 3 kandidat-headlines/descriptions matchade mot vinnar-tonalitet.
-- UI: tab "RSA Optimizer" i KeywordUniverse eller egen sida — winners/losers split, "Föreslå ersättare"-knapp.
-
-### 2.2 Budget Pacing & Anomaly Alerts
-- Cron-utbyggnad i `ads-monitor`: jämför dagens spend-rate vs månadsbudget och vs föregående 30d genomsnitt.
-- Skapar `alerts` med severity warning/critical: "Kampanj X bränner 180% av normal pace", "CPC +45% senaste 7 dagar", "Konvertering −30%".
-- Trigger: lägg till i befintlig `weekly-report` cron + on-demand via knapp.
-
-### 2.3 Push to Google Ads (write-API)
-- Ny edge function `ads-mutate`: tar action_item_id, slår upp typ (add_negative / pause_keyword / pause_ad / replace_rsa_asset) och kör motsvarande Google Ads `mutate`-anrop via `_shared/google-ads.ts` (utöka med `mutateGaql`).
-- Säkerhet: kräv explicit user-confirm i UI ("Detta ändrar live i kontot"). Logga i ny tabell `ads_mutations` (vem, vad, payload, response, ångra-id).
-- "Ångra"-knapp som inverterar mutation där möjligt (unpause, ta bort negativ).
-
-**Leverans Sprint 2:** RSA Optimizer + pacing-alerts i Alerts-sidan + write-back-knappar på action items med audit log.
+**Säkerhet:** Alla write-back kräver explicit confirm-dialog och loggas före + efter. Reverts möjliga för status-ändringar och add_negative.
 
 ---
 
