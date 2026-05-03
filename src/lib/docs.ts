@@ -86,6 +86,36 @@ export const DOCS: DocSection[] = [
 
   // ===== Moduler =====
   {
+    id: "executive",
+    category: "Moduler",
+    title: "Executive Dashboard",
+    summary: "Topplinjevy med trafik, ranking, intäkt och åtgärdsstatus i en blick.",
+    body: [
+      {
+        text:
+          "Executive Dashboard är förstasidan i ett kund-workspace. Den aggregerar de viktigaste KPI:erna från GSC, GA4 och Action Tracker till en exekutiv översikt — tänkt för veckomöten och för att snabbt kunna svara 'hur går det?'.",
+      },
+      {
+        heading: "Vad du ser",
+        bullets: [
+          "KPI-kort: organisk trafik, topp-3 rankings, konvertering, intäkt",
+          "Trendgraf 90 dagar (GSC clicks + GA4 sessions)",
+          "Action-status: öppna, pågående, levererade",
+          "Senaste vinster och varningar från weekly briefing",
+        ],
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/ExecutiveDashboard.tsx",
+          "Data: läses live från projects + analyses-tabellerna och cachat GSC/GA4-snapshot",
+          "KPI-beräkningar: src/lib/performance.ts + src/lib/roi.ts",
+          "Inga AI-anrop — ren aggregering, snabb laddning",
+        ],
+      },
+    ],
+  },
+  {
     id: "prelaunch",
     title: "Pre-launch Blueprint",
     category: "Moduler",
@@ -108,6 +138,238 @@ export const DOCS: DocSection[] = [
       {
         heading: "Så använder du den",
         text: "Workspace → Analys → Pre-launch Blueprint → Ny brief. Researchen tar 2-5 min. När den är klar kan du exportera sajtkartan som CSV eller pusha rader till Action Tracker som backlog.",
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/PrelaunchBlueprint.tsx + src/lib/prelaunch.ts",
+          "Edge function: supabase/functions/prelaunch-research (Deno)",
+          "Konkurrent-scrape: Firecrawl /scrape — hämtar H1, meta, USP-signaler",
+          "Sökordsdata: DataForSEO Labs API för volym, CPC, KD, SERP-features",
+          "Syntes: Lovable AI Gateway (google/gemini-2.5-pro) prompt-pipeline",
+          "Lagring: prelaunch_briefs + prelaunch_blueprints (RLS per användare)",
+          "Prognos: linjär ramp över 12 mån, justerad mot CR/AOV i workspace-inställningar",
+        ],
+      },
+    ],
+  },
+  {
+    id: "keyword-universe",
+    title: "Sökordsuniversum",
+    category: "Moduler",
+    summary: "AI-klustrade sökord med volym, intent och konkurrentdata.",
+    body: [
+      {
+        text:
+          "Sökordsuniversum samlar alla relevanta sökord för kundens nisch i klustrade grupper. Varje kluster har en pillar och support-keywords med volym, KD, intent och vilka konkurrenter som rankar.",
+      },
+      {
+        heading: "Tre flikar",
+        bullets: [
+          "Strategy — high-level priorities och content gaps",
+          "Cluster Actions — sökord grupperade per kluster med åtgärder",
+          "Tech SEO — tekniska blockers per landningssida",
+        ],
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/WorkspaceKeywordUniverse.tsx + src/components/universe/*",
+          "Edge function: supabase/functions/keyword-universe (seed → expand → kluster)",
+          "Anrikning: enrich-keywords + enrich-semrush (volym, KD, SERP-features)",
+          "Klustring: Gemini 2.5 Pro grupperar på intent + semantisk likhet",
+          "Tech SEO-flik: webscan edge function (skannar live URLs för title, H1, status, hreflang)",
+        ],
+      },
+    ],
+  },
+  {
+    id: "performance",
+    title: "Performance & SEO-tracking",
+    category: "Moduler",
+    summary: "Live rankings, GA4 och GSC-data i en vy med ROI-koppling.",
+    body: [
+      {
+        text:
+          "Performance Tracker visar trafik, rankings, konverteringar och intäkter över tid. Sätt mål och se progression mot dem. Action Impact-vyn kopplar varje åtgärd från Action Tracker till mätbar effekt.",
+      },
+      {
+        heading: "Innan du börjar",
+        bullets: [
+          "Koppla GSC under Inställningar → Integrationer",
+          "Koppla GA4 om du vill ha konverteringsdata",
+          "Sätt CR, AOV och marginal under Workspace-inställningar för ROI-beräkningar",
+        ],
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/PerformanceTracker.tsx + komponenter under src/components/workspace/",
+          "GSC: gsc-fetch + gsc-fetch-history edge functions (Search Analytics API)",
+          "GA4: ga4-fetch + ga4-revenue-fetch edge functions (Analytics Data API v1beta)",
+          "ROI: src/lib/roi.ts beräknar intäkt = sessions × CR × AOV × marginal",
+          "Action Impact: measure-action-impact edge function jämför 28 dagar före/efter",
+        ],
+      },
+    ],
+  },
+  {
+    id: "weekly-briefing",
+    title: "Veckans briefing",
+    category: "Moduler",
+    summary: "AI-genererad veckorapport som mailas automatiskt.",
+    body: [
+      {
+        text:
+          "Varje vecka genererar Slay Station en briefing med vinster, varningar, ranknings-rörelser och rekommenderade nästa steg. Briefingen kan mailas till kund eller team.",
+      },
+      {
+        heading: "Konfiguration",
+        bullets: [
+          "Aktivera under Översikt → Veckans briefing",
+          "Lägg till mottagare under Inställningar",
+          "Anpassa avsändarnamn med Brand Kit",
+        ],
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Edge functions: weekly-briefing (genererar) + weekly-briefing-send (mailar)",
+          "Datakälla: 7-dagars delta från GSC + GA4 + Action Tracker",
+          "AI: Gemini 2.5 Flash för sammanfattning, prioritering av vinster/risker",
+          "Mail: skickas via Resend API till mottagarlista i workspace-settings",
+          "Historik: weekly_briefings-tabellen, visas i WeeklyBriefingHistory",
+        ],
+      },
+    ],
+  },
+  {
+    id: "action-tracker",
+    title: "Action Tracker",
+    category: "Moduler",
+    summary: "Backlog med impact-mätning per åtgärd.",
+    body: [
+      {
+        text:
+          "Action Tracker är din backlog. Varje åtgärd får prio, ägare, deadline och en koppling till mätbar impact. När du markerar en åtgärd som klar kan systemet mäta före/efter på rankings, trafik eller intäkt.",
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/ActionTracker.tsx + useActionItems-hook",
+          "Lagring: action_items-tabell med RLS per workspace",
+          "Impact: measure-action-impact edge function snapshottar GSC/GA4 vid completion",
+          "Push från andra moduler: Pre-launch Blueprint och Sökordsuniversum kan skicka rader hit",
+        ],
+      },
+    ],
+  },
+  {
+    id: "seo-audit",
+    title: "SEO Audit",
+    category: "Moduler",
+    summary: "Teknisk crawl av sajten med prioriterade fynd.",
+    body: [
+      {
+        text:
+          "SEO Audit kör en teknisk genomgång av sajten — hittar trasiga länkar, dubblerade titles, saknade meta descriptions, hreflang-problem och Core Web Vitals-varningar.",
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/SeoAudit.tsx",
+          "Edge function: seo-audit-run (egen crawler) + semrush-audit (extern)",
+          "Live URL-scan: webscan edge function för on-page-signaler",
+          "Rapport: prioriteras med severity (critical/warning/info) och pushas till Action Tracker",
+        ],
+      },
+    ],
+  },
+  {
+    id: "google-ads",
+    title: "Google Ads & Auction Insights",
+    category: "Moduler",
+    summary: "Auktionsanalys, kannibalisering och AI-genererade annonser.",
+    body: [
+      {
+        text:
+          "Google Ads-modulen hämtar auction insights, jämför betald vs organisk synlighet och flaggar kannibaliseringsproblem mellan dina egna kampanjer.",
+      },
+      {
+        heading: "Funktioner",
+        bullets: [
+          "Auction Insights — vem du delar SERP med och impression share",
+          "Cannibalization — överlapp mellan SEO-rankings och Ads-kampanjer",
+          "Generate Ads — AI-genererade headlines/descriptions från sökordskluster",
+        ],
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Edge functions: ads-list-customers, ads-fetch-auction-insights, ads-cannibalization, ads-monitor, generate-ads",
+          "Auth: Google OAuth via google-oauth edge function (developer token + MCC)",
+          "AI: Gemini 2.5 Pro för annonsgenerering med Brand Kit som tone of voice",
+        ],
+      },
+    ],
+  },
+  {
+    id: "paid-vs-organic",
+    title: "Paid vs Organic",
+    category: "Moduler",
+    summary: "Sida-vid-sida-analys av betald och organisk trafik per sökord.",
+    body: [
+      {
+        text:
+          "Visar vilka sökord som driver mest värde organiskt vs betalt, var du betalar för trafik du redan rankar på, och var Ads kompenserar för svag SEO.",
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/PaidVsOrganic.tsx",
+          "Data: joinas från GSC (organisk position/klick) och Google Ads (CPC/clicks)",
+          "Logik: src/lib/clusterActions.ts segmenterar sökord per kategori",
+        ],
+      },
+    ],
+  },
+  {
+    id: "brand-kit",
+    title: "Brand Kit",
+    category: "Moduler",
+    summary: "Tone of voice, färger och avsändarprofil per kund.",
+    body: [
+      {
+        text:
+          "Brand Kit håller varumärkesregler per kund — färger, font, tone of voice, do/don't. Används av AI-moduler (Generate Ads, Briefing, Content Briefs) så att output följer kundens röst.",
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Frontend: src/pages/workspace/BrandKit.tsx + useBrandKit-hook",
+          "Lagring: brand_kits-tabell med JSON-fält för paletter och regler",
+          "Injektion: brand kit-prompten läggs till i system message vid AI-generering",
+        ],
+      },
+    ],
+  },
+  {
+    id: "reports",
+    title: "Rapporter & Artefakter",
+    category: "Moduler",
+    summary: "Genererade leverabler — strategi-PDFer, content briefs, presentationer.",
+    body: [
+      {
+        text:
+          "Allt som genereras (strategier, briefs, presentationer) sparas som artefakter och kan exporteras eller delas med kund.",
+      },
+      {
+        heading: "Hur den är byggd",
+        bullets: [
+          "Edge functions: generate-strategy, generate-brief, generate-presentation, weekly-report",
+          "Export: src/lib/contentBriefExport.ts (Markdown/CSV) + googleAdsExport.ts",
+          "Lagring: artifacts-tabell, visas i WorkspaceArtifacts.tsx",
+        ],
       },
     ],
   },
