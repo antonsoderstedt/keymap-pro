@@ -268,6 +268,70 @@ export default function ActionTracker() {
                       </>
                     )}
                   </div>
+                    {/* Drilldown toggle */}
+                    {(item.source_payload || isPushable(item)) && (
+                      <button
+                        onClick={() => setExpanded({ ...expanded, [item.id]: !expanded[item.id] })}
+                        className="text-xs text-primary mt-2 inline-flex items-center gap-1 hover:underline"
+                      >
+                        {expanded[item.id] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        Detaljer & kommentarer
+                      </button>
+                    )}
+
+                    {expanded[item.id] && (
+                      <div className="mt-3 space-y-3 border-t border-border pt-3">
+                        {item.source_payload && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Källdata</div>
+                            <pre className="text-xs bg-muted/40 p-2 rounded border border-border overflow-auto max-h-48">
+{JSON.stringify(item.source_payload, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+
+                        {Array.isArray((item as any).notes) && (item as any).notes.length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Kommentarer</div>
+                            <div className="space-y-1">
+                              {(item as any).notes.map((n: any, i: number) => (
+                                <div key={i} className="text-xs p-2 rounded bg-muted/40 border border-border">
+                                  <div className="text-[10px] text-muted-foreground">{new Date(n.at).toLocaleString("sv-SE")}</div>
+                                  {n.text}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <Textarea
+                              value={noteDraft[item.id] || ""}
+                              onChange={(e) => setNoteDraft({ ...noteDraft, [item.id]: e.target.value })}
+                              placeholder="Lägg till kommentar…"
+                              rows={2}
+                              className="text-sm"
+                            />
+                          </div>
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => addNote(item)}>
+                            <MessageSquare className="h-3 w-3" /> Spara
+                          </Button>
+                          {isPushable(item) && item.status !== "done" && (
+                            <Button
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => reviewAndPush(item)}
+                              disabled={pushing[item.id]}
+                            >
+                              {pushing[item.id] ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                              Review & push
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1">
                     <Select value={item.status} onValueChange={(v) => update(item.id, { status: v })}>
                       <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
