@@ -204,7 +204,7 @@ export const DOCS: DocSection[] = [
       {
         heading: "Hur den är byggd",
         bullets: [
-          "Frontend: src/pages/workspace/PerformanceTracker.tsx + komponenter under src/components/workspace/",
+          "Frontend: src/pages/workspace/ExecutiveDashboard.tsx + komponenter under src/components/workspace/",
           "GSC: gsc-fetch + gsc-fetch-history edge functions (Search Analytics API)",
           "GA4: ga4-fetch + ga4-revenue-fetch edge functions (Analytics Data API v1beta)",
           "ROI: src/lib/roi.ts beräknar intäkt = sessions × CR × AOV × marginal",
