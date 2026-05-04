@@ -113,7 +113,7 @@ function main() {
     competitorCount += (campaigns[i].competitors || []).length;
   }
   if (competitorCount === 0) {
-    Logger.log('Inga Auction Insights-rader hittades. Om Preview visar ett Google-fel om access till auction_insight-metrics måste kontot/developer-miljön allowlistas av Google Ads. Ingen tom snapshot skickas.');
+    Logger.log('Ingen Auction Insights-data kunde hämtas. Google blockerar ofta dessa metrics programmässigt om kontot/developer-miljön inte är allowlistad. Ingen tom snapshot skickas till Slay Station.');
     return;
   }
 
@@ -209,7 +209,8 @@ function fetchAuctionInsights(campaignId, range) {
   } catch (e) {
     var msg = String(e);
     if (/doesn.t have access to metrics|auction_insight/i.test(msg)) {
-      throw new Error('Google Ads blockerar Auction Insights-metrics för det här kontot/scriptmiljön. Be Google Ads-supporten allowlista Auction Insights metrics, eller exportera Auction Insights manuellt från Google Ads UI. Originalfel: ' + msg);
+      Logger.log('Google Ads blockerar Auction Insights-metrics för det här kontot/scriptmiljön. Be Google Ads-supporten allowlista Auction Insights metrics, eller exportera Auction Insights manuellt från Google Ads UI. Originalfel: ' + msg);
+      return rows;
     }
     Logger.log('Skipping campaign ' + campaignId + ': ' + msg);
   }
