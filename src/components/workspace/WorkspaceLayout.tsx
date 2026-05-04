@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
+import { MobileWorkspaceSidebar } from "./MobileWorkspaceSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
