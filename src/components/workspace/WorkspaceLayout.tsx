@@ -36,8 +36,13 @@ export function WorkspaceLayout() {
       />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur px-6 py-3 flex items-center justify-between">
-          <div className="md:hidden">
-            <h1 className="font-serif text-lg">{workspace.name}</h1>
+          <div className="md:hidden flex items-center gap-2">
+            <MobileWorkspaceSidebar
+              workspaceId={workspace.id}
+              workspaceName={workspace.name}
+              workspaceCompany={workspace.company}
+            />
+            <h1 className="font-serif text-lg truncate">{workspace.name}</h1>
           </div>
           <div className="flex-1" />
           <div className="flex items-center gap-3">
