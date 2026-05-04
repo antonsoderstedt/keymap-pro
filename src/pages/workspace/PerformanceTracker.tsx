@@ -217,7 +217,15 @@ export default function PerformanceTracker() {
 
           <PerformanceTrendChart trend={trend} annotations={annotations} />
 
-          <GoalsProgress projectId={id!} goals={goals} current={kpisCurrent} rankings={rankings} onChanged={load} />
+          <GoalsProgress
+            projectId={id!}
+            goals={goals}
+            current={kpisCurrent}
+            rankings={rankings}
+            extraMetrics={extraMetrics}
+            availableSources={{ gsc: !!siteUrl, ga4: hasGA4, ads: hasAds, combined: hasGA4 }}
+            onChanged={load}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border-border/60">
