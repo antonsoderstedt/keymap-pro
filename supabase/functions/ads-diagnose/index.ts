@@ -335,12 +335,20 @@ Deno.serve(async (req) => {
     }
 
     // Quality gates
-    const { blockers } = evaluateGates(snapshot);
+    const { blockers, campaignGates } = evaluateGates(snapshot);
 
-    // Fas 0: inga regler
-    const diagnoses: Diagnosis[] = [];
-    const rulesEvaluated = 0;
-    const rulesFired = 0;
+    // Kör regelmotorn — om TRACKING-blocker finns hoppar vi över alla downstream-regler
+    let diagnoses: Diagnosis[] = [];
+    let rulesEvaluated = 0;
+    let rulesFired = 0;
+    const hasTrackingBlocker = blockers.some((b) => b.gate === "TRACKING");
+    if (!hasTrackingBlocker) {
+      const scopedIds = (scope?.campaign_ids ?? null) as string[] | null;
+      const result = runAllRules(snapshot, campaignGates, scopedIds ?? undefined);
+      diagnoses = result.diagnoses;
+      rulesEvaluated = result.evaluated;
+      rulesFired = result.fired;
+    }
 
     const sortedDiagnoses = applyRootCauseTree(diagnoses);
     for (const d of sortedDiagnoses) {
@@ -348,8 +356,8 @@ Deno.serve(async (req) => {
     }
     sortedDiagnoses.sort(
       (a, b) =>
-        (b.confidence * (b.estimated_value_sek ?? 0)) -
-        (a.confidence * (a.estimated_value_sek ?? 0)),
+        (b.confidence * Math.max(b.estimated_value_sek ?? 0, 1)) -
+        (a.confidence * Math.max(a.estimated_value_sek ?? 0, 1)),
     );
 
     const optScore = Number((snapshot.customer as any)?.optimizationScore ?? NaN);
