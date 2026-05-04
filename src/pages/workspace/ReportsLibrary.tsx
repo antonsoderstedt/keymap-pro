@@ -165,9 +165,16 @@ export default function ReportsLibrary() {
                         </div>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
-                      Öppna
-                    </Button>
+                    <div className="flex gap-1 shrink-0">
+                      {p?.template && (
+                        <Button size="sm" variant="default" onClick={() => setViewing(h)} className="gap-1">
+                          Visa
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1">
+                        Öppna
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -175,6 +182,15 @@ export default function ReportsLibrary() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">{viewing?.name}</DialogTitle>
+          </DialogHeader>
+          {viewing?.payload?.template && <ReportTemplateView template={viewing.payload.template} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
