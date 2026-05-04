@@ -45,7 +45,7 @@ export function useProjectCapabilities(projectId: string | null | undefined): Pr
     let cancelled = false;
 
     async function load() {
-      const [gs, analysis, prelaunch, goals, baseline, brand, kpi, briefing] = await Promise.all([
+      const [gs, analysis, prelaunch, goals, baseline, brand, kpi] = await Promise.all([
         supabase.from("project_google_settings").select("ga4_property_id, gsc_site_url, ads_customer_id").eq("project_id", projectId!).maybeSingle(),
         supabase.from("analyses").select("id, keyword_universe_json").eq("project_id", projectId!).limit(1).maybeSingle(),
         supabase.from("prelaunch_blueprints").select("id, keyword_universe").eq("project_id", projectId!).limit(1).maybeSingle(),
@@ -72,7 +72,7 @@ export function useProjectCapabilities(projectId: string | null | undefined): Pr
         hasBaseline: !!baseline.data?.id,
         hasBrandKit: !!brand.data?.id,
         hasKpiTargets: !!kpi.data?.id,
-        hasBriefing: !!briefing.data?.id,
+        hasBriefing: false,
         loading: false,
       });
     }
