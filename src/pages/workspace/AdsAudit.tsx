@@ -11,10 +11,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge, ListChecks } from "lucide-react";
+import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge, ListChecks, Download, ExternalLink } from "lucide-react";
 
 type Audit = { id: string; health_score: number | null; summary: any; created_at: string };
-type Wasted = { keyword: string; campaign: string; campaign_id?: string; ad_group_id?: string; criterion_id?: string; cost_sek: number; clicks: number; ctr: number; quality_score: number | null; suggested_action: string; match_type?: string };
+type Wasted = { keyword: string; campaign: string; campaign_id?: string; ad_group_id?: string; criterion_id?: string; cost_sek: number; clicks: number; ctr: number; quality_score: number | null; suggested_action: string; match_type?: string; landing_page?: string | null };
+type LandingPage = { url: string; keyword_count: number; keywords: string[]; total_cost_sek: number; total_clicks: number; campaigns: string[]; needs_check: boolean };
 type Cluster = { theme: string; reasoning?: string; terms: string[]; suggested_negatives: string[]; match_type: string; wasted_sek: number; scope?: string };
 type RsaSuggestion = {
   ad_id: string; ad_group: string; ad_group_id: string; campaign: string;
@@ -31,6 +32,7 @@ export default function AdsAudit() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [wasted, setWasted] = useState<Wasted[]>([]);
   const [wastedTotal, setWastedTotal] = useState(0);
+  const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
   const [wastedLoading, setWastedLoading] = useState(false);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [miningLoading, setMiningLoading] = useState(false);
@@ -153,7 +155,32 @@ export default function AdsAudit() {
     if (error || data?.error) { toast.error(data?.error || error?.message || "Misslyckades"); return; }
     setWasted(data.wasted || []);
     setWastedTotal(data.total_wasted_sek || 0);
+    setLandingPages(data.landing_pages || []);
     toast.success(`Hittade ${data.wasted?.length || 0} slösare. ${data.action_items_created} action items skapade.`);
+  };
+
+  const exportLandingPagesCsv = () => {
+    if (!landingPages.length) return;
+    const header = ["URL", "Antal sökord", "Total kostnad SEK", "Total klick", "Kampanjer", "Behöver kontroll", "Sökord"];
+    const rows = landingPages.map((lp) => [
+      lp.url,
+      String(lp.keyword_count),
+      String(lp.total_cost_sek),
+      String(lp.total_clicks),
+      lp.campaigns.join(" | "),
+      lp.needs_check ? "Ja" : "Nej",
+      lp.keywords.join(" | "),
+    ]);
+    const csv = [header, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `landningssidor-tracking-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const runMining = async () => {
@@ -303,6 +330,63 @@ export default function AdsAudit() {
             </Button>
             {wastedTotal > 0 && <span className="text-sm">Total: <span className="font-mono text-primary">{wastedTotal} SEK</span></span>}
           </div>
+          {landingPages.length > 0 && (
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4 text-primary" />
+                    Landningssidor som behöver kontroll
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {landingPages.filter((l) => l.needs_check).length} av {landingPages.length} sidor flaggade — sorterade efter total kostnad.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={exportLandingPagesCsv}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> Exportera CSV
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/30">
+                    <tr className="text-left">
+                      <th className="p-2">Landningssida</th>
+                      <th className="p-2 text-right">Sökord</th>
+                      <th className="p-2 text-right">Kostnad 30d</th>
+                      <th className="p-2 text-right">Klick</th>
+                      <th className="p-2">Kampanjer</th>
+                      <th className="p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {landingPages.map((lp) => (
+                      <tr key={lp.url} className="border-t border-border align-top">
+                        <td className="p-2 max-w-[280px]">
+                          <a
+                            href={lp.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-xs text-primary hover:underline break-all"
+                          >
+                            {lp.url}
+                          </a>
+                        </td>
+                        <td className="p-2 text-right font-mono">{lp.keyword_count}</td>
+                        <td className="p-2 text-right font-mono">{lp.total_cost_sek}</td>
+                        <td className="p-2 text-right font-mono">{lp.total_clicks}</td>
+                        <td className="p-2 text-xs text-muted-foreground">{lp.campaigns.slice(0, 2).join(", ")}{lp.campaigns.length > 2 && ` +${lp.campaigns.length - 2}`}</td>
+                        <td className="p-2">
+                          {lp.needs_check
+                            ? <Badge variant="destructive" className="text-[10px]">Kontrollera</Badge>
+                            : <Badge variant="outline" className="text-[10px]">OK</Badge>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
           {wasted.length > 0 && (
             <Card className="overflow-hidden">
               <table className="w-full text-sm">

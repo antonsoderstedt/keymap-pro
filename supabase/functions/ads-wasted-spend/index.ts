@@ -54,6 +54,30 @@ Deno.serve(async (req) => {
       console.warn("tracking probe failed", e);
     }
 
+    // Hämta primär landningssida per ad_group (mest impressions vinner) — behövs för
+    // att kunna gruppera tracking-/landningskontroller per faktisk URL.
+    const adGroupIds = Array.from(new Set(rows.map((r: any) => String(r.adGroup?.id ?? "")).filter(Boolean)));
+    const landingByAdGroup: Record<string, string> = {};
+    if (adGroupIds.length > 0) {
+      try {
+        const adRows = await searchGaql(ctx, settings.ads_customer_id, `
+          SELECT ad_group.id, ad_group_ad.ad.final_urls, metrics.impressions
+          FROM ad_group_ad
+          WHERE segments.date DURING LAST_30_DAYS
+            AND ad_group.id IN (${adGroupIds.join(",")})
+            AND ad_group_ad.status = 'ENABLED'
+          ORDER BY metrics.impressions DESC
+        `);
+        for (const ar of adRows as any[]) {
+          const agId = String(ar.adGroup?.id ?? "");
+          const urls: string[] = ar.adGroupAd?.ad?.finalUrls || [];
+          if (agId && urls[0] && !landingByAdGroup[agId]) landingByAdGroup[agId] = urls[0];
+        }
+      } catch (e) {
+        console.warn("landing page fetch failed", e);
+      }
+    }
+
     const wasted = rows.map((r: any) => {
       const cost = Math.round(Number(r.metrics?.costMicros || 0) / 1_000_000 * 100) / 100;
       const clicks = Number(r.metrics?.clicks || 0);
@@ -82,6 +106,7 @@ Deno.serve(async (req) => {
       } else if (clicks <= 3) {
         action = "För lite data — vänta";
       }
+      const agId = String(r.adGroup?.id ?? "");
       return {
         keyword: r.adGroupCriterion?.keyword?.text,
         match_type: r.adGroupCriterion?.keyword?.matchType,
@@ -89,7 +114,8 @@ Deno.serve(async (req) => {
         campaign: r.campaign?.name,
         campaign_id: String(r.campaign?.id ?? ""),
         ad_group: r.adGroup?.name,
-        ad_group_id: String(r.adGroup?.id ?? ""),
+        ad_group_id: agId,
+        landing_page: landingByAdGroup[agId] || null,
         cost_sek: cost,
         clicks,
         ctr: Math.round(ctr * 10000) / 100,
@@ -98,6 +124,35 @@ Deno.serve(async (req) => {
         suggested_action: action,
       };
     });
+
+    // Aggregera landningssidor som berörs av tracking-/landningskontroller.
+    // Grupperar per URL och räknar keywords + total cost/clicks. Sorterad på
+    // total cost desc så att de mest prioriterade ligger högst.
+    const landingMap = new Map<string, { url: string; keywords: string[]; total_cost_sek: number; total_clicks: number; campaigns: Set<string>; needs_check: boolean }>();
+    for (const w of wasted) {
+      if (!w.landing_page) continue;
+      const needsCheck = w.suggested_action.startsWith("Kontrollera landningssida")
+        || w.suggested_action.startsWith("Installera/verifiera");
+      const key = w.landing_page;
+      const entry = landingMap.get(key) || { url: key, keywords: [], total_cost_sek: 0, total_clicks: 0, campaigns: new Set<string>(), needs_check: false };
+      if (w.keyword) entry.keywords.push(w.keyword);
+      entry.total_cost_sek += w.cost_sek;
+      entry.total_clicks += w.clicks;
+      if (w.campaign) entry.campaigns.add(w.campaign);
+      if (needsCheck) entry.needs_check = true;
+      landingMap.set(key, entry);
+    }
+    const landing_pages = Array.from(landingMap.values())
+      .map((e) => ({
+        url: e.url,
+        keyword_count: e.keywords.length,
+        keywords: e.keywords,
+        total_cost_sek: Math.round(e.total_cost_sek * 100) / 100,
+        total_clicks: e.total_clicks,
+        campaigns: Array.from(e.campaigns),
+        needs_check: e.needs_check,
+      }))
+      .sort((a, b) => b.total_cost_sek - a.total_cost_sek);
 
     const totalWaste = wasted.reduce((s, w) => s + w.cost_sek, 0);
 
@@ -146,6 +201,7 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       wasted,
+      landing_pages,
       tracking_status: trackingStatus,
       total_wasted_sek: Math.round(totalWaste * 100) / 100,
       action_items_created: createdItems,
