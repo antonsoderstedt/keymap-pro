@@ -6,9 +6,12 @@ import { Megaphone, LayoutDashboard, ShieldCheck, MessageSquare, Sparkles } from
 import AuctionInsights from "./AuctionInsights";
 import AdsAudit from "./AdsAudit";
 import AdsChat from "./AdsChat";
+import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 export default function GoogleAdsHub() {
   const [tab, setTab] = useState("overview");
+  const { workspaceId } = useWorkspace();
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
@@ -20,6 +23,8 @@ export default function GoogleAdsHub() {
           Översikt, audit, annonsförslag och chat — allt om dina Google Ads-kampanjer.
         </p>
       </div>
+
+      {workspaceId && <DiagnosisPanel projectId={workspaceId} />}
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="flex flex-wrap h-auto gap-1">
