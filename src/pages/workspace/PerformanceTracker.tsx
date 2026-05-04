@@ -108,7 +108,7 @@ export default function PerformanceTracker() {
     }
   };
 
-  const { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl } = useMemo(() => {
+  const { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl, extraMetrics } = useMemo(() => {
     const rows: GscRow[] = (snapshot?.rows as GscRow[]) ?? [];
     const dailyRows = rows.filter((r) => r.date && !r.query && !r.page);
     const queryDateRows = rows.filter((r) => r.date && r.query);
