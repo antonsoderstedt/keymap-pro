@@ -66,16 +66,16 @@ Deno.serve(async (req) => {
       } = body;
       if (!propertyId) return json({ error: "propertyId required" }, 400);
 
-      // Auto-add keyEvents alongside conversions, dedupe by name
+      // Dedupe metrics by name. NOTE: GA4 treats `conversions` and `keyEvents` as
+      // the same metric and rejects requests with both ("duplicate metrics").
       const seen = new Set<string>();
       const metrics = (rawMetrics as any[]).filter((m) => {
         if (!m?.name || seen.has(m.name)) return false;
+        if (m.name === "keyEvents" && seen.has("conversions")) return false;
+        if (m.name === "conversions" && seen.has("keyEvents")) return false;
         seen.add(m.name);
         return true;
       });
-      if (seen.has("conversions") && !seen.has("keyEvents")) {
-        metrics.push({ name: "keyEvents" });
-      }
 
       // Normalize property ID: strip whitespace, "properties/" prefix, and non-digits
       const normalizedPropertyId = String(propertyId).trim().replace(/^properties\//i, "").replace(/\D/g, "");
