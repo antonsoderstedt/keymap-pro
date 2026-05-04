@@ -396,10 +396,10 @@ ${topKws}
 
 KONKURRENTKONTEXT:
 ${compContext.slice(0, 4000)}
-
+${factsContext}
 Generera:
-1. Marknadsanalys (sammanfattning, bedömningsmatris, konkurrentkartläggning, strategiska implikationer)
-2. Marknadsstrategi (positionering, tonalitet, kanalstrategi med prioritet/timing, 12-mån mål, innehållsplan 6 mån)
+1. Marknadsanalys (sammanfattning, bedömningsmatris, konkurrentkartläggning, strategiska implikationer). Om VERIFIED FACTS visar att klientens unika position är motbevisad — beskriv det öppet och föreslå ny ompositionering.
+2. Marknadsstrategi (positionering, tonalitet, kanalstrategi med prioritet/timing, 12-mån mål, innehållsplan 6 mån). Använd verifierad verklighet, inte klientpåståenden.
 3. Sajtkarta: 10-25 sidor. Varje sida MÅSTE ha primary_kw från sökordslistan ovan. Slug på svenska, kort. Inkludera startsida, om-oss, kategori-/landningssidor, kontakt och 3-5 blogginnehåll.`;
 
     console.log("[prelaunch] calling AI for synthesis");
