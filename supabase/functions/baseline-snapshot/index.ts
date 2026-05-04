@@ -23,10 +23,21 @@ Deno.serve(async (req) => {
     const isoToday = today.toISOString().slice(0, 10);
     const isoFrom = sevenAgo.toISOString().slice(0, 10);
 
+    // Stöd för manuell körning per projekt: { projectId }
+    let targetProjectId: string | null = null;
+    try {
+      if (req.method !== "GET") {
+        const body = await req.json().catch(() => ({}));
+        targetProjectId = body?.projectId ?? null;
+      }
+    } catch (_) {/* ingen body */}
+
     // Hitta projekt som har minst en datakälla
-    const { data: settings } = await sb
+    let query = sb
       .from("project_google_settings")
       .select("project_id, ga4_property_id, gsc_site_url, ads_customer_id");
+    if (targetProjectId) query = query.eq("project_id", targetProjectId);
+    const { data: settings } = await query;
 
     const projects = (settings || []).filter(
       (s: any) => s.ga4_property_id || s.gsc_site_url || s.ads_customer_id,
