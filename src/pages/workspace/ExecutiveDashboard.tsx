@@ -80,8 +80,8 @@ export default function ExecutiveDashboard() {
         supabase.from("weekly_briefings").select("week_start,total_value_at_stake_sek,created_at").eq("project_id", id).order("week_start", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("project_baselines").select("*").eq("project_id", id).order("snapshot_date", { ascending: true }),
         supabase.from("gsc_snapshots").select("rows").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("ads_audits").select("payload, created_at").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("ads_audits").select("payload").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("ads_audits").select("summary, created_at").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("ads_audits").select("summary").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
       const ga4Rows = ga4Snaps.data || [];
@@ -97,8 +97,8 @@ export default function ExecutiveDashboard() {
         .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
         .slice(0, 10);
 
-      // Ads-kampanjer
-      const adsPayload: any = adsCampaigns.data?.payload || {};
+      // Ads-kampanjer (från audit summary)
+      const adsPayload: any = adsCampaigns.data?.summary || {};
       const campaigns = adsPayload.campaigns || [];
 
       setProject(proj.data);
@@ -417,25 +417,7 @@ export default function ExecutiveDashboard() {
       )}
 
       {/* ROI */}
-      {id && (
-        <RoiOverview
-          projectId={id}
-          emptyState={
-            <Card className="border-dashed">
-              <CardContent className="p-6 flex items-start gap-3">
-                <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="font-medium">Kör din första sökordsanalys för att se estimerat värde per kluster</p>
-                  <p className="text-sm text-muted-foreground mt-1">Det tar ~2 minuter.</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate(`/project/${id}`)}>
-                    Kör sökordsanalys <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          }
-        />
-      )}
+      {id && <RoiOverview projectId={id} />}
 
       {/* Åtgärder + Mål */}
       <div className="grid gap-4 lg:grid-cols-3">
