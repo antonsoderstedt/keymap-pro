@@ -64,7 +64,12 @@ export default function ReportsLibrary() {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast.success(`${report.name} genererad med live-data`);
+      const status = (data as any)?.artifact?.payload?.overall_status;
+      const missing = ((data as any)?.artifact?.payload?.missing_fields || []) as string[];
+      if (status === "complete") toast.success(`${report.name} genererad med live-data`);
+      else if (status === "partial") toast.warning(`${report.name} delvis genererad — ${missing.length} fält saknas`, { description: missing.slice(0, 3).join(" · ") });
+      else if (status === "empty") toast.error(`${report.name}: inga datakällor tillgängliga`, { description: missing.slice(0, 3).join(" · ") });
+      else toast.success(`${report.name} sparad`);
       const { data: hist } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
       setHistory(hist || []);
     } catch (e: any) {
