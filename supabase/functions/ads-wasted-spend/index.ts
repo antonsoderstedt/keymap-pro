@@ -176,10 +176,52 @@ Deno.serve(async (req) => {
             : w.cost_sek >= 200 || w.clicks >= 25
               ? "medium"
               : "low";
+
+        const lp = (w as any).landing_page as string | null;
+        const lpLine = lp ? `Landningssida: ${lp}\n` : "Landningssida: (saknas — ingen aktiv annons med final_url)\n";
+
+        // Konkret checklista beroende på åtgärdstyp.
+        let checklist = "";
+        if (isTrackingFix) {
+          checklist = [
+            "",
+            "📋 Kontrollsteg — Konverteringsspårning saknas på hela kontot",
+            "",
+            "1. **Google Ads → Verktyg → Konverteringar**: Säkerställ att minst 1 primär konvertering finns och har status \"Tar emot konverteringar\".",
+            "2. **Google Tag Assistant** (tagassistant.google.com): Öppna landningssidan och verifiera att Google Ads-taggen (AW-XXXXXXX) laddas och att eventet (purchase/lead/contact) triggar.",
+            "3. **GA4 → Admin → Datastreams → Configure tag**: Bekräfta att GA4 är länkat till Ads-kontot (Admin → Product links → Google Ads).",
+            "4. **GA4 → Admin → Events → Mark as conversion**: Bekräfta att rätt event (t.ex. `purchase`, `generate_lead`) är markerade som konverteringar.",
+            "5. **Google Ads → Konverteringar → Importera från GA4**: Importera GA4-konverteringen om Ads-tag inte används direkt.",
+            "6. **Test**: Genomför en riktig testkonvertering (köp/formulär) och vänta 3–24h. Kolla Ads → Konverteringar → \"Senaste konv.\".",
+            "7. **Consent Mode v2**: Om sajten har cookie-banner — verifiera att `gtag('consent', 'update', {ad_storage:'granted'})` skickas vid acceptans.",
+          ].join("\n");
+        } else if (isLandingCheck) {
+          checklist = [
+            "",
+            "📋 Kontrollsteg — Landningssida & spårning för detta sökord",
+            "",
+            `1. **Klicka annonsen själv** med sökordet "${w.keyword}" från Google (inkognito-flik) → landar du på rätt URL? Kontrollera att UTM/gclid följer med.`,
+            "2. **Tag Assistant Live**: Verifiera att `conversion`-eventet triggar när du fullföljer mål (t.ex. lägger order, skickar formulär).",
+            "3. **GA4 → Realtime → Event count by Event name**: Se att eventet syns i realtid när du testar.",
+            "4. **Page speed (PageSpeed Insights)**: Mobil-LCP <2.5s, INP <200ms. Långsam sida = tappar 50%+ av klicken.",
+            "5. **Match search intent**: Sökordet vs H1/CTA på sidan — pratar de om samma sak? Ändra ad-group → landing page-mappning om inte.",
+            "6. **CTA ovan vikt**: Finns det ett tydligt nästa steg (köp/boka/kontakt) inom första skärmen utan scroll?",
+            "7. **Mobile UX**: Testa på riktig mobil — formulär utfyllbart? Klick-till-call funkar? Cookie-banner blockerar inte CTA?",
+            "8. **Pixel/Tag Manager**: Bekräfta att Meta Pixel / LinkedIn Insight (om relevant) också fyrar för cross-channel attribution.",
+            "9. **Test-konvertering**: Genomför 1 riktig konvertering. Visas den i Ads inom 24h på rätt kampanj/sökord?",
+          ].join("\n");
+        } else {
+          checklist = "";
+        }
+
         return {
           project_id,
           title: `${w.suggested_action}: "${w.keyword}"`,
-          description: `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, CTR ${w.ctr}%, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.\n\n${trackingNote}`,
+          description:
+            `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, CTR ${w.ctr}%, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.\n` +
+            lpLine +
+            `\n${trackingNote}` +
+            checklist,
           category: "ads",
           priority: dataPriority,
           status: "open",
