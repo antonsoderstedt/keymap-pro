@@ -1,105 +1,155 @@
 
-# Översyn & nästa sprintar — Slay Station (uppdaterad)
+# Startfas — Slay Station v2 (Fas 0 + faktakoll/sömlöshet)
 
-Ja, planen täcker både **det du listade i meddelandet** och **det som var kvar från Sprint 1–2** (RSA write-back på asset-nivå, bulk-push, CSV-export, schemalagd pacing, bättre revert-logg, verifiera negative mining, status-UI). Plus de nya buggarna (Auction Insights, GA4, Results-tappet, Segment-klick, Action Tracker, SEO Audit, ROI, Brand Kit auto). Och nu även **GA4-exkludering** i inställningar.
+Bygger grunden för hela SPEC v2.0 och löser samtidigt akuta UX-problemen i pre-launch (Norrtälje-felet, kan inte ta action, måste fylla i data två gånger, 0-volym-brus).
 
----
+Levereras i ett svep. Helheten (Fas 1–8) ligger kvar som norra stjärna och tas i kommande sprintar.
 
-## Vad jag hittade i koden (kort)
+## Vad vi bygger
 
-- **Results.tsx** hämtar senaste `analyses`-rad utan `result_json IS NOT NULL` → tappar gammal data när nytt jobb startas. Detta är "analyser försvinner"-buggen.
-- **WorkspaceSegments** — paket-korten saknar `onClick`.
-- **Ga4Dashboard** — ingen "uppdatera"-knapp, ingen filter, visar bara senaste snapshot.
-- **AuctionInsights** — fungerar men ingen schemalagd refresh och ingen åtgärds-koppling.
-- **ActionTracker** — saknar drill-down av `source_payload`, kommentarer och Review-&-push-knapp.
-- **SeoAudit** — bara checkbox; ingen "skapa åtgärd"-koppling.
-- **RoiOverview** — kräver `totals.kind=='revenue_by_page'` som inte alltid sätts av `ga4-revenue-fetch`.
-- **AdsAudit (RSA)** — säger själv i UI:t "write-back för enskilda assets kommer i nästa iteration" — det är kvar från Sprint 2.
-- **ads-negative-mining** — fixat (90d-bug) men saknar status-UI och historik.
-- **Brand Kit** — ingen "Hämta från sajt"-knapp.
+### 1. Datamodell + helpers
 
----
+**Migration** (en sammanhängande):
+```sql
+ALTER TABLE projects ADD COLUMN workspace_type text NOT NULL DEFAULT 'b2b_manufacturer'
+  CHECK (workspace_type IN ('b2b_manufacturer','d2c_brand','local_service','b2b_service','ecommerce'));
 
-## Sprint 3 — Fixa allt som är trasigt idag (~2,5h)
+CREATE TABLE project_goals (
+  id uuid PK, project_id uuid UNIQUE → projects,
+  conversion_type text DEFAULT 'purchase' CHECK (...),
+  conversion_label text,
+  conversion_value numeric DEFAULT 1000,
+  conversion_rate_pct numeric DEFAULT 2,
+  primary_goal text DEFAULT 'acquisition',
+  strategy_split jsonb DEFAULT '{"acquisition":70,"retention":20,"awareness":10}',
+  brand_terms text[] DEFAULT '{}',
+  ...
+);  -- + RLS
 
-1. **Analyser försvinner inte** — `Results.tsx` hämtar nu senaste rad där `result_json IS NOT NULL`, behåller resultat under polling.
-2. **Segment & paket klickbart** — drawer öppnar brief/ads-innehåll, eller deep-link till Artefakter. Saknas paket → "Skapa nu"-knapp som triggar `generate-brief` / `generate-ads`.
-3. **Action Tracker drill-down + kommentarer + review-push**
-   - Expanderbar rad visar `source_payload` (kampanj, sökord, kostnad).
-   - Kommentarsfält (sparas i ny `action_items.notes jsonb[]`).
-   - "Review & push"-knapp för åtgärder med `source_type ∈ {ads_wasted, ads_negatives, ads_pacing}` → kör `ads-mutate` med bekräftelse.
-4. **SEO Audit → action items** — "Skapa åtgärd"-knapp per finding + bulk för topp-10 kritiska/höga.
-5. **Auction Insights komplett** — verifiera GAQL-datumklausul, lägg deltatrend mot föregående snapshot, "Skapa åtgärd" för konkurrenter med ökande overlap, schemalagd refresh (veckovis via pg_cron).
-6. **GA4 Dashboard funktionell** — "Hämta nu"-knapp som anropar `ga4-fetch`, daglig trend-graf, propertyId + senast uppdaterad, tom-state länkar Inställningar.
-7. **ROI/Attribution fixad** — `ga4-revenue-fetch` skriver `totals.kind`, RoiOverview faller tillbaka på revenue-rader om markör saknas, lägg till klusternedbrytning.
-8. **Negative mining status-UI** — "Senast körd / status / fel" + körningar loggas i `analysis_jobs` (job_type='negative_mining').
+CREATE TABLE project_baselines (
+  id uuid PK, project_id uuid → projects,
+  snapshot_date date, metrics jsonb, source text DEFAULT 'auto', ...
+);  -- + RLS
 
----
+ALTER TABLE keyword_metrics ADD COLUMN strategy_quadrant text DEFAULT 'acquire_nonbrand';
+ALTER TABLE prelaunch_briefs ADD COLUMN fact_check jsonb;
+ALTER TABLE prelaunch_blueprints
+  ADD COLUMN selected_keywords jsonb DEFAULT '[]',
+  ADD COLUMN ads_plan jsonb;
+```
 
-## Sprint 4 — RSA write-back, bulk, schemaläggning (~3h) — Sprint 2-leftover + dina nya önskemål
+**Nya helpers (frontend):**
+- `src/lib/workspaceConfig.ts` — 5 kundtyper × dimensioner, setup-fält, default-konvertering, klusterprompt-hint
+- `src/lib/goalsEngine.ts` — `monthlyKeywordValue()`, `classifyKeyword()` (brand vs non-brand, retention vs acquisition), `CONVERSION_LABELS`
+- `src/hooks/useProjectCapabilities.ts` — `{ hasGA4, hasGSC, hasAds, hasAnalysis, hasPrelaunch, hasGoals, hasBaseline, ... }` (parallella queries)
+- `src/hooks/useProjectGoals.ts` — läs/skriv goals med fallback till `project_revenue_settings`
 
-1. **Asset-nivå write-back i RSA Optimizer**
-   - Ny `action_type: replace_rsa_asset` i `ads-mutate`. Hämtar full RSA, ersätter matchande headline/description, kör `ads:mutate` med `updateMask`. Fallback: skapa ny RSA + pausa gammal för konton som inte stöder update. Revert-payload sparar original-array.
-2. **Bulk-godkänn & batch-push i RSA-fliken**
-   - Checkbox per förslag + "Pusha valda" → en batch-operation till Google Ads, loggas som en `ads_mutations`-rad (`action_type='rsa_batch'`).
-3. **CSV / Sheets-export för RSA-ersättningar**
-   - Kolumner: campaign, ad_group, field, original, candidate, performance_label, rationale.
-4. **Schemalagd pacing-monitoring + in-app notiser**
-   - `pg_cron` (07:00 dagligen) → wrapper `cron-ads-pacing` loopar projekt med `ads_customer_id`. Skriver i `alerts`. Sidomenyn får badge "Alerts (n)". Settings: dagligen / veckovis / av + e-postnotis (återanvänder `briefing_email_recipients`).
-5. **Bättre mutations- & revert-logg**
-   - Gruppera per dag, visa diff av vad som ändrats, "Ångra hela dagens push", filter på action_type/status/kampanj.
-6. **Verifiera negative mining + bulk-push** — UI som visar resultat efter fix; CSV-export i Google Ads Editor-format.
+### 2. Faktakoll (löser Norrtälje direkt)
 
----
+**Ny edge function `prelaunch-factcheck`:**
+```
+input: { brief_id }
+flow:
+  1. Hämta brief från DB
+  2. AI (Gemini 2.5 Pro) extraherar 3–7 verifierbara påståenden ur business_idea/usp/competitors
+     med metadata: { claim, type: 'uniqueness'|'competitor'|'feature'|'market_position', search_queries, locations }
+  3. För varje påstående parallellt:
+     a. DataForSEO SERP — Google-sökning på relevanta queries
+     b. DataForSEO Maps Pack — om type='uniqueness' eller workspace_type='local_service'
+     c. Firecrawl — skrapa topp 2-3 konkurrentsidor från SERP-träffarna
+  4. AI syntetiserar verdict per påstående:
+     { verdict: 'verified'|'contradicted'|'partially_true'|'unverifiable',
+       evidence: '...', sources: [{url, snippet, source_type}], recommendation: '...' }
+  5. UPDATE prelaunch_briefs SET fact_check = {...} WHERE id = $1
+```
 
-## Sprint 5 — Brand Kit auto + GA4-exkludering + AI-chat (~2,5h)
+**Uppdaterad `prelaunch-research`:**
+- Om `fact_check` finns: prepend till syntes-prompten:
+  ```
+  VERIFIED FACTS — use these instead of client claims when they conflict:
+  • "enda kliniken i Norrtälje med injections" → CONTRADICTED.
+    Bevis: 3 konkurrenter hittade. Basera analysen på 4 kliniker totalt.
+  ```
+- Resultat: marknadsanalys, sökord, strategi byggs på verifierad verklighet, inte klientens påståenden.
 
-1. **Brand Kit "Generera från sajten"**
-   - Ny edge function `brand-kit-extract`: Firecrawl scrape → Gemini extraherar färger, fonts, tone of voice, logo. Förfyller fälten i `BrandKit.tsx`.
+**UI i `PrelaunchBlueprint.tsx`:**
+- Nytt **Faktakort** överst i resultat-tabben (rött/grönt per påstående, källor expanderbara, AI-rekommendation)
+- "Kör faktakoll på nytt"-knapp
+- Faktakollen körs automatiskt som första steg när brief skickas
 
-2. **GA4-data-exkluderingar (NYTT)**
-   - Ny tabell `ga4_filters` (project_id, filter_type, dimension, operator, value, is_active). Exempel: `pagePath` not contains `/admin`, `sessionMedium` != `internal`, `country` != `Sweden` etc.
-   - UI: ny sektion i Inställningar "GA4-filter" med "Lägg till filter" och presets ("Exkludera /admin", "Exkludera intern trafik via IP-cookie", "Exkludera bot-trafik").
-   - `ga4-fetch` och `ga4-revenue-fetch` läser filtren och lägger till `dimensionFilter` i GA4-runReport-anropet (GA4 stödjer detta nativt via `dimensionFilter.filter.stringFilter`).
-   - Befintliga snapshots taggas med vilket filter-set som användes så vi kan jämföra "med/utan admin".
+### 3. Sömlös pipeline — sökordsval + recompute
 
-3. **AI PPC-chat (Sprint 3-leftover från ursprungsplan)**
-   - `ads-chat` edge function med tool calls (`get_campaign_metrics`, `get_audit_summary`, `create_action_item`). Drawer i AdsAudit.
+**Ny edge function `prelaunch-recompute`:**
+- Input: `{ blueprint_id, selected_keywords: string[] }`
+- Regenererar bara: sajtkarta, innehållsplan, ads-struktur, prognos från valda sökord
+- Använder befintlig DataForSEO/Firecrawl-data — kör inte hela research-kedjan om
+- UPDATE `prelaunch_blueprints` SET `selected_keywords`, `sitemap`, `strategy`, `forecast`
 
-4. **Auto-skapa åtgärder från alla anomali-källor**
-   - `ads-pacing`, `ads-cannibalization`, `auction_insights` skapar `action_items` med rik payload som Sprint 3:s Review-&-push-flöde kan konsumera.
+**UI uppdateringar i pre-launch resultat:**
+- **Sökordsfliken**: checkboxes per sökord + "markera alla i kluster"-knapp
+- **Sticky bottom-bar**: `X sökord valda · Estimerat värde Y kr/mån · [Använd valda sökord →]`
+- **0-volym-toggle**: default `Volym ≥ 10`. Knapp "Visa 0-volym (X st)" + tooltip "Semantiskt relevanta — potential för framtida volym"
+- **Stepper överst**: `Brief → Faktakoll → Marknad → Sökord → Strategi → Export` med klickbara steg
+- Varje resultatflik: `Nästa →`-CTA längst ner som tar dig till nästa logiskt steg
 
----
+### 4. Capability-baserad sidomeny
+
+**`WorkspaceSidebar.tsx`:**
+- Använd `useProjectCapabilities`
+- Items utan förutsättningar: gråade + hänglås-ikon + tooltip "Koppla GA4 för att låsa upp" (klickbar → går till Inställningar)
+- Ta bort badges ("ny", "preview", "premium")
+- Pre-launch/Kom igång döljs när `hasAnalysis || hasPrelaunch`
+
+**Onboarding-checklista** på Executive Dashboard (tillfällig tills hela Dashboard byggs om i Fas 1):
+- 8-stegs progress med checkmark per slutförd kapabilitet
+- Direkta CTA-knappar till varje saknad del
+- Försvinner när allt är klart
+
+### 5. Sökordsuniversum-fix
+
+**`WorkspaceKeywordUniverse.tsx`:**
+- Läs **både** `analyses` OCH `prelaunch_blueprints.keyword_universe`
+- Om bara pre-launch finns: visa det istället för "Ingen analys körd"
+- Tomt-state-knapp leder till **pre-launch / Kom igång** istället för att tvinga om-inmatning
+- Action-knappar per sökord/kluster: "Skapa content brief", "Pusha till Åtgärder", "Exportera till Ads CSV"
 
 ## Tekniska detaljer
 
-**Migrations:**
-- `action_items.notes jsonb default '[]'::jsonb`
-- ny tabell `ga4_filters` med RLS via `projects.user_id`
+- **Edge functions**: alla nya följer befintligt mönster (CORS från `@supabase/supabase-js/cors`, service role för DB-skrivning, Zod-validering på input)
+- **AI-modell**: `google/gemini-2.5-pro` via Lovable AI Gateway (`LOVABLE_API_KEY`) för faktakoll-syntes
+- **DataForSEO**: använder befintliga `DATAFORSEO_LOGIN` + `DATAFORSEO_PASSWORD`. SERP via `/v3/serp/google/organic/live/advanced`, Maps via `/v3/serp/google/maps/live/advanced`
+- **Firecrawl**: använder befintlig `FIRECRAWL_API_KEY` (connector). Begränsar till topp 3 konkurrentsidor per påstående för att hålla körtiden < 25s
+- **Timeout-hantering**: AbortController med 25s timeout per externt API-anrop, partial fallback om en källa failar (verdict blir 'partially_verified')
+- **`project_revenue_settings`** behålls — `useProjectGoals` läser från `project_goals` med fallback
 
-**Nya edge functions:** `brand-kit-extract`, `cron-ads-pacing`, `ads-chat`
+## Filer
 
-**Uppdaterade edge functions:**
-- `ads-mutate` — `replace_rsa_asset`, `rsa_batch`
-- `ads-revert-mutation` — stöd för rsa_batch + asset-restore
-- `ga4-fetch` & `ga4-revenue-fetch` — applicera ga4_filters
-- `ads-fetch-auction-insights` — verifiera GAQL date-clause
-- `generate-brief` / `generate-ads` — anropas från Segment-drawer
+**Nya:**
+- `supabase/functions/prelaunch-factcheck/index.ts`
+- `supabase/functions/prelaunch-recompute/index.ts`
+- `src/lib/workspaceConfig.ts`
+- `src/lib/goalsEngine.ts`
+- `src/hooks/useProjectCapabilities.ts`
+- `src/hooks/useProjectGoals.ts`
+- `src/components/workspace/FactCheckCard.tsx`
+- `src/components/workspace/PrelaunchStepper.tsx`
+- `src/components/workspace/OnboardingChecklist.tsx`
+- 1 migration
 
-**pg_cron:** dagligen 07:00 Europe/Stockholm för pacing, veckovis sön 06:00 för Auction Insights.
+**Redigerade:**
+- `src/pages/workspace/PrelaunchBlueprint.tsx` — faktakort, stepper, sökordsval, recompute-knapp, 0-volym-toggle
+- `src/components/workspace/WorkspaceSidebar.tsx` — capability-låsning, badges bort
+- `src/pages/workspace/WorkspaceKeywordUniverse.tsx` — pre-launch fallback, action-knappar
+- `src/pages/workspace/Executive.tsx` — onboarding-checklista
+- `supabase/functions/prelaunch-research/index.ts` — använder fact_check som hård kontext
 
----
+## Vad detta INTE inkluderar (kommer i kommande faser)
 
-## Förslag
+- Navigation 18→7 (Fas 1)
+- Goals-setup-UI och kundtypsväljare (Fas 3) — datamodellen finns, UI byggs senare
+- Prelaunch-ads-plan med push till Google Ads (Fas 5)
+- Cron + baseline-snapshot (Fas 6)
+- Roller / project_members (Fas 7)
+- React Query-migration, typ-säkerhet, mobil-sidebar (Fas 8)
 
-Kör **Sprint 3 först** (fixa det trasiga), sen **Sprint 4** (write-back & schemaläggning), sen **Sprint 5** (Brand Kit auto + GA4-filter + chat). Säg "kör sprint 3" så drar jag igång.
-
----
-
-## Status (Sprint 3-5 fortsättning)
-- ✅ Brand Kit auto-extract från sajt (`brand-kit-extract` + UI-knapp)
-- ✅ GA4-filter (tabell, Settings-UI, applicering i `ga4-fetch` & `ga4-revenue-fetch`)
-- ✅ GA4 Dashboard refresh-knapp + datumväljare + persist
-- ✅ Action Tracker drilldown, kommentarer (notes), Review & push för ads-källor
-- ✅ SEO Audit "Skapa åtgärd" per finding + bulk topp-10
-- ✅ `cron-ads-pacing` wrapper (cron-schemat sätts senare via insert-tool)
+Estimerad tid: 3–4 dagars implementation. Klart för godkännande.
