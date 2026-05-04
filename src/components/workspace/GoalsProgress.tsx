@@ -210,13 +210,30 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
                   <p className="text-[11px] text-muted-foreground">{tpl.help}</p>
                 </div>
                 {!sourceAvailable && (
-                  <div className="mt-2 p-2 rounded border border-amber-500/30 bg-amber-500/5 text-[11px] text-amber-600 dark:text-amber-400 flex items-start gap-2">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span>
-                      {tpl.source === "ga4" && "Koppla GA4 i Inställningar för att aktivera detta mått."}
-                      {tpl.source === "ads" && "Koppla Google Ads i Inställningar för att aktivera detta mått."}
-                      {tpl.source === "combined" && "Koppla GA4 i Inställningar — krävs för totalmått."}
-                    </span>
+                  <div className="mt-2 p-2 rounded border border-amber-500/30 bg-amber-500/5 text-[11px] text-amber-600 dark:text-amber-400 flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        {tpl.source === "ga4" && "Koppla GA4 i Inställningar för att aktivera detta mått."}
+                        {tpl.source === "ads" && "Koppla Google Ads i Inställningar för att aktivera detta mått."}
+                        {tpl.source === "combined" && "Koppla GA4 i Inställningar — krävs för totalmått."}
+                      </span>
+                    </div>
+                    {clientId && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 h-6 px-2 text-[10px] border-amber-500/40 hover:bg-amber-500/10"
+                        onClick={() => {
+                          setOpen(false);
+                          navigate(`/clients/${clientId}/settings?tab=integrations`);
+                        }}
+                      >
+                        <Settings2 className="h-3 w-3 mr-1" />
+                        Koppla nu
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
