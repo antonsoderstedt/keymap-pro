@@ -1,6 +1,7 @@
 // Unified report generator — hämtar live-data per report_type och sparar i workspace_artifacts.
 // Stödjer: share_of_voice, auction_insights, yoy, roi (övriga använder existing snapshot-data).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildTemplate } from "./_templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
