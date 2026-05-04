@@ -66,11 +66,16 @@ Deno.serve(async (req) => {
       } = body;
       if (!propertyId) return json({ error: "propertyId required" }, 400);
 
-      // Auto-add keyEvents alongside conversions (GA4's newer name; same value but future-proof)
-      const metrics = [...rawMetrics];
-      const hasConv = metrics.some((m: any) => m.name === "conversions");
-      const hasKey = metrics.some((m: any) => m.name === "keyEvents");
-      if (hasConv && !hasKey) metrics.push({ name: "keyEvents" });
+      // Auto-add keyEvents alongside conversions, dedupe by name
+      const seen = new Set<string>();
+      const metrics = (rawMetrics as any[]).filter((m) => {
+        if (!m?.name || seen.has(m.name)) return false;
+        seen.add(m.name);
+        return true;
+      });
+      if (seen.has("conversions") && !seen.has("keyEvents")) {
+        metrics.push({ name: "keyEvents" });
+      }
 
       // Normalize property ID: strip whitespace, "properties/" prefix, and non-digits
       const normalizedPropertyId = String(propertyId).trim().replace(/^properties\//i, "").replace(/\D/g, "");
