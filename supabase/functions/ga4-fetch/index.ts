@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
             for (const r of evRows) {
               const name = r.dimensionValues?.[0]?.value || "";
               const c = Number(r.metricValues?.[0]?.value || 0);
-              const k = Number(r.metricValues?.[1]?.value || 0);
+              const k = c; // GA4 aliases keyEvents to conversions
               breakdown[name] = { conversions: c, keyEvents: k };
               const include = allow.length ? allow.includes(name) : !deny.includes(name);
               if (include) {
