@@ -1,17 +1,20 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Eye, Activity, Target, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Users, Eye, Activity, Target, RefreshCw, AlertTriangle, ListTree } from "lucide-react";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend,
-  LineChart, Line,
 } from "recharts";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
+
+interface EventRow { eventName: string; eventCount: number; conversions: number; keyEvents: number; }
 
 export default function Ga4Dashboard() {
   const { id } = useParams<{ id: string }>();
