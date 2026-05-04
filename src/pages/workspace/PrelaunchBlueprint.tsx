@@ -839,10 +839,23 @@ function AdsPlanView({ adsPlan, currency }: { adsPlan: any; currency: any }) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Google Ads-plan</CardTitle>
-          <CardDescription>
-            Total daglig budget: <strong>{formatMoney(adsPlan.recommended_total_daily_sek || 0, currency, { compact: true })}</strong> · {campaigns.length} kampanjer
-          </CardDescription>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle>Google Ads-plan</CardTitle>
+              <CardDescription>
+                Total daglig budget: <strong>{formatMoney(adsPlan.recommended_total_daily_sek || 0, currency, { compact: true })}</strong> · {campaigns.length} kampanjer
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => downloadAdsPlanCsv(adsPlan, "ads-plan-prelaunch.csv")}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportera CSV (Google Ads Editor)
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {campaigns.map((c: any, i: number) => (
