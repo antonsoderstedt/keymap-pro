@@ -95,12 +95,13 @@ Deno.serve(async (req) => {
     const since = new Date(); since.setDate(since.getDate() - 28);
     const sinceIso = since.toISOString();
 
-    const [gsc, ga4, alerts, outcomes, audit] = await Promise.all([
+    const [gsc, ga4, alerts, outcomes, audit, adsDiag] = await Promise.all([
       supabase.from("gsc_snapshots").select("rows,totals,start_date,end_date").eq("project_id", project_id).order("created_at", { ascending: false }).limit(2),
       supabase.from("ga4_snapshots").select("rows,totals,start_date,end_date").eq("project_id", project_id).order("created_at", { ascending: false }).limit(2),
       supabase.from("alerts").select("*").eq("project_id", project_id).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(50),
       supabase.from("action_outcomes").select("metric_name,delta_pct,delta,measured_at,action_id,baseline_value,current_value").gte("measured_at", sinceIso).limit(50),
       supabase.from("audit_findings").select("title,severity,category,recommendation,affected_url").eq("project_id", project_id).eq("status", "open").order("created_at", { ascending: false }).limit(20),
+      supabase.from("ads_diagnostics_runs").select("report, created_at").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     // 3. Räkna värde
@@ -282,6 +283,49 @@ Deno.serve(async (req) => {
           source_id: a.id,
         },
       });
+    }
+
+    // Ads-diagnoser → actions/risks (delad sanning från ads-diagnose)
+    const adsReport: any = adsDiag.data?.report ?? null;
+    if (adsReport) {
+      // Blockers = risks med högt värde-proxy
+      for (const b of (adsReport.blockers ?? []).slice(0, 2)) {
+        risks.push({
+          title: `Ads: ${b.message}`,
+          value_sek: 0,
+          source: "ads_diagnosis_blocker",
+          why: b.resolution,
+          details: {
+            method: "Ads-diagnosmotorns quality gate.",
+            inputs: { gate: b.gate },
+            steps: [],
+            source_table: "ads_diagnostics_runs",
+          },
+        });
+      }
+      // Topp-3 rotorsaker som actions, sorterade på kronvärde
+      const topDiag = (adsReport.diagnoses ?? [])
+        .filter((d: any) => !d.is_symptom_of && (d.estimated_value_sek ?? 0) > 0)
+        .slice(0, 3);
+      for (const d of topDiag) {
+        actions.push({
+          title: `Ads: ${d.title} (${d.scope_ref?.map((r: any) => r.name).join(" / ") || "kontot"})`,
+          value_sek: d.estimated_value_sek ?? 0,
+          source: "ads_diagnosis",
+          why: d.proposed_actions?.[0]?.label ?? d.why,
+          details: {
+            method: "Ads diagnosmotor — regelbaserad estimering med ProjectGoals.conversion_value.",
+            inputs: {
+              rule_id: d.rule_id,
+              confidence: d.confidence,
+              expected_impact: d.expected_impact,
+            },
+            steps: (d.proposed_actions ?? []).slice(0, 2).map((a: any) => ({ label: a.label, value: a.detail })),
+            source_table: "ads_diagnostics_runs",
+          },
+        });
+        totalValue += d.estimated_value_sek ?? 0;
+      }
     }
 
     // 4. AI-sammanfattning
