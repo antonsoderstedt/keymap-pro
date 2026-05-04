@@ -163,12 +163,23 @@ function summarizePayload(p: any): string | null {
   const d = p.data;
   if (t === "share_of_voice") return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
   if (t === "auction_insights") return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
-  if (t === "roi") return `${d.clusters?.length ?? 0} kluster · uplift ${Math.round((d.total_uplift_potential_sek || 0) / 1000)}k kr`;
+  if (t === "roi") {
+    const tot = d.attribution?.totals;
+    if (tot) return `Blended ROAS ${tot.blended_roas ?? "—"} · spend ${Math.round((tot.spend || 0) / 1000)}k · ${d.attribution.channels?.length ?? 0} kanaler`;
+    return `${d.cluster_roi?.clusters?.length ?? 0} kluster · uplift ${Math.round((d.cluster_roi?.total_uplift_potential_sek || 0) / 1000)}k kr`;
+  }
   if (t === "yoy") {
-    const c = d.gsc?.yoy_clicks?.delta_pct;
-    return c != null ? `Klick YoY ${c > 0 ? "+" : ""}${c.toFixed(1)}%` : "YoY-data";
+    const sess = d.ga4_delta?.sessions?.yoy?.pct;
+    const rev = d.ga4_delta?.revenue?.yoy?.pct;
+    if (sess != null || rev != null) return `Sessions YoY ${fmtTrendPct(sess)} · Intäkt YoY ${fmtTrendPct(rev)}`;
+    return "Trend-data";
   }
   return null;
+}
+
+function fmtTrendPct(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
 function WeeklyReportPanel({ projectId }: { projectId: string }) {
