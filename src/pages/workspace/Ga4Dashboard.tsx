@@ -257,7 +257,8 @@ export default function Ga4Dashboard() {
             </div>
           )}
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }
