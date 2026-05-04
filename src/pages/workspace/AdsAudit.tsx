@@ -155,7 +155,32 @@ export default function AdsAudit() {
     if (error || data?.error) { toast.error(data?.error || error?.message || "Misslyckades"); return; }
     setWasted(data.wasted || []);
     setWastedTotal(data.total_wasted_sek || 0);
+    setLandingPages(data.landing_pages || []);
     toast.success(`Hittade ${data.wasted?.length || 0} slösare. ${data.action_items_created} action items skapade.`);
+  };
+
+  const exportLandingPagesCsv = () => {
+    if (!landingPages.length) return;
+    const header = ["URL", "Antal sökord", "Total kostnad SEK", "Total klick", "Kampanjer", "Behöver kontroll", "Sökord"];
+    const rows = landingPages.map((lp) => [
+      lp.url,
+      String(lp.keyword_count),
+      String(lp.total_cost_sek),
+      String(lp.total_clicks),
+      lp.campaigns.join(" | "),
+      lp.needs_check ? "Ja" : "Nej",
+      lp.keywords.join(" | "),
+    ]);
+    const csv = [header, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `landningssidor-tracking-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const runMining = async () => {
