@@ -114,8 +114,38 @@ export default function PrelaunchBlueprint() {
       .eq("brief_id", briefId)
       .order("created_at", { ascending: false })
       .maybeSingle();
-    setBlueprint(data as Blueprint | null);
+    setBlueprint(((data as unknown) as Blueprint) || null);
     if (data && !editingBriefId) setActiveTab("result");
+  }
+
+  async function runFactCheck() {
+    if (!activeBriefId) return;
+    setFactChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("prelaunch-factcheck", {
+        body: { brief_id: activeBriefId },
+      });
+      if (error) throw error;
+      toast({ title: "Faktakoll klar", description: data?.fact_check?.overall_summary?.slice(0, 120) || "Resultat sparat." });
+      await loadBriefs();
+    } catch (e: any) {
+      toast({ title: "Faktakoll misslyckades", description: e.message, variant: "destructive" });
+    } finally {
+      setFactChecking(false);
+    }
+  }
+
+  async function recomputeFromSelection(selected: string[]) {
+    if (!blueprint) return;
+    const { error } = await supabase.functions.invoke("prelaunch-recompute", {
+      body: { blueprint_id: blueprint.id, selected_keywords: selected },
+    });
+    if (error) {
+      toast({ title: "Omräkning misslyckades", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Klart!", description: "Sajtkarta, ads-plan och prognos uppdaterade." });
+    await loadBlueprint(blueprint.brief_id);
   }
 
   async function selectBrief(briefId: string) {
