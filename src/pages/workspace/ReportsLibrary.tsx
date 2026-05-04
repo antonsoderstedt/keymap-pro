@@ -64,7 +64,12 @@ export default function ReportsLibrary() {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast.success(`${report.name} genererad med live-data`);
+      const status = (data as any)?.artifact?.payload?.overall_status;
+      const missing = ((data as any)?.artifact?.payload?.missing_fields || []) as string[];
+      if (status === "complete") toast.success(`${report.name} genererad med live-data`);
+      else if (status === "partial") toast.warning(`${report.name} delvis genererad — ${missing.length} fält saknas`, { description: missing.slice(0, 3).join(" · ") });
+      else if (status === "empty") toast.error(`${report.name}: inga datakällor tillgängliga`, { description: missing.slice(0, 3).join(" · ") });
+      else toast.success(`${report.name} sparad`);
       const { data: hist } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
       setHistory(hist || []);
     } catch (e: any) {
@@ -137,11 +142,23 @@ export default function ReportsLibrary() {
               {history.map(h => {
                 const p = h.payload as any;
                 const summary = summarizePayload(p);
+                const overall = p?.overall_status as string | undefined;
+                const missing = (p?.missing_fields as string[] | undefined) || [];
                 return (
-                  <div key={h.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                  <div key={h.id} className="flex items-start justify-between gap-3 p-3 rounded-md border border-border">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{h.name}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-sm font-medium truncate">{h.name}</div>
+                        {overall === "partial" && <Badge variant="outline" className="text-[9px]">delvis</Badge>}
+                        {overall === "empty" && <Badge variant="destructive" className="text-[9px]">tom</Badge>}
+                        {overall === "complete" && <Badge variant="default" className="text-[9px]">komplett</Badge>}
+                      </div>
                       <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}{summary && ` · ${summary}`}</div>
+                      {missing.length > 0 && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Saknas: {missing.slice(0, 2).join(" · ")}{missing.length > 2 && ` (+${missing.length - 2})`}
+                        </div>
+                      )}
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
                       Öppna
@@ -158,19 +175,30 @@ export default function ReportsLibrary() {
 }
 
 function summarizePayload(p: any): string | null {
-  if (!p?.data) return null;
+  if (!p) return null;
   const t = p.report_type;
-  const d = p.data;
-  if (t === "share_of_voice") return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
-  if (t === "auction_insights") return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
+  const sec = p.sections || {};
+  if (t === "share_of_voice") {
+    const d = sec.share_of_voice?.data;
+    if (!d) return null;
+    return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
+  }
+  if (t === "auction_insights") {
+    const d = sec.auction_insights?.data;
+    if (!d) return null;
+    return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
+  }
   if (t === "roi") {
-    const tot = d.attribution?.totals;
-    if (tot) return `Blended ROAS ${tot.blended_roas ?? "—"} · spend ${Math.round((tot.spend || 0) / 1000)}k · ${d.attribution.channels?.length ?? 0} kanaler`;
-    return `${d.cluster_roi?.clusters?.length ?? 0} kluster · uplift ${Math.round((d.cluster_roi?.total_uplift_potential_sek || 0) / 1000)}k kr`;
+    const tot = sec.attribution?.data?.totals;
+    if (tot) return `Blended ROAS ${tot.blended_roas ?? "—"} · spend ${Math.round((tot.spend || 0) / 1000)}k · ${sec.attribution.data.channels?.length ?? 0} kanaler`;
+    const cr = sec.cluster_roi?.data;
+    if (cr) return `${cr.clusters?.length ?? 0} kluster · uplift ${Math.round((cr.total_uplift_potential_sek || 0) / 1000)}k kr`;
+    return null;
   }
   if (t === "yoy") {
-    const sess = d.ga4_delta?.sessions?.yoy?.pct;
-    const rev = d.ga4_delta?.revenue?.yoy?.pct;
+    const trend = p.trend;
+    const sess = trend?.ga4_delta?.sessions?.yoy?.pct;
+    const rev = trend?.ga4_delta?.revenue?.yoy?.pct;
     if (sess != null || rev != null) return `Sessions YoY ${fmtTrendPct(sess)} · Intäkt YoY ${fmtTrendPct(rev)}`;
     return "Trend-data";
   }
