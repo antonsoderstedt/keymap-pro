@@ -636,28 +636,37 @@ export default function AdsAudit() {
                 {mutations.length === 0 && (
                   <tr><td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">Inga ändringar ännu.</td></tr>
                 )}
-                {mutations.map((m) => (
-                  <tr key={m.id} className="border-t border-border">
-                    <td className="p-3 text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("sv-SE")}</td>
-                    <td className="p-3 font-mono text-xs">{m.action_type}</td>
-                    <td className="p-3 text-xs text-muted-foreground max-w-md truncate">
-                      {m.payload?.keyword || m.payload?.criterion_id || m.payload?.ad_id || "—"}
-                      {m.error_message && <div className="text-destructive">{m.error_message}</div>}
-                    </td>
-                    <td className="p-3">
-                      <Badge variant={m.status === "success" ? "default" : m.status === "reverted" ? "secondary" : m.status === "error" ? "destructive" : "outline"}>
-                        {m.status}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-right">
-                      {m.status === "success" && !m.reverted_at && m.action_type !== "remove_resource" && (
-                        <Button size="sm" variant="ghost" onClick={() => revertMutation(m.id)}>
-                          <Undo2 className="h-3 w-3 mr-1" />Återställ
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {mutations.map((m) => {
+                  const human = describeMutation(m);
+                  return (
+                    <tr key={m.id} className="border-t border-border align-top">
+                      <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{new Date(m.created_at).toLocaleString("sv-SE")}</td>
+                      <td className="p-3 text-sm">
+                        <div className="font-medium">{human.title}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{m.action_type}</div>
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground max-w-md">
+                        <div className="whitespace-pre-line">{human.details}</div>
+                        {m.reverted_at && (
+                          <div className="text-amber-500 mt-1">↺ Återställd {new Date(m.reverted_at).toLocaleString("sv-SE")}</div>
+                        )}
+                        {m.error_message && <div className="text-destructive mt-1">⚠ {m.error_message}</div>}
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={m.status === "success" ? "default" : m.status === "reverted" ? "secondary" : m.status === "error" ? "destructive" : "outline"}>
+                          {statusLabel(m.status)}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        {m.status === "success" && !m.reverted_at && m.action_type !== "remove_resource" && (
+                          <Button size="sm" variant="ghost" onClick={() => revertMutation(m.id)}>
+                            <Undo2 className="h-3 w-3 mr-1" />Återställ
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </Card>
@@ -665,6 +674,76 @@ export default function AdsAudit() {
       </Tabs>
     </div>
   );
+}
+
+// Översätt action_type + payload till klartext en människa förstår.
+function describeMutation(m: Mutation): { title: string; details: string } {
+  const p = m.payload || {};
+  const kw = p.keyword ? `"${p.keyword}"` : "";
+  const camp = p.campaign_name || p.campaign_id ? `kampanj ${p.campaign_name || `#${p.campaign_id}`}` : "";
+  const adGroup = p.ad_group_name || p.ad_group_id ? `annonsgrupp ${p.ad_group_name || `#${p.ad_group_id}`}` : "";
+
+  switch (m.action_type) {
+    case "pause_keyword":
+      return {
+        title: `Pausade sökord ${kw}`.trim(),
+        details: [adGroup, `Kriterie-ID: ${p.criterion_id ?? "—"}`].filter(Boolean).join("\n"),
+      };
+    case "enable_keyword":
+      return {
+        title: `Aktiverade sökord ${kw}`.trim(),
+        details: [adGroup, `Kriterie-ID: ${p.criterion_id ?? "—"}`].filter(Boolean).join("\n"),
+      };
+    case "add_negative_keyword":
+      return {
+        title: `Lade till negativt sökord ${kw}`.trim(),
+        details: [camp, `Matchningstyp: ${p.match_type || "PHRASE"}`].filter(Boolean).join("\n"),
+      };
+    case "remove_resource":
+      return {
+        title: `Tog bort resurs`,
+        details: `Resursnamn: ${p.resource_name ?? "—"}`,
+      };
+    case "pause_ad":
+      return {
+        title: `Pausade annons #${p.ad_id ?? "?"}`,
+        details: adGroup || "—",
+      };
+    case "replace_rsa_asset":
+      return {
+        title: `Bytte RSA-asset (${p.field || "headline"})`,
+        details: [
+          adGroup,
+          p.original ? `Från: "${p.original}"` : "",
+          p.replacement ? `Till: "${p.replacement}"` : "",
+        ].filter(Boolean).join("\n"),
+      };
+    case "set_bid":
+      return {
+        title: `Justerade bud till ${p.bid_micros ? (p.bid_micros / 1_000_000).toFixed(2) + " kr" : "—"}`,
+        details: [adGroup, kw].filter(Boolean).join(" · "),
+      };
+    case "set_budget":
+      return {
+        title: `Ändrade dagsbudget till ${p.amount_micros ? (p.amount_micros / 1_000_000).toFixed(0) + " kr" : "—"}`,
+        details: camp || "—",
+      };
+    default:
+      return {
+        title: m.action_type.replace(/_/g, " "),
+        details: kw || p.criterion_id || p.ad_id || JSON.stringify(p).slice(0, 120) || "—",
+      };
+  }
+}
+
+function statusLabel(s: string): string {
+  switch (s) {
+    case "success": return "Lyckades";
+    case "error": return "Misslyckades";
+    case "reverted": return "Återställd";
+    case "pending": return "Väntar";
+    default: return s;
+  }
 }
 
 function ConfirmPush({ label, description, onConfirm, disabled, loading }: {
