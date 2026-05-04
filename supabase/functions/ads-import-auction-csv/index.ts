@@ -14,10 +14,14 @@ Deno.serve(async (req) => {
     const auth = req.headers.get("Authorization");
     if (!auth?.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
 
-    const { project_id, filename, content_base64, dry_run } = await req.json();
+    const { project_id, filename, content_base64, dry_run, campaign_name, is_brand } = await req.json();
     if (!project_id || typeof project_id !== "string") return json({ error: "project_id krävs" }, 400);
     if (!content_base64 || typeof content_base64 !== "string") return json({ error: "content_base64 krävs" }, 400);
     if (content_base64.length > 8_000_000) return json({ error: "Filen är för stor (max ~6 MB)" }, 413);
+
+    const campaignName = typeof campaign_name === "string" ? campaign_name.trim().slice(0, 120) : "";
+    if (!campaignName) return json({ error: "campaign_name krävs — ange vilket kampanj-segment exporten gäller" }, 400);
+    const isBrand = !!is_brand;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
