@@ -41,12 +41,30 @@ Deno.serve(async (req) => {
     const wasted = rows.map((r: any) => {
       const cost = Math.round(Number(r.metrics?.costMicros || 0) / 1_000_000 * 100) / 100;
       const clicks = Number(r.metrics?.clicks || 0);
-      const ctr = Number(r.metrics?.ctr || 0);
+      const ctr = Number(r.metrics?.ctr || 0); // 0..1
       const qs = r.adGroupCriterion?.qualityInfo?.qualityScore ?? null;
-      let action = "Pausa sökord";
-      if (ctr < 0.01 && clicks > 5) action = "Lägg som negativt sökord";
-      else if (qs && qs <= 4) action = "Förbättra QS eller pausa";
-      else if (cost > 1000) action = "Pausa eller sänk maxbud −40%";
+
+      // Default: granska manuellt (säkrast — pausa aldrig blint)
+      let action = "Granska manuellt";
+
+      const highCtr = ctr >= 0.05;        // ≥ 5%
+      const lowCtr = ctr < 0.01 && clicks > 5;
+      const highQs = qs != null && qs >= 7;
+      const lowQs = qs != null && qs <= 4;
+
+      if (highCtr && highQs) {
+        // Kärnsökord presterar — annonsen funkar, problemet ligger nedströms
+        action = "Kontrollera landningssida & konverteringsspårning";
+      } else if (lowCtr) {
+        action = "Lägg som negativt sökord";
+      } else if (lowQs) {
+        action = "Förbättra QS eller pausa";
+      } else if (cost > 1000) {
+        action = "Sänk maxbud −40%";
+      } else if (clicks <= 3) {
+        // Knappt någon data — för tidigt att agera
+        action = "För lite data — vänta";
+      }
       return {
         keyword: r.adGroupCriterion?.keyword?.text,
         match_type: r.adGroupCriterion?.keyword?.matchType,
