@@ -105,6 +105,8 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
   const [label, setLabel] = useState("");
   const [timeframe, setTimeframe] = useState("quarter");
   const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
+  const { clientId } = useParams();
 
   const tpl = METRIC_TEMPLATES.find((t) => t.value === metric)!;
   const currentVal = useMemo(() => getCurrentValue(metric, current, rankings, extraMetrics), [metric, current, rankings, extraMetrics]);
