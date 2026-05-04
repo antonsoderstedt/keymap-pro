@@ -420,6 +420,7 @@ export type Database = {
           id: string
           project_id: string
           rows: Json
+          source: string
           start_date: string
         }
         Insert: {
@@ -429,6 +430,7 @@ export type Database = {
           id?: string
           project_id: string
           rows?: Json
+          source?: string
           start_date: string
         }
         Update: {
@@ -438,6 +440,7 @@ export type Database = {
           id?: string
           project_id?: string
           rows?: Json
+          source?: string
           start_date?: string
         }
         Relationships: []
@@ -1259,6 +1262,7 @@ export type Database = {
         Row: {
           ads_customer_id: string | null
           ads_customer_name: string | null
+          ads_script_secret: string | null
           created_at: string
           ga4_property_id: string | null
           ga4_property_name: string | null
@@ -1270,6 +1274,7 @@ export type Database = {
         Insert: {
           ads_customer_id?: string | null
           ads_customer_name?: string | null
+          ads_script_secret?: string | null
           created_at?: string
           ga4_property_id?: string | null
           ga4_property_name?: string | null
@@ -1281,6 +1286,7 @@ export type Database = {
         Update: {
           ads_customer_id?: string | null
           ads_customer_name?: string | null
+          ads_script_secret?: string | null
           created_at?: string
           ga4_property_id?: string | null
           ga4_property_name?: string | null
