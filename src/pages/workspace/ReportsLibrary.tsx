@@ -59,19 +59,16 @@ export default function ReportsLibrary() {
     if (!id) return;
     setGenerating(report.id);
     try {
-      // Create artifact entry — actual PPTX generation hooks into existing generate-presentation
-      await supabase.from("workspace_artifacts").insert({
-        project_id: id,
-        artifact_type: "report",
-        name: `${report.name} — ${new Date().toLocaleDateString("sv-SE")}`,
-        description: report.description,
-        payload: { report_type: report.id, generated_at: new Date().toISOString(), source: report.source },
+      const { data, error } = await supabase.functions.invoke("generate-report", {
+        body: { project_id: id, report_type: report.id, name: `${report.name} — ${new Date().toLocaleDateString("sv-SE")}` },
       });
-      toast.success(`${report.name} sparad i artefakter`);
-      const { data } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
-      setHistory(data || []);
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success(`${report.name} genererad med live-data`);
+      const { data: hist } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
+      setHistory(hist || []);
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e.message || "Kunde inte generera rapport");
     } finally {
       setGenerating(null);
     }
@@ -137,23 +134,41 @@ export default function ReportsLibrary() {
             <p className="text-sm text-muted-foreground">Inga rapporter genererade ännu.</p>
           ) : (
             <div className="space-y-2">
-              {history.map(h => (
-                <div key={h.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium truncate">{h.name}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}</div>
+              {history.map(h => {
+                const p = h.payload as any;
+                const summary = summarizePayload(p);
+                return (
+                  <div key={h.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{h.name}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}{summary && ` · ${summary}`}</div>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
+                      Öppna
+                    </Button>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
-                    Öppna
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function summarizePayload(p: any): string | null {
+  if (!p?.data) return null;
+  const t = p.report_type;
+  const d = p.data;
+  if (t === "share_of_voice") return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
+  if (t === "auction_insights") return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
+  if (t === "roi") return `${d.clusters?.length ?? 0} kluster · uplift ${Math.round((d.total_uplift_potential_sek || 0) / 1000)}k kr`;
+  if (t === "yoy") {
+    const c = d.gsc?.yoy_clicks?.delta_pct;
+    return c != null ? `Klick YoY ${c > 0 ? "+" : ""}${c.toFixed(1)}%` : "YoY-data";
+  }
+  return null;
 }
 
 function WeeklyReportPanel({ projectId }: { projectId: string }) {
