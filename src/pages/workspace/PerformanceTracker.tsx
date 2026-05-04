@@ -37,17 +37,22 @@ export default function PerformanceTracker() {
   const [hasGA4, setHasGA4] = useState(false);
   const [latestBaseline, setLatestBaseline] = useState<string | null>(null);
   const [creatingBaseline, setCreatingBaseline] = useState(false);
+  const [ga4Snapshot, setGa4Snapshot] = useState<any>(null);
+  const [adsAudit, setAdsAudit] = useState<any>(null);
+  const [hasAds, setHasAds] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: snap }, { data: acts }, { data: tgs }, { data: rev }, { data: gs }, { data: bl }] = await Promise.all([
+    const [{ data: snap }, { data: acts }, { data: tgs }, { data: rev }, { data: gs }, { data: bl }, { data: ga4 }, { data: ads }] = await Promise.all([
       supabase.from("gsc_snapshots").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("action_items").select("id,title,category,implemented_at").eq("project_id", id).not("implemented_at", "is", null).order("implemented_at", { ascending: false }).limit(50),
       supabase.from("kpi_targets").select("*").eq("project_id", id).order("created_at", { ascending: false }),
       supabase.from("project_revenue_settings").select("*").eq("project_id", id).maybeSingle(),
-      supabase.from("project_google_settings").select("gsc_site_url, ga4_property_id").eq("project_id", id).maybeSingle(),
+      supabase.from("project_google_settings").select("gsc_site_url, ga4_property_id, ads_customer_id").eq("project_id", id).maybeSingle(),
       supabase.from("project_baselines").select("snapshot_date").eq("project_id", id).order("snapshot_date", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("ga4_snapshots").select("totals,rows,start_date,end_date").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("ads_audits").select("summary,raw").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     setSnapshot(snap);
     setActions(acts ?? []);
@@ -55,7 +60,10 @@ export default function PerformanceTracker() {
     if (rev) setRevenue(rev as any);
     setSiteUrl(gs?.gsc_site_url ?? null);
     setHasGA4(!!gs?.ga4_property_id);
+    setHasAds(!!(gs as any)?.ads_customer_id);
     setLatestBaseline(bl?.snapshot_date ?? null);
+    setGa4Snapshot(ga4 ?? null);
+    setAdsAudit(ads ?? null);
     setLoading(false);
   }, [id]);
 
@@ -100,7 +108,7 @@ export default function PerformanceTracker() {
     }
   };
 
-  const { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl } = useMemo(() => {
+  const { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl, extraMetrics } = useMemo(() => {
     const rows: GscRow[] = (snapshot?.rows as GscRow[]) ?? [];
     const dailyRows = rows.filter((r) => r.date && !r.query && !r.page);
     const queryDateRows = rows.filter((r) => r.date && r.query);
@@ -113,10 +121,41 @@ export default function PerformanceTracker() {
     const kpisCurrent = summarizePeriod(current, rankings);
     const kpisPrevious = summarizePeriod(previous, rankings);
     const annotations = annotateActions(actions, trend);
-    const goals = evaluateGoals(targets, kpisCurrent, rankings);
+
+    // Build extra metrics from GA4 + Ads snapshots
+    const ga4Totals = ga4Snapshot?.totals ?? {};
+    const ga4Sessions = Number(ga4Totals.sessions ?? 0);
+    const ga4KeyEvents = Number(ga4Totals.keyEvents ?? ga4Totals.conversions ?? 0);
+    const ga4Revenue = Number(ga4Totals.totalRevenue ?? ga4Totals.purchaseRevenue ?? ga4Totals.revenue ?? 0);
+    const ga4Engaged = Number(ga4Totals.engagedSessions ?? 0);
+    const ga4ConvRate = ga4Sessions ? (ga4KeyEvents / ga4Sessions) * 100 : 0;
+    const ga4EngRate = ga4Sessions ? (ga4Engaged / ga4Sessions) * 100 : (Number(ga4Totals.engagementRate ?? 0) * 100);
+
+    const adsSummary = adsAudit?.summary ?? {};
+    const adsRaw = adsAudit?.raw ?? {};
+    const adsSpend = Number(adsSummary.total_spend ?? adsRaw.total_spend ?? adsRaw.cost ?? 0);
+    const adsConv = Number(adsSummary.total_conversions ?? adsRaw.total_conversions ?? adsRaw.conversions ?? 0);
+    const adsRevenue = Number(adsSummary.total_revenue ?? adsRaw.total_revenue ?? adsRaw.conversion_value ?? 0);
+    const adsRoas = adsSpend ? (adsRevenue / adsSpend) : Number(adsSummary.roas ?? 0);
+    const adsCpa = adsConv ? (adsSpend / adsConv) : Number(adsSummary.cpa ?? 0);
+
+    const extraMetrics: Record<string, number | null> = {
+      ga4_conversions: ga4KeyEvents || null,
+      ga4_conv_rate: ga4ConvRate || null,
+      ga4_revenue: ga4Revenue || null,
+      ga4_sessions: ga4Sessions || null,
+      ga4_engagement_rate: ga4EngRate || null,
+      ads_roas: adsRoas || null,
+      ads_cpa: adsCpa || null,
+      ads_spend: adsSpend || null,
+      total_revenue: (ga4Revenue || adsRevenue) ? (ga4Revenue || adsRevenue) : null,
+      total_leads: ga4KeyEvents || null,
+    };
+
+    const goals = evaluateGoals(targets, kpisCurrent, rankings, extraMetrics);
     const wl = winnersAndLosers(rankings);
-    return { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl };
-  }, [snapshot, actions, targets, revenue]);
+    return { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl, extraMetrics };
+  }, [snapshot, actions, targets, revenue, ga4Snapshot, adsAudit]);
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground text-sm">Laddar performance-data…</div>;
@@ -178,7 +217,15 @@ export default function PerformanceTracker() {
 
           <PerformanceTrendChart trend={trend} annotations={annotations} />
 
-          <GoalsProgress projectId={id!} goals={goals} current={kpisCurrent} rankings={rankings} onChanged={load} />
+          <GoalsProgress
+            projectId={id!}
+            goals={goals}
+            current={kpisCurrent}
+            rankings={rankings}
+            extraMetrics={extraMetrics}
+            availableSources={{ gsc: !!siteUrl, ga4: hasGA4, ads: hasAds, combined: hasGA4 }}
+            onChanged={load}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border-border/60">
