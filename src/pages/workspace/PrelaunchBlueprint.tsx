@@ -603,21 +603,18 @@ function BlueprintResult({ blueprint, currency, projectId, onRecompute }: { blue
       </TabsContent>
 
       <TabsContent value="keywords">
-        <Card><CardHeader><CardTitle>Sökordsuniversum ({kws.length})</CardTitle>
-          <CardDescription>Genererat från brief + konkurrentanalys, berikat med Google-volymer.</CardDescription></CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left p-2">Sökord</th><th className="text-left p-2">Kluster</th><th className="text-left p-2">Intent</th><th className="text-right p-2">Volym/mån</th><th className="text-right p-2">CPC</th></tr></thead>
-              <tbody>{kws.map((k: any, i: number) => (
-                <tr key={i} className="border-b hover:bg-muted/30"><td className="p-2 font-mono text-xs">{k.keyword}</td>
-                  <td className="p-2"><Badge variant="outline" className="text-[10px]">{k.cluster}</Badge></td>
-                  <td className="p-2 text-xs">{k.intent}</td>
-                  <td className="p-2 text-right tabular-nums">{(k.volume || 0).toLocaleString("sv-SE")}</td>
-                  <td className="p-2 text-right tabular-nums text-muted-foreground">{k.cpc ? k.cpc.toFixed(1) : "—"}</td>
-                </tr>
-              ))}</tbody></table></div>
-          </CardContent></Card>
+        <KeywordSelectorTab
+          keywords={kws}
+          initialSelected={blueprint.selected_keywords || []}
+          onRecompute={onRecompute}
+        />
       </TabsContent>
+
+      {adsPlan && (
+        <TabsContent value="ads">
+          <AdsPlanView adsPlan={adsPlan} currency={currency} />
+        </TabsContent>
+      )}
 
       <TabsContent value="sitemap">
         <Card><CardHeader><CardTitle>Sajtkarta ({sitemap.length} sidor)</CardTitle>
