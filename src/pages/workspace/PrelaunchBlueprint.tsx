@@ -28,6 +28,7 @@ type Brief = {
   locations: string[];
   error_message?: string | null;
   created_at: string;
+  fact_check?: FactCheckPayload | null;
 };
 
 type Blueprint = {
@@ -39,6 +40,8 @@ type Blueprint = {
   sitemap: any[];
   personas: any[];
   forecast: any;
+  selected_keywords?: string[] | null;
+  ads_plan?: any;
   created_at: string;
 };
 
