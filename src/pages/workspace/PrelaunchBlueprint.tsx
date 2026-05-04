@@ -403,7 +403,32 @@ export default function PrelaunchBlueprint() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="result" className="mt-4">
+        <TabsContent value="result" className="mt-4 space-y-4">
+          {activeBrief && (
+            <PrelaunchStepper
+              current={
+                activeBrief.status === "researching" ? "market" :
+                !blueprint ? "factcheck" :
+                (blueprint.selected_keywords && blueprint.selected_keywords.length > 0) ? "export" :
+                "keywords"
+              }
+              completed={[
+                "brief",
+                ...(activeBrief.fact_check ? ["factcheck" as PrelaunchStep] : []),
+                ...(blueprint ? ["market" as PrelaunchStep, "keywords" as PrelaunchStep, "strategy" as PrelaunchStep] : []),
+                ...((blueprint?.selected_keywords?.length ?? 0) > 0 ? ["export" as PrelaunchStep] : []),
+              ]}
+            />
+          )}
+
+          {activeBrief && (
+            <FactCheckCard
+              factCheck={activeBrief.fact_check}
+              onRerun={runFactCheck}
+              rerunning={factChecking}
+            />
+          )}
+
           {activeBrief?.status === "researching" && (
             <Card><CardContent className="p-8 text-center space-y-2">
               <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -418,7 +443,14 @@ export default function PrelaunchBlueprint() {
               <p className="text-sm text-destructive">Misslyckades: {activeBrief.error_message}</p>
             </CardContent></Card>
           )}
-          {blueprint && <BlueprintResult blueprint={blueprint} currency={currency} projectId={projectId!} />}
+          {blueprint && (
+            <BlueprintResult
+              blueprint={blueprint}
+              currency={currency}
+              projectId={projectId!}
+              onRecompute={recomputeFromSelection}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
