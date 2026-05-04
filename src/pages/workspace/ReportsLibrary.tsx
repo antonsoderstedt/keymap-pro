@@ -205,9 +205,14 @@ export default function ReportsLibrary() {
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {p?.template && (
-                        <Button size="sm" variant="default" onClick={() => setViewing(h)} className="gap-1">
-                          Visa
-                        </Button>
+                        <>
+                          <Button size="sm" variant="default" onClick={() => setViewing(h)} className="gap-1">
+                            Visa
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => downloadPptx(h)} disabled={downloading} className="gap-1">
+                            <Download className="h-3 w-3" /> PPTX
+                          </Button>
+                        </>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1">
                         Öppna
