@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw, Eye, EyeOff, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { formatMoney } from "@/lib/revenue";
+import { FactCheckCard, type FactCheckPayload } from "@/components/workspace/FactCheckCard";
+import { PrelaunchStepper, type PrelaunchStep } from "@/components/workspace/PrelaunchStepper";
 
 type Brief = {
   id: string;
