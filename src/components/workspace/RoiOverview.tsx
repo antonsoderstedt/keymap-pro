@@ -118,12 +118,13 @@ export default function RoiOverview({ projectId }: Props) {
     return (
       <Card className="border-dashed">
         <CardContent className="p-6 flex items-start gap-3">
-          <Coins className="h-5 w-5 text-primary mt-0.5" />
-          <div className="text-sm">
-            <p className="font-medium">ROI-översikt aktiveras när du har en sökordsanalys</p>
-            <p className="text-muted-foreground mt-1">
-              Kör en analys i kunden för att låsa upp värdeberäkning per kluster.
-            </p>
+          <Coins className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">Kör din första sökordsanalys för att se estimerat värde per kluster</p>
+            <p className="text-sm text-muted-foreground mt-1">Det tar ~2 minuter.</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate(`/project/${projectId}`)}>
+              Kör sökordsanalys <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
           </div>
         </CardContent>
       </Card>

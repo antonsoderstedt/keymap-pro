@@ -12,32 +12,23 @@ import Clients from "./pages/Clients";
 import ProjectWizard from "./pages/ProjectWizard";
 import Results from "./pages/Results";
 import KeywordUniverse from "./pages/KeywordUniverse";
-import WorkspaceKeywordUniverse from "./pages/workspace/WorkspaceKeywordUniverse";
 import WorkspaceSegments from "./pages/workspace/WorkspaceSegments";
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
-import WorkspaceOverview from "./pages/workspace/WorkspaceOverview";
-import ActionTracker from "./pages/workspace/ActionTracker";
-import WorkspaceArtifacts from "./pages/workspace/WorkspaceArtifacts";
-import ComingSoon from "./pages/workspace/ComingSoon";
-import BrandKit from "./pages/workspace/BrandKit";
 import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";
-import SeoDashboard from "./pages/workspace/SeoDashboard";
-import Ga4Dashboard from "./pages/workspace/Ga4Dashboard";
-import PaidVsOrganic from "./pages/workspace/PaidVsOrganic";
-import SeoAudit from "./pages/workspace/SeoAudit";
-import Alerts from "./pages/workspace/Alerts";
-import AuctionInsights from "./pages/workspace/AuctionInsights";
 import ReportsLibrary from "./pages/workspace/ReportsLibrary";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
-import PerformanceTracker from "./pages/workspace/PerformanceTracker";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
-import WeeklyBriefing from "./pages/workspace/WeeklyBriefing";
-import AdsAudit from "./pages/workspace/AdsAudit";
-import AdsChat from "./pages/workspace/AdsChat";
-import ChannelsHub from "./pages/workspace/ChannelsHub";
+import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+import { useParams } from "react-router-dom";
+
+// Wrapper: läser :id och redirectar till motsvarande nya route.
+function WorkspaceRedirect({ to }: { to: (id: string) => string }) {
+  const { id = "" } = useParams<{ id: string }>();
+  return <Navigate to={to(id)} replace />;
+}
 
 const queryClient = new QueryClient();
 
@@ -80,31 +71,30 @@ const App = () => (
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
             <Route index element={<ExecutiveDashboard />} />
-            {/* 7-områdes navigation (Fas 1) */}
-            <Route path="channels" element={<ChannelsHub />} />
-            {/* keyword-universe pekar på hub (sökord & innehåll) — gamla djupare rutter behålls nedan */}
-            <Route path="keyword-universe" element={<KeywordsHub />} />
+            <Route path="google-ads" element={<GoogleAdsHub />} />
+            <Route path="keywords" element={<KeywordsHub />} />
             <Route path="actions" element={<ActionHub />} />
-
-            {/* Bakåtkompatibilitet — direktrutter behålls för djuplänkar */}
-            <Route path="briefing" element={<WeeklyBriefing />} />
-            <Route path="overview" element={<WorkspaceOverview />} />
-            <Route path="artifacts" element={<WorkspaceArtifacts />} />
-            <Route path="segments" element={<WorkspaceSegments />} />
             <Route path="reports" element={<ReportsLibrary />} />
-            <Route path="seo" element={<SeoDashboard />} />
-            <Route path="performance" element={<PerformanceTracker />} />
-            <Route path="prelaunch" element={<PrelaunchBlueprint />} />
-            <Route path="google-ads" element={<AuctionInsights />} />
-            <Route path="auction-insights" element={<AuctionInsights />} />
-            <Route path="ads-audit" element={<AdsAudit />} />
-            <Route path="ads-chat" element={<AdsChat />} />
-            <Route path="ga4" element={<Ga4Dashboard />} />
-            <Route path="paid-vs-organic" element={<PaidVsOrganic />} />
-            <Route path="audit" element={<SeoAudit />} />
-            <Route path="alerts" element={<Alerts />} />
-            <Route path="brand-kit" element={<BrandKit />} />
             <Route path="settings" element={<WorkspaceSettings />} />
+            <Route path="prelaunch" element={<PrelaunchBlueprint />} />
+
+            {/* Bakåtkompatibilitet — gamla rutter redirectar */}
+            <Route path="performance" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="channels" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads`} />} />
+            <Route path="keyword-universe" element={<WorkspaceRedirect to={(id) => `/clients/${id}/keywords`} />} />
+            <Route path="segments" element={<WorkspaceRedirect to={(id) => `/clients/${id}/keywords`} />} />
+            <Route path="auction-insights" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads`} />} />
+            <Route path="ads-audit" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads`} />} />
+            <Route path="ads-chat" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads`} />} />
+            <Route path="ga4" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="paid-vs-organic" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="seo" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="briefing" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="overview" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="audit" element={<WorkspaceRedirect to={(id) => `/clients/${id}/actions`} />} />
+            <Route path="alerts" element={<WorkspaceRedirect to={(id) => `/clients/${id}/actions`} />} />
+            <Route path="artifacts" element={<WorkspaceRedirect to={(id) => `/clients/${id}/reports`} />} />
+            <Route path="brand-kit" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

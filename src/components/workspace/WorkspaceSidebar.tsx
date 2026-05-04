@@ -5,15 +5,11 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Search,
-  ClipboardCheck,
   ListChecks,
   FileText,
   Settings,
-  TrendingUp,
   ArrowLeft,
-  Rocket,
   Lock,
-  Target,
   Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,36 +40,19 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
   const settingsTo = `${base}/settings`;
   const noData = !caps.hasGA4 && !caps.hasGSC && !caps.hasAnalysis && !caps.hasPrelaunch;
 
-  // 7 huvudområden — varje ikon = en hub. Underrutter nås via flikar inuti.
+  // 6 huvudområden — varje ikon = en hub. Underrutter nås via flikar inuti.
   const items: NavItem[] = [
     { to: base, label: "Översikt", icon: LayoutDashboard, end: true },
     {
-      to: `${base}/performance`,
-      label: "Performance & mål",
-      icon: Target,
-      enabled: caps.hasGA4 || caps.hasGSC,
-      lockedReason: "Koppla GA4 eller Search Console.",
-      unlockTo: settingsTo,
-    },
-    {
-      to: `${base}/channels`,
-      label: "Kanaler",
+      to: `${base}/google-ads`,
+      label: "Google Ads",
       icon: Megaphone,
-      enabled: caps.hasGA4 || caps.hasGSC || caps.hasAds,
-      lockedReason: "Koppla minst en datakälla (GA4, GSC eller Ads).",
+      enabled: caps.hasAds,
+      lockedReason: "Koppla Google Ads under Inställningar.",
       unlockTo: settingsTo,
     },
-    {
-      to: `${base}/keyword-universe`,
-      label: "Sökord & innehåll",
-      icon: Search,
-      enabled: caps.hasKeywordUniverse || !caps.loading,
-    },
-    {
-      to: caps.hasAnalysis || caps.hasPrelaunch ? `${base}/actions` : `${base}/prelaunch`,
-      label: caps.hasAnalysis || caps.hasPrelaunch ? "Action" : "Pre-launch",
-      icon: caps.hasAnalysis || caps.hasPrelaunch ? ListChecks : Rocket,
-    },
+    { to: `${base}/keywords`, label: "Sökord & innehåll", icon: Search },
+    { to: `${base}/actions`, label: "Åtgärder", icon: ListChecks },
     { to: `${base}/reports`, label: "Rapporter", icon: FileText },
     { to: settingsTo, label: "Inställningar", icon: Settings },
   ];
@@ -151,11 +130,6 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
         </nav>
       </TooltipProvider>
 
-      <div className="border-t border-border p-3">
-        <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
-          Underrutter (SEO Audit, Ads Audit, Brand Kit m.fl.) nås via flikar inom varje område.
-        </p>
-      </div>
     </aside>
   );
 }
