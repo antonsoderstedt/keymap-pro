@@ -209,12 +209,16 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
             Sätt mål för organiskt, GA4-konverteringar, Ads — eller hela tratten.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
-              <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till mål
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={onAutoSuggestAll} disabled={saving}>
+            <Wand2 className="h-3.5 w-3.5 mr-1" /> Auto-föreslå alla
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till mål
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Nytt mål</DialogTitle>
