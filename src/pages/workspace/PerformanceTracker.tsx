@@ -134,12 +134,27 @@ export default function PerformanceTracker() {
             Se hur den organiska trafiken utvecklas, vilka åtgärder som faktiskt rörde nålen, och hur ni ligger till mot målen.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {latestBaseline && (
+            <Badge variant="outline" className="text-[11px]">
+              Baseline {new Date(latestBaseline).toLocaleDateString("sv-SE")}
+            </Badge>
+          )}
           {snapshot && (
             <Badge variant="outline" className="text-[11px]">
               Senaste hämtning {new Date(snapshot.created_at).toLocaleDateString("sv-SE")}
             </Badge>
           )}
+          <Button
+            onClick={onCreateBaseline}
+            disabled={creatingBaseline || (!siteUrl && !hasGA4)}
+            size="sm"
+            variant="outline"
+            title={!siteUrl && !hasGA4 ? "Koppla GSC eller GA4 först" : undefined}
+          >
+            <Camera className={`h-3.5 w-3.5 mr-1.5 ${creatingBaseline ? "animate-pulse" : ""}`} />
+            {creatingBaseline ? "Skapar…" : latestBaseline ? "Uppdatera baseline" : "Skapa baseline"}
+          </Button>
           <Button onClick={onFetchHistory} disabled={refreshing || !siteUrl} size="sm">
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Hämtar…" : "Hämta 180 dgr historik"}
@@ -163,7 +178,7 @@ export default function PerformanceTracker() {
 
           <PerformanceTrendChart trend={trend} annotations={annotations} />
 
-          <GoalsProgress projectId={id!} goals={goals} onChanged={load} />
+          <GoalsProgress projectId={id!} goals={goals} current={kpisCurrent} rankings={rankings} onChanged={load} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border-border/60">
