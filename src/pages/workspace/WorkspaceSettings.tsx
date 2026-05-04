@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
 import Ga4Filters from "@/components/workspace/Ga4Filters";
+import GoalsCard from "@/components/workspace/GoalsCard";
 
 interface KpiTarget {
   id: string;
@@ -80,6 +81,9 @@ export default function WorkspaceSettings() {
           KPI-mål, automation-regler, kopplingar.
         </p>
       </div>
+
+      {/* Goals & kundtyp (Fas 3) */}
+      <GoalsCard projectId={id!} />
 
       {/* KPI Targets */}
       <Card>

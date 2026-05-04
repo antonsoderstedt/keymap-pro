@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.measure-action-impact]
 verify_jwt = false
+
+[functions.baseline-snapshot]
+verify_jwt = false
