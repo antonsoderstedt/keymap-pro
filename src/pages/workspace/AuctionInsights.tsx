@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Sparkles, Eye, RefreshCw, AlertCircle, Wand2, Copy, Check, ExternalLink } from "lucide-react";
+import { Sparkles, Eye, RefreshCw, AlertCircle, Wand2, Copy, Check, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 interface Competitor {
@@ -28,6 +28,37 @@ export default function AuctionInsights() {
   const [scriptLoading, setScriptLoading] = useState(false);
   const [scriptData, setScriptData] = useState<{ webhook_url: string; per_project_secret: string; script: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onCsvSelected = async (file: File) => {
+    if (!id) return;
+    setCsvLoading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // Convert to base64 in chunks to avoid stack overflow on large files
+      const bytes = new Uint8Array(buf);
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
+      }
+      const content_base64 = btoa(bin);
+
+      const { data, error } = await supabase.functions.invoke("ads-import-auction-csv", {
+        body: { project_id: id, filename: file.name, content_base64 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Importerade ${data.competitors} konkurrent-domäner`);
+      load();
+    } catch (e: any) {
+      toast.error(e.message || "Kunde inte importera CSV");
+    } finally {
+      setCsvLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const load = async () => {
     if (!id) return;
@@ -105,7 +136,23 @@ export default function AuctionInsights() {
             Konkurrent-data från Google Ads: vilka domäner du delar auktion med, deras IS, overlap & outranking.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.tsv,.txt"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsvSelected(f); }}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={csvLoading}
+            variant="outline"
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {csvLoading ? "Importerar…" : "Importera CSV"}
+          </Button>
           {isLive && (
             <Button onClick={generateScript} disabled={scriptLoading} variant="outline" className="gap-2">
               <Wand2 className="h-4 w-4" />
@@ -120,6 +167,26 @@ export default function AuctionInsights() {
           )}
         </div>
       </div>
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Upload className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div className="text-sm space-y-2">
+              <p className="font-medium">Importera Auction Insights manuellt (rekommenderas)</p>
+              <p className="text-muted-foreground">
+                Google blockerar Auction Insights-metrics för standard-API-konton. Snabbaste vägen till riktiga konkurrent-domäner: exportera från Google Ads UI och ladda upp filen här.
+              </p>
+              <ol className="list-decimal pl-5 text-muted-foreground space-y-1">
+                <li>Gå till <strong>Google Ads → Kampanjer</strong></li>
+                <li>Markera kampanjerna du vill jämföra → <strong>Insikter → Auktionsstatistik</strong> (Auction insights)</li>
+                <li>Välj datumintervall (t.ex. senaste 30 dagar) → klicka <strong>Hämta</strong> → välj <strong>.csv</strong></li>
+                <li>Klicka <strong>Importera CSV</strong> här uppe och välj filen</li>
+              </ol>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {!isLive && (
         <Card className="border-primary/30 bg-primary/5">
