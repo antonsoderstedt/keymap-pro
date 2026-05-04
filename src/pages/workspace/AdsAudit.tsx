@@ -11,10 +11,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge, ListChecks } from "lucide-react";
+import { Loader2, Activity, AlertTriangle, CheckCircle2, TrendingDown, Sparkles, Wand2, Send, History, Undo2, Gauge, ListChecks, Download, ExternalLink } from "lucide-react";
 
 type Audit = { id: string; health_score: number | null; summary: any; created_at: string };
-type Wasted = { keyword: string; campaign: string; campaign_id?: string; ad_group_id?: string; criterion_id?: string; cost_sek: number; clicks: number; ctr: number; quality_score: number | null; suggested_action: string; match_type?: string };
+type Wasted = { keyword: string; campaign: string; campaign_id?: string; ad_group_id?: string; criterion_id?: string; cost_sek: number; clicks: number; ctr: number; quality_score: number | null; suggested_action: string; match_type?: string; landing_page?: string | null };
+type LandingPage = { url: string; keyword_count: number; keywords: string[]; total_cost_sek: number; total_clicks: number; campaigns: string[]; needs_check: boolean };
 type Cluster = { theme: string; reasoning?: string; terms: string[]; suggested_negatives: string[]; match_type: string; wasted_sek: number; scope?: string };
 type RsaSuggestion = {
   ad_id: string; ad_group: string; ad_group_id: string; campaign: string;
