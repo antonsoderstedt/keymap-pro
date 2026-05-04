@@ -21,14 +21,14 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: auth } },
     });
-    const { data: claims, error: cErr } = await userClient.auth.getClaims(auth.replace("Bearer ", ""));
-    if (cErr || !claims?.claims) return json({ error: "unauthorized" }, 401);
+    const { data: userData, error: uErr } = await userClient.auth.getUser();
+    if (uErr || !userData?.user) return json({ error: "unauthorized" }, 401);
 
     const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Verify membership via security-definer fn
     const { data: isMember } = await admin.rpc("is_project_member", {
-      _project_id: project_id, _user_id: claims.claims.sub,
+      _project_id: project_id, _user_id: userData.user.id,
     });
     if (!isMember) return json({ error: "forbidden" }, 403);
 
