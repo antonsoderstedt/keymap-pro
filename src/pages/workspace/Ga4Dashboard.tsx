@@ -23,6 +23,8 @@ export default function Ga4Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [propertyId, setPropertyId] = useState<string | null>(null);
   const [range, setRange] = useState("28daysAgo");
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
