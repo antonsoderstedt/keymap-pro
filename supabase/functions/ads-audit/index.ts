@@ -61,6 +61,24 @@ Deno.serve(async (req) => {
     const totalConv = campRows.reduce((s: number, r: any) => s + Number(r.metrics?.conversions || 0), 0);
     const totalConvValue = campRows.reduce((s: number, r: any) => s + Number(r.metrics?.conversionsValue || 0), 0);
 
+    // Hämta senaste konkurrent-data (Auction Insights) för att kunna ge defensiv brand-rekommendation
+    const { data: aiSnap } = await admin
+      .from("auction_insights_snapshots")
+      .select("rows, source, created_at")
+      .eq("project_id", project_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const aiRows = (aiSnap?.rows as any) || {};
+    const allCompetitors = Array.isArray(aiRows.competitors) ? aiRows.competitors : [];
+    const aiCampaigns = Array.isArray(aiRows.campaigns) ? aiRows.campaigns : [];
+    const brandCampaign = aiCampaigns.find((c: any) => c.is_brand) ||
+      aiCampaigns.find((c: any) => /brand|varum[äa]rk/i.test(c.name || ""));
+    const brandCompetitors = brandCampaign?.competitors?.filter((c: any) =>
+      c.domain && c.domain !== "you" && (c.impression_share ?? 0) >= 0.05
+    ) || [];
+
     const summaryInput = {
       period: "Senaste 30 dagarna",
       totals: {
@@ -95,7 +113,23 @@ Deno.serve(async (req) => {
           cost: Math.round(Number(r.metrics?.costMicros || 0) / 1_000_000),
           clicks: Number(r.metrics?.clicks || 0),
         })),
+      // Konkurrent-kontext från Auction Insights (script-källa)
+      brand_auction_context: brandCampaign ? {
+        campaign_name: brandCampaign.name,
+        competitor_count: brandCompetitors.length,
+        top_competitors: brandCompetitors.slice(0, 5).map((c: any) => ({
+          domain: c.domain,
+          impression_share: c.impression_share,
+          outranking_share: c.outranking_share,
+        })),
+        guidance: brandCompetitors.length >= 2
+          ? "VIKTIGT: Konkurrenter budar aktivt på varumärket. Rekommendera DEFENSIV brand-budget (behåll/höj måttligt) snarare än att pausa, även om SEO-kannibalisering finns. Utan brand-skydd riskerar konkurrenter ta klick på varumärkesord."
+          : "Ingen aktiv konkurrens på brand-termer detekterad — om SEO rankar #1 organiskt på varumärket är brand-budget mindre kritisk.",
+      } : {
+        note: "Ingen Auction Insights-data tillgänglig. Be användaren installera Google Ads Script under Auction Insights för att få konkurrent-data.",
+      },
     };
+
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -104,7 +138,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "Du är en senior PPC-strateg. Bedöm hälsa på Google Ads-kontot baserat på data och returnera kortfattat på svenska." },
+          { role: "system", content: "Du är en senior PPC-strateg. Bedöm hälsa på Google Ads-kontot baserat på data och returnera kortfattat på svenska. KRITISKT: När brand_auction_context visar att konkurrenter budar på varumärket (>=2 st med impression_share >=5%), ska du ALDRIG rekommendera att pausa eller drastiskt sänka brand-budget — rekommendera istället 'defensiv brand-budget' (behåll eller höj måttligt) eftersom konkurrenter annars tar varumärkesklicken. Detta gäller även om organisk SEO är stark." },
           { role: "user", content: `Här är kontodata för senaste 30 dagar:\n${JSON.stringify(summaryInput, null, 2)}\n\nGenerera en hälsobedömning.` },
         ],
         tools: [{

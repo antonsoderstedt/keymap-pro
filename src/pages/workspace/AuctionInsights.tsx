@@ -4,23 +4,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, TrendingUp, TrendingDown, Eye, RefreshCw, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Sparkles, Eye, RefreshCw, AlertCircle, Wand2, Copy, Check, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface Competitor {
   domain: string; impressionShare?: number; overlapRate?: number;
-  positionAbove?: number; topOfPage?: number; campaign?: string;
+  positionAbove?: number; topOfPage?: number; absTopOfPage?: number;
+  outrankingShare?: number; campaign?: string; campaigns?: string[];
 }
 interface Campaign {
   id: string; name: string; impressionShare?: number; topIS?: number;
   lostRank?: number; lostBudget?: number; cost?: number; conversions?: number; clicks?: number;
+  is_brand?: boolean; competitors?: any[];
 }
 
 export default function AuctionInsights() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
   const [adsCustomerId, setAdsCustomerId] = useState<string | null>(null);
-  const [snapshot, setSnapshot] = useState<{ competitors: Competitor[]; campaigns: Campaign[]; created_at?: string } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ competitors: Competitor[]; campaigns: Campaign[]; created_at?: string; source?: string } | null>(null);
+  const [scriptOpen, setScriptOpen] = useState(false);
+  const [scriptLoading, setScriptLoading] = useState(false);
+  const [scriptData, setScriptData] = useState<{ webhook_url: string; per_project_secret: string; script: string } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const load = async () => {
     if (!id) return;
@@ -33,7 +40,12 @@ export default function AuctionInsights() {
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (snap) {
       const r = snap.rows as any;
-      setSnapshot({ competitors: r?.competitors || [], campaigns: r?.campaigns || [], created_at: snap.created_at });
+      setSnapshot({
+        competitors: r?.competitors || [],
+        campaigns: r?.campaigns || [],
+        created_at: snap.created_at,
+        source: (snap as any).source,
+      });
     }
   };
   useEffect(() => { load(); }, [id]);
@@ -53,28 +65,60 @@ export default function AuctionInsights() {
     } finally { setLoading(false); }
   };
 
+  const generateScript = async () => {
+    if (!id) return;
+    setScriptLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ads-script-template", {
+        body: { project_id: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setScriptData(data);
+      setScriptOpen(true);
+    } catch (e: any) {
+      toast.error(e.message || "Kunde inte generera script");
+    } finally { setScriptLoading(false); }
+  };
+
+  const copy = async (text: string, key: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(key); toast.success("Kopierat");
+    setTimeout(() => setCopied(null), 1500);
+  };
+
   const isLive = !!adsCustomerId;
   const competitors = snapshot?.competitors || [];
   const campaigns = snapshot?.campaigns || [];
+  const isScriptSource = snapshot?.source === "script";
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="font-serif text-3xl">Auction Insights</h1>
             <Badge variant={isLive ? "default" : "outline"}>{isLive ? "Live" : "Inte konfigurerad"}</Badge>
+            {isScriptSource && <Badge variant="secondary" className="gap-1"><Sparkles className="h-3 w-3" /> Auto-script</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">
-            Konkurrent-data från Google Ads: Impression Share, Overlap, Position Above.
+            Konkurrent-data från Google Ads: vilka domäner du delar auktion med, deras IS, overlap & outranking.
           </p>
         </div>
-        {isLive && (
-          <Button onClick={refresh} disabled={loading} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            {loading ? "Hämtar…" : "Uppdatera nu"}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isLive && (
+            <Button onClick={generateScript} disabled={scriptLoading} variant="outline" className="gap-2">
+              <Wand2 className="h-4 w-4" />
+              {scriptLoading ? "Genererar…" : "Generera Ads Script"}
+            </Button>
+          )}
+          {isLive && (
+            <Button onClick={refresh} disabled={loading} className="gap-2">
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Hämtar…" : "Uppdatera nu"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {!isLive && (
@@ -91,10 +135,30 @@ export default function AuctionInsights() {
         </Card>
       )}
 
+      {isLive && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+              <div className="text-sm space-y-2">
+                <p className="font-medium">Få riktiga konkurrent-domäner automatiskt varje natt</p>
+                <p className="text-muted-foreground">
+                  Google Ads API exponerar inte konkurrent-namn (bara dina egna IS-siffror). Lös det med ett Google Ads Script som körs i ditt eget Ads-konto och postar Auction Insights till oss en gång per dygn. Engångs-setup på ~2 minuter.
+                </p>
+                <Button onClick={generateScript} disabled={scriptLoading} size="sm" className="gap-2 mt-2">
+                  <Wand2 className="h-4 w-4" />
+                  {scriptLoading ? "Genererar…" : "Generera mitt script"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {isLive && !snapshot && (
         <Card>
           <CardContent className="p-6 text-center text-sm text-muted-foreground">
-            Ingen data hämtad än. Klicka <strong>Uppdatera nu</strong> för att dra senaste 30 dagarna.
+            Ingen data hämtad än. Klicka <strong>Uppdatera nu</strong> för att dra senaste 30 dagarna (egna IS-siffror), eller <strong>Generera mitt script</strong> för att få konkurrent-domäner.
           </CardContent>
         </Card>
       )}
@@ -104,6 +168,7 @@ export default function AuctionInsights() {
           {snapshot.created_at && (
             <p className="text-xs text-muted-foreground">
               Senast uppdaterad: {new Date(snapshot.created_at).toLocaleString("sv-SE")}
+              {isScriptSource && <span className="ml-2 text-primary">• via Ads Script</span>}
             </p>
           )}
 
@@ -115,7 +180,9 @@ export default function AuctionInsights() {
             </CardHeader>
             <CardContent className="overflow-x-auto">
               {competitors.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Inga konkurrent-rader returnerade. Kontot kanske inte har tillräcklig auktions-data ännu.</p>
+                <p className="text-sm text-muted-foreground">
+                  Inga konkurrent-rader. {!isScriptSource && "Installera Ads Script ovan för att få domännamn — Google Ads API exponerar dem inte."}
+                </p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
@@ -124,8 +191,9 @@ export default function AuctionInsights() {
                       <th className="py-2 pr-4">Impr. Share</th>
                       <th className="py-2 pr-4">Overlap</th>
                       <th className="py-2 pr-4">Pos. above</th>
+                      <th className="py-2 pr-4">Outranking</th>
                       <th className="py-2 pr-4">Top of page</th>
-                      <th className="py-2 pr-4">Kampanj</th>
+                      <th className="py-2 pr-4">Kampanjer</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -135,8 +203,11 @@ export default function AuctionInsights() {
                         <td className="py-3 pr-4">{c.impressionShare != null ? `${(c.impressionShare * 100).toFixed(0)}%` : "—"}</td>
                         <td className="py-3 pr-4">{c.overlapRate != null ? `${(c.overlapRate * 100).toFixed(0)}%` : "—"}</td>
                         <td className="py-3 pr-4">{c.positionAbove != null ? `${(c.positionAbove * 100).toFixed(0)}%` : "—"}</td>
+                        <td className="py-3 pr-4">{c.outrankingShare != null ? `${(c.outrankingShare * 100).toFixed(0)}%` : "—"}</td>
                         <td className="py-3 pr-4">{c.topOfPage != null ? `${(c.topOfPage * 100).toFixed(0)}%` : "—"}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">{c.campaign || "—"}</td>
+                        <td className="py-3 pr-4 text-muted-foreground text-xs">
+                          {(c.campaigns && c.campaigns.length > 0) ? c.campaigns.join(", ") : (c.campaign || "—")}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -171,7 +242,10 @@ export default function AuctionInsights() {
                       const flagRank = (c.lostRank ?? 0) > 0.20;
                       return (
                         <tr key={c.id} className="border-b border-border/50">
-                          <td className="py-3 pr-4 font-medium">{c.name}</td>
+                          <td className="py-3 pr-4 font-medium">
+                            {c.name}
+                            {c.is_brand && <Badge variant="outline" className="ml-2 text-xs">Brand</Badge>}
+                          </td>
                           <td className="py-3 pr-4">{c.impressionShare != null ? `${(c.impressionShare * 100).toFixed(0)}%` : "—"}</td>
                           <td className={`py-3 pr-4 ${flagBudget ? "text-destructive font-medium" : ""}`}>
                             {c.lostBudget != null ? `${(c.lostBudget * 100).toFixed(0)}%` : "—"}
@@ -192,6 +266,49 @@ export default function AuctionInsights() {
           </Card>
         </>
       )}
+
+      <Dialog open={scriptOpen} onOpenChange={setScriptOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Google Ads Script — engångs-setup</DialogTitle>
+            <DialogDescription>
+              Klistra in scriptet i ditt Google Ads-konto. Det körs sen automatiskt varje natt.
+            </DialogDescription>
+          </DialogHeader>
+
+          {scriptData && (
+            <div className="space-y-4">
+              <ol className="list-decimal pl-5 space-y-2 text-sm">
+                <li>Logga in på <a href="https://ads.google.com" target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1">Google Ads <ExternalLink className="h-3 w-3" /></a></li>
+                <li>Klicka på <strong>Verktyg</strong> (uppe till vänster) → <strong>Bulk-åtgärder</strong> → <strong>Skript</strong></li>
+                <li>Klicka <strong>+</strong> för nytt script → ge det namnet "Slay Station Auction Insights"</li>
+                <li>Klistra in koden nedan, klicka <strong>Spara</strong> → <strong>Auktorisera</strong> (godkänn behörigheter)</li>
+                <li>Klicka <strong>Förhandsgranska</strong> en gång — verifiera att det körs utan fel</li>
+                <li>Klicka <strong>Schemalägg</strong> → välj <strong>Daglig</strong> → spara</li>
+              </ol>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Script-kod</label>
+                  <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => copy(scriptData.script, "script")}>
+                    {copied === "script" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    Kopiera
+                  </Button>
+                </div>
+                <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto max-h-72 border border-border">
+                  <code>{scriptData.script}</code>
+                </pre>
+              </div>
+
+              <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-3">
+                <p><strong>Webhook-URL:</strong> <code className="text-foreground">{scriptData.webhook_url}</code></p>
+                <p><strong>Projekt-ID:</strong> <code className="text-foreground">{id}</code></p>
+                <p>Hemligheten i scriptet är unik för det här projektet — dela den inte. Om den läcker, klicka "Generera mitt script" igen så roterar vi den.</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
