@@ -10,6 +10,7 @@ import { useBrandKit } from "@/hooks/useBrandKit";
 import { formatMoney } from "@/lib/revenue";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import RoiOverview from "@/components/workspace/RoiOverview";
+import { OnboardingChecklist } from "@/components/workspace/OnboardingChecklist";
 
 export default function ExecutiveDashboard() {
   const { id } = useParams<{ id: string }>();
