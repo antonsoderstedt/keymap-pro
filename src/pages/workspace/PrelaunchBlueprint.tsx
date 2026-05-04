@@ -58,6 +58,7 @@ export default function PrelaunchBlueprint() {
   // editingBriefId = null → skapar ny; satt → redigerar existerande brief
   const [editingBriefId, setEditingBriefId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [factChecking, setFactChecking] = useState(false);
 
   // Form state
   const [businessIdea, setBusinessIdea] = useState("");
