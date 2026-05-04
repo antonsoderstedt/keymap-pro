@@ -252,6 +252,7 @@ export function evaluateGoals(
   targets: KpiTarget[],
   kpis: PeriodKpis,
   rankings: RankingRow[],
+  extraMetrics?: Record<string, number | null | undefined>,
 ): GoalProgress[] {
   return targets
     .filter((t) => t.is_active)
@@ -274,7 +275,7 @@ export function evaluateGoals(
           currentValue = rankings.filter((r) => r.position > 0 && r.position <= 20).length;
           break;
         default:
-          currentValue = 0;
+          currentValue = Number(extraMetrics?.[t.metric] ?? 0) || 0;
       }
       let progressPct = 0;
       let status: GoalProgress["status"] = "behind";
