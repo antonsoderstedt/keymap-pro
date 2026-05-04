@@ -37,17 +37,22 @@ export default function PerformanceTracker() {
   const [hasGA4, setHasGA4] = useState(false);
   const [latestBaseline, setLatestBaseline] = useState<string | null>(null);
   const [creatingBaseline, setCreatingBaseline] = useState(false);
+  const [ga4Snapshot, setGa4Snapshot] = useState<any>(null);
+  const [adsAudit, setAdsAudit] = useState<any>(null);
+  const [hasAds, setHasAds] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: snap }, { data: acts }, { data: tgs }, { data: rev }, { data: gs }, { data: bl }] = await Promise.all([
+    const [{ data: snap }, { data: acts }, { data: tgs }, { data: rev }, { data: gs }, { data: bl }, { data: ga4 }, { data: ads }] = await Promise.all([
       supabase.from("gsc_snapshots").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("action_items").select("id,title,category,implemented_at").eq("project_id", id).not("implemented_at", "is", null).order("implemented_at", { ascending: false }).limit(50),
       supabase.from("kpi_targets").select("*").eq("project_id", id).order("created_at", { ascending: false }),
       supabase.from("project_revenue_settings").select("*").eq("project_id", id).maybeSingle(),
-      supabase.from("project_google_settings").select("gsc_site_url, ga4_property_id").eq("project_id", id).maybeSingle(),
+      supabase.from("project_google_settings").select("gsc_site_url, ga4_property_id, ads_customer_id").eq("project_id", id).maybeSingle(),
       supabase.from("project_baselines").select("snapshot_date").eq("project_id", id).order("snapshot_date", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("ga4_snapshots").select("totals,rows,start_date,end_date").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("ads_audits").select("summary,raw").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     setSnapshot(snap);
     setActions(acts ?? []);
@@ -55,7 +60,10 @@ export default function PerformanceTracker() {
     if (rev) setRevenue(rev as any);
     setSiteUrl(gs?.gsc_site_url ?? null);
     setHasGA4(!!gs?.ga4_property_id);
+    setHasAds(!!(gs as any)?.ads_customer_id);
     setLatestBaseline(bl?.snapshot_date ?? null);
+    setGa4Snapshot(ga4 ?? null);
+    setAdsAudit(ads ?? null);
     setLoading(false);
   }, [id]);
 
