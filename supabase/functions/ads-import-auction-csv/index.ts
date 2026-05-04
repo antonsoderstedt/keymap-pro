@@ -14,8 +14,10 @@ Deno.serve(async (req) => {
     const auth = req.headers.get("Authorization");
     if (!auth?.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
 
-    const { project_id, filename, content_base64 } = await req.json();
-    if (!project_id || !content_base64) return json({ error: "project_id and content_base64 required" }, 400);
+    const { project_id, filename, content_base64, dry_run } = await req.json();
+    if (!project_id || typeof project_id !== "string") return json({ error: "project_id krävs" }, 400);
+    if (!content_base64 || typeof content_base64 !== "string") return json({ error: "content_base64 krävs" }, 400);
+    if (content_base64.length > 8_000_000) return json({ error: "Filen är för stor (max ~6 MB)" }, 413);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -31,19 +33,44 @@ Deno.serve(async (req) => {
     if (!isMember) return json({ error: "forbidden" }, 403);
 
     // Decode base64 → bytes → text (try UTF-16 LE/BE BOM first, fall back to UTF-8)
-    const bytes = Uint8Array.from(atob(content_base64), (c) => c.charCodeAt(0));
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(content_base64), (c) => c.charCodeAt(0));
+    } catch {
+      return json({ error: "Filen kunde inte avkodas (ogiltig base64)" }, 400);
+    }
     const text = decodeText(bytes);
+    if (!text.trim()) return json({ error: "Filen är tom" }, 400);
 
     const parsed = parseAuctionCsv(text);
-    if (!parsed.competitors.length) {
+    const validation = validateParsed(parsed);
+    if (!validation.ok) {
       return json({
-        error: "Inga konkurrent-rader hittades. Kontrollera att du exporterat 'Auktionsstatistik / Auction insights' från Google Ads (Kampanjer → Insikter → Auktionsstatistik → Hämta).",
-        debug: { rows: parsed.rowCount, header: parsed.header.slice(0, 8) },
+        error: validation.message,
+        validation: {
+          missing_columns: validation.missingColumns,
+          found_columns: parsed.header,
+          row_count: parsed.rowCount,
+          competitor_count: parsed.competitors.length,
+          hint: validation.hint,
+        },
       }, 400);
     }
 
     const start = parsed.startDate || todayMinus(30);
     const end = parsed.endDate || today();
+
+    if (dry_run) {
+      return json({
+        ok: true,
+        dry_run: true,
+        competitors: parsed.competitors.length,
+        sample: parsed.competitors.slice(0, 5),
+        start_date: start, end_date: end,
+        warnings: validation.warnings,
+        found_columns: parsed.header,
+      });
+    }
 
     const { data: ins, error: iErr } = await admin
       .from("auction_insights_snapshots")
