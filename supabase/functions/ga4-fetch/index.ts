@@ -44,8 +44,13 @@ Deno.serve(async (req) => {
       const res = await fetch("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      return json(data, res.status);
+      const text = await res.text();
+      try {
+        return json(JSON.parse(text), res.status);
+      } catch {
+        console.error("ga4-fetch properties: non-JSON", res.status, text.slice(0, 500));
+        return json({ error: "GA4 API non-JSON", status: res.status, details: text.slice(0, 500) }, 502);
+      }
     }
 
     if (action === "report") {
@@ -74,7 +79,21 @@ Deno.serve(async (req) => {
           body: JSON.stringify(reqBody),
         },
       );
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("ga4-fetch: non-JSON response", res.status, text.slice(0, 500));
+        return json(
+          {
+            error: "GA4 API returned non-JSON response (sannolikt auth- eller property-fel)",
+            status: res.status,
+            details: text.slice(0, 500),
+          },
+          res.status >= 400 ? res.status : 502,
+        );
+      }
       if (!res.ok) return json(data, res.status);
 
       // Optionally persist as snapshot
