@@ -14,6 +14,7 @@ import RevenueSettings from "@/components/workspace/RevenueSettings";
 import Ga4Filters from "@/components/workspace/Ga4Filters";
 import GoalsCard from "@/components/workspace/GoalsCard";
 import MembersCard from "@/components/workspace/MembersCard";
+import ClientInfoCard from "@/components/workspace/ClientInfoCard";
 
 interface KpiTarget {
   id: string;
@@ -82,6 +83,9 @@ export default function WorkspaceSettings() {
           KPI-mål, automation-regler, kopplingar.
         </p>
       </div>
+
+      {/* Kunduppgifter */}
+      <ClientInfoCard projectId={id!} />
 
       {/* Goals & kundtyp (Fas 3) */}
       <GoalsCard projectId={id!} />
