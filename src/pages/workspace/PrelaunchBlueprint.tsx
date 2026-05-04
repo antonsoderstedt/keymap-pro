@@ -113,6 +113,36 @@ export default function PrelaunchBlueprint() {
     setActiveBriefId(briefId);
     setBlueprint(null);
     await loadBlueprint(briefId);
+    // Om vi byter brief — avsluta ev. redigeringsläge
+    if (editingBriefId && editingBriefId !== briefId) resetForm();
+  }
+
+  async function saveBriefOnly() {
+    if (!editingBriefId) return;
+    if (!businessIdea.trim()) {
+      toast({ title: "Verksamhetsbeskrivning krävs", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("prelaunch_briefs")
+        .update({
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          usp,
+          competitors,
+          locations,
+        })
+        .eq("id", editingBriefId);
+      if (error) throw error;
+      toast({ title: "Brief sparad", description: "Tryck \"Generera om\" för att uppdatera resultatet." });
+      await loadBriefs();
+    } catch (e: any) {
+      toast({ title: "Fel", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function createBriefAndRun() {
@@ -122,35 +152,54 @@ export default function PrelaunchBlueprint() {
     }
     setRunning(true);
     try {
-      const { data: brief, error } = await supabase
-        .from("prelaunch_briefs")
-        .insert({
-          project_id: projectId!,
-          business_idea: businessIdea,
-          target_audience: targetAudience,
-          usp,
-          competitors,
-          locations,
-          status: "researching",
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      let briefId = editingBriefId;
 
-      setActiveBriefId(brief.id);
-      setBriefs([brief as Brief, ...briefs]);
+      if (editingBriefId) {
+        // Uppdatera existerande brief och kör om research
+        const { error } = await supabase
+          .from("prelaunch_briefs")
+          .update({
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            usp,
+            competitors,
+            locations,
+            status: "researching",
+            error_message: null,
+          })
+          .eq("id", editingBriefId);
+        if (error) throw error;
+      } else {
+        const { data: brief, error } = await supabase
+          .from("prelaunch_briefs")
+          .insert({
+            project_id: projectId!,
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            usp,
+            competitors,
+            locations,
+            status: "researching",
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        briefId = brief.id;
+        setBriefs([brief as Brief, ...briefs]);
+      }
 
-      // Reset form
-      setBusinessIdea(""); setTargetAudience(""); setUsp("");
-      setCompetitors([]); setLocations([]);
+      setActiveBriefId(briefId!);
+      resetForm();
 
       const { error: invErr } = await supabase.functions.invoke("prelaunch-research", {
-        body: { brief_id: brief.id },
+        body: { brief_id: briefId },
       });
       if (invErr) throw invErr;
 
       toast({ title: "Klart!", description: "Blueprint genererad." });
       await loadBriefs();
+      await loadBlueprint(briefId!);
+      setActiveTab("result");
     } catch (e: any) {
       toast({ title: "Fel", description: e.message, variant: "destructive" });
     } finally {
