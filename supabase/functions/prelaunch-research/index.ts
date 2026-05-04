@@ -245,7 +245,7 @@ GEOGRAFISKA MARKNADER: ${(brief.locations || []).join(", ") || "Sverige"}
 
 KONKURRENTER (innehåll):
 ${compContext || "Ingen data"}
-
+${factsContext}
 Extrahera 25–40 relevanta svenska sökord (mix av kort/long-tail, samtliga intent), klustrade tematiskt. Inkludera lokala varianter där det är relevant. Skapa även 2–3 personas baserat på målgruppen.`;
 
     console.log("[prelaunch] calling AI for seed keywords");
