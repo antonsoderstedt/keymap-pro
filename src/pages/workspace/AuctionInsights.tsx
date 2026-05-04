@@ -39,6 +39,9 @@ export default function AuctionInsights() {
     hint?: string;
   } | null>(null);
   const [csvWarnings, setCsvWarnings] = useState<string[]>([]);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingCampaign, setPendingCampaign] = useState("");
+  const [pendingIsBrand, setPendingIsBrand] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fileToBase64 = async (file: File) => {
@@ -52,12 +55,10 @@ export default function AuctionInsights() {
     return btoa(bin);
   };
 
-  const onCsvSelected = async (file: File) => {
-    if (!id) return;
-
-    // Klient-side sanity-checks innan vi laddar upp
+  const onCsvSelected = (file: File) => {
     setCsvError(null);
     setCsvWarnings([]);
+
     const okExt = /\.(csv|tsv|txt)$/i.test(file.name);
     if (!okExt) {
       setCsvError({
@@ -81,15 +82,38 @@ export default function AuctionInsights() {
       return;
     }
 
+    // Föreslå kampanjnamn från filnamnet (utan extension)
+    const suggested = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+    setPendingCampaign(suggested);
+    setPendingIsBrand(/brand|varum[äa]rk/i.test(suggested));
+    setPendingFile(file);
+  };
+
+  const confirmImport = async () => {
+    if (!id || !pendingFile) return;
+    const campaign = pendingCampaign.trim();
+    if (!campaign) {
+      toast.error("Ange ett kampanjnamn");
+      return;
+    }
+    if (campaign.length > 120) {
+      toast.error("Kampanjnamnet får vara max 120 tecken");
+      return;
+    }
+
     setCsvLoading(true);
     try {
-      const content_base64 = await fileToBase64(file);
-
+      const content_base64 = await fileToBase64(pendingFile);
       const { data, error } = await supabase.functions.invoke("ads-import-auction-csv", {
-        body: { project_id: id, filename: file.name, content_base64 },
+        body: {
+          project_id: id,
+          filename: pendingFile.name,
+          content_base64,
+          campaign_name: campaign,
+          is_brand: pendingIsBrand,
+        },
       });
 
-      // Edge-funktionen returnerar JSON med error+validation även vid 400
       if (data?.error) {
         setCsvError({
           message: data.error,
@@ -103,7 +127,10 @@ export default function AuctionInsights() {
       if (error) throw error;
 
       if (Array.isArray(data?.warnings) && data.warnings.length) setCsvWarnings(data.warnings);
-      toast.success(`Importerade ${data.competitors} konkurrent-domäner`);
+      toast.success(`Importerade ${data.competitors} domäner för "${campaign}"`);
+      setPendingFile(null);
+      setPendingCampaign("");
+      setPendingIsBrand(false);
       load();
     } catch (e: any) {
       setCsvError({
