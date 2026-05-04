@@ -320,13 +320,37 @@ export default function PrelaunchBlueprint() {
                 placeholder="exempel.se"
               />
 
-              <Button onClick={createBriefAndRun} disabled={running} className="w-full">
-                {running ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererar blueprint…</>
-                ) : (
-                  <><Rocket className="mr-2 h-4 w-4" /> Generera blueprint</>
-                )}
-              </Button>
+              {editingBriefId ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={saveBriefOnly}
+                    disabled={saving || running}
+                    className="flex-1"
+                  >
+                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Spara ändringar
+                  </Button>
+                  <Button onClick={createBriefAndRun} disabled={running || saving} className="flex-1">
+                    {running ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererar om…</>
+                    ) : (
+                      <><RefreshCw className="mr-2 h-4 w-4" /> Spara & generera om</>
+                    )}
+                  </Button>
+                  <Button variant="ghost" onClick={resetForm} disabled={running || saving}>
+                    Avbryt
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={createBriefAndRun} disabled={running} className="w-full">
+                  {running ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererar blueprint…</>
+                  ) : (
+                    <><Rocket className="mr-2 h-4 w-4" /> Generera blueprint</>
+                  )}
+                </Button>
+              )}
 
               {running && (
                 <div className="space-y-2">
