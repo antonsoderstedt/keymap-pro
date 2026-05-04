@@ -491,13 +491,14 @@ function ChipInput({ label, value, onChange, inputValue, setInputValue, placehol
   );
 }
 
-function BlueprintResult({ blueprint, currency, projectId }: { blueprint: Blueprint; currency: any; projectId: string }) {
+function BlueprintResult({ blueprint, currency, projectId, onRecompute }: { blueprint: Blueprint; currency: any; projectId: string; onRecompute: (selected: string[]) => Promise<void> }) {
   const ma = blueprint.market_analysis || {};
   const strat = blueprint.strategy || {};
   const sitemap = blueprint.sitemap || [];
   const personas = blueprint.personas || [];
   const forecast = blueprint.forecast || {};
   const kws = blueprint.keyword_universe?.keywords || [];
+  const adsPlan = blueprint.ads_plan;
 
   return (
     <Tabs defaultValue="market" className="space-y-4">
@@ -506,6 +507,7 @@ function BlueprintResult({ blueprint, currency, projectId }: { blueprint: Bluepr
         <TabsTrigger value="strategy">Strategi</TabsTrigger>
         <TabsTrigger value="keywords">Sökord ({kws.length})</TabsTrigger>
         <TabsTrigger value="sitemap">Sajtkarta ({sitemap.length})</TabsTrigger>
+        {adsPlan && <TabsTrigger value="ads">Ads-plan</TabsTrigger>}
         <TabsTrigger value="forecast">Prognos</TabsTrigger>
       </TabsList>
 
