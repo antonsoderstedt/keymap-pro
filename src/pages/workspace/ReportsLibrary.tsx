@@ -229,7 +229,14 @@ export default function ReportsLibrary() {
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{viewing?.name}</DialogTitle>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <DialogTitle className="font-serif text-xl">{viewing?.name}</DialogTitle>
+              {viewing?.payload?.template && (
+                <Button size="sm" variant="default" onClick={() => downloadPptx(viewing)} disabled={downloading} className="gap-1">
+                  <Download className="h-3 w-3" /> {downloading ? "Skapar…" : "Ladda ner PPTX"}
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {viewing?.payload?.template && <ReportTemplateView template={viewing.payload.template} />}
         </DialogContent>
