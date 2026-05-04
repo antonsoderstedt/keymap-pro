@@ -149,6 +149,47 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
     }
   };
 
+  // Auto-föreslå en komplett uppsättning mål för alla tillgängliga måtttyper.
+  // Hoppar över metrics som redan har ett aktivt mål och de utan nuläge.
+  const onAutoSuggestAll = async () => {
+    const existingMetrics = new Set(goals.map((g) => g.target.metric));
+    const candidates: Array<{ tpl: MetricTemplate; currentVal: number; suggested: number }> = [];
+
+    for (const t of METRIC_TEMPLATES) {
+      if (!availableSources[t.source]) continue;
+      if (existingMetrics.has(t.value)) continue;
+      const cv = getCurrentValue(t.value, current, rankings, extraMetrics);
+      if (cv === null || cv === 0) continue;
+      const sug = suggestTarget(t.value, cv);
+      if (sug === null) continue;
+      candidates.push({ tpl: t, currentVal: cv, suggested: sug });
+    }
+
+    if (candidates.length === 0) {
+      toast.info("Inga nya mål att föreslå — antingen finns alla redan, eller saknas data.");
+      return;
+    }
+
+    setSaving(true);
+    const rows = candidates.map(({ tpl, suggested }) => ({
+      project_id: projectId,
+      metric: tpl.value,
+      label: tpl.label,
+      target_value: suggested,
+      direction: tpl.direction,
+      timeframe: "quarter",
+      is_active: true,
+    }));
+    const { error } = await supabase.from("kpi_targets").insert(rows);
+    setSaving(false);
+    if (error) {
+      toast.error("Kunde inte skapa auto-mål");
+      return;
+    }
+    toast.success(`Skapade ${rows.length} mål automatiskt 🎯`);
+    onChanged();
+  };
+
   // Gruppera templates per källa
   const grouped = useMemo(() => {
     const g: Record<GoalSource, MetricTemplate[]> = { gsc: [], ga4: [], ads: [], combined: [] };
