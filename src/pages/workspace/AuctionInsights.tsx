@@ -526,6 +526,53 @@ export default function AuctionInsights() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!pendingFile} onOpenChange={(o) => { if (!o && !csvLoading) { setPendingFile(null); setPendingCampaign(""); setPendingIsBrand(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Tagga importen</DialogTitle>
+            <DialogDescription>
+              Google Ads CSV:n innehåller inte kampanjnamn — ange vilken kampanj exporten gäller så kan vi visa det i tabellen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="csv-campaign">Kampanjnamn</Label>
+              <Input
+                id="csv-campaign"
+                value={pendingCampaign}
+                onChange={(e) => setPendingCampaign(e.target.value)}
+                placeholder="t.ex. Brand – Generic"
+                maxLength={120}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Föreslogs från filnamnet. Justera om det behövs (max 120 tecken).
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div>
+                <Label htmlFor="csv-brand" className="cursor-pointer">Brand-kampanj</Label>
+                <p className="text-xs text-muted-foreground">Markeras med en Brand-tagg i tabellen.</p>
+              </div>
+              <Switch id="csv-brand" checked={pendingIsBrand} onCheckedChange={setPendingIsBrand} />
+            </div>
+            {pendingFile && (
+              <p className="text-xs text-muted-foreground">
+                Fil: <span className="font-mono">{pendingFile.name}</span> · {(pendingFile.size / 1024).toFixed(1)} kB
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setPendingFile(null); setPendingCampaign(""); setPendingIsBrand(false); }} disabled={csvLoading}>
+              Avbryt
+            </Button>
+            <Button onClick={confirmImport} disabled={csvLoading || !pendingCampaign.trim()}>
+              {csvLoading ? "Importerar…" : "Importera"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
