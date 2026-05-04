@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
         eventName: r.dimensionValues?.[0]?.value,
         eventCount: Number(r.metricValues?.[0]?.value || 0),
         conversions: Number(r.metricValues?.[1]?.value || 0),
-        keyEvents: Number(r.metricValues?.[2]?.value || 0),
+        keyEvents: Number(r.metricValues?.[1]?.value || 0),
       }));
       return json({ events });
     }
