@@ -1,11 +1,23 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Building2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const schema = z.object({
@@ -20,12 +32,15 @@ const schema = z.object({
 });
 
 export default function ClientInfoCard({ projectId }: { projectId: string }) {
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [domain, setDomain] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -52,7 +67,6 @@ export default function ClientInfoCard({ projectId }: { projectId: string }) {
       return;
     }
     setSaving(true);
-    // Normalise domain (strip protocol/trailing slash)
     const normDomain =
       parsed.data.domain
         ?.replace(/^https?:\/\//i, "")
@@ -76,6 +90,20 @@ export default function ClientInfoCard({ projectId }: { projectId: string }) {
     setDirty(false);
     if (normDomain) setDomain(normDomain);
   };
+
+  const deleteProject = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from("projects").delete().eq("id", projectId);
+    setDeleting(false);
+    if (error) {
+      toast.error(`Kunde inte radera: ${error.message}`);
+      return;
+    }
+    toast.success("Kunden har raderats");
+    navigate("/clients");
+  };
+
+  const canDelete = confirmText.trim().toLowerCase() === (name || "").trim().toLowerCase() && name.length > 0;
 
   return (
     <Card>
@@ -136,6 +164,54 @@ export default function ClientInfoCard({ projectId }: { projectId: string }) {
           <Button size="sm" onClick={save} disabled={saving || loading || !dirty}>
             {saving ? "Sparar…" : "Spara ändringar"}
           </Button>
+        </div>
+
+        {/* Danger zone */}
+        <div className="mt-6 pt-4 border-t border-destructive/30">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h4 className="text-sm font-medium text-destructive">Radera kund</h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tar bort kunden och all relaterad data permanent. Detta kan inte ångras.
+              </p>
+            </div>
+            <AlertDialog onOpenChange={(o) => { if (!o) setConfirmText(""); }}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive" className="gap-1" disabled={loading}>
+                  <Trash2 className="h-3.5 w-3.5" /> Radera kund
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Radera "{name}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Detta tar bort kunden permanent inklusive analyser, mål, alerts, briefings och allt annat kopplat till denna kund. Åtgärden kan inte ångras.
+                    <br /><br />
+                    Skriv kundens namn <strong>{name}</strong> nedan för att bekräfta.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder={name}
+                  autoFocus
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (canDelete) deleteProject();
+                    }}
+                    disabled={!canDelete || deleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleting ? "Raderar…" : "Radera permanent"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </CardContent>
     </Card>
