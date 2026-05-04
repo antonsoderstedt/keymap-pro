@@ -137,11 +137,23 @@ export default function ReportsLibrary() {
               {history.map(h => {
                 const p = h.payload as any;
                 const summary = summarizePayload(p);
+                const overall = p?.overall_status as string | undefined;
+                const missing = (p?.missing_fields as string[] | undefined) || [];
                 return (
-                  <div key={h.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                  <div key={h.id} className="flex items-start justify-between gap-3 p-3 rounded-md border border-border">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{h.name}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-sm font-medium truncate">{h.name}</div>
+                        {overall === "partial" && <Badge variant="outline" className="text-[9px]">delvis</Badge>}
+                        {overall === "empty" && <Badge variant="destructive" className="text-[9px]">tom</Badge>}
+                        {overall === "complete" && <Badge variant="default" className="text-[9px]">komplett</Badge>}
+                      </div>
                       <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}{summary && ` · ${summary}`}</div>
+                      {missing.length > 0 && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Saknas: {missing.slice(0, 2).join(" · ")}{missing.length > 2 && ` (+${missing.length - 2})`}
+                        </div>
+                      )}
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
                       Öppna
