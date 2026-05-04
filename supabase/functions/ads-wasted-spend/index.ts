@@ -54,6 +54,30 @@ Deno.serve(async (req) => {
       console.warn("tracking probe failed", e);
     }
 
+    // Hämta primär landningssida per ad_group (mest impressions vinner) — behövs för
+    // att kunna gruppera tracking-/landningskontroller per faktisk URL.
+    const adGroupIds = Array.from(new Set(rows.map((r: any) => String(r.adGroup?.id ?? "")).filter(Boolean)));
+    const landingByAdGroup: Record<string, string> = {};
+    if (adGroupIds.length > 0) {
+      try {
+        const adRows = await searchGaql(ctx, settings.ads_customer_id, `
+          SELECT ad_group.id, ad_group_ad.ad.final_urls, metrics.impressions
+          FROM ad_group_ad
+          WHERE segments.date DURING LAST_30_DAYS
+            AND ad_group.id IN (${adGroupIds.join(",")})
+            AND ad_group_ad.status = 'ENABLED'
+          ORDER BY metrics.impressions DESC
+        `);
+        for (const ar of adRows as any[]) {
+          const agId = String(ar.adGroup?.id ?? "");
+          const urls: string[] = ar.adGroupAd?.ad?.finalUrls || [];
+          if (agId && urls[0] && !landingByAdGroup[agId]) landingByAdGroup[agId] = urls[0];
+        }
+      } catch (e) {
+        console.warn("landing page fetch failed", e);
+      }
+    }
+
     const wasted = rows.map((r: any) => {
       const cost = Math.round(Number(r.metrics?.costMicros || 0) / 1_000_000 * 100) / 100;
       const clicks = Number(r.metrics?.clicks || 0);
