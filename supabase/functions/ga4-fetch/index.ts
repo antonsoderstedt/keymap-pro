@@ -66,13 +66,19 @@ Deno.serve(async (req) => {
       } = body;
       if (!propertyId) return json({ error: "propertyId required" }, 400);
 
+      // Normalize property ID: strip whitespace, "properties/" prefix, and non-digits
+      const normalizedPropertyId = String(propertyId).trim().replace(/^properties\//i, "").replace(/\D/g, "");
+      if (!normalizedPropertyId) {
+        return json({ error: `Ogiltigt GA4 property-ID: "${propertyId}". Ska vara numeriskt (t.ex. 123456789).` }, 400);
+      }
+
       const dimensionFilter = await buildDimensionFilter(projectId, auth);
 
       const reqBody: any = { dateRanges: [{ startDate, endDate }], dimensions, metrics, limit };
       if (dimensionFilter) reqBody.dimensionFilter = dimensionFilter;
 
       const res = await fetch(
-        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        `https://analyticsdata.googleapis.com/v1beta/properties/${normalizedPropertyId}:runReport`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
