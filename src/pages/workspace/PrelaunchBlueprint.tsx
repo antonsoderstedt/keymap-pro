@@ -107,6 +107,7 @@ export default function PrelaunchBlueprint() {
       .order("created_at", { ascending: false })
       .maybeSingle();
     setBlueprint(data as Blueprint | null);
+    if (data && !editingBriefId) setActiveTab("result");
   }
 
   async function selectBrief(briefId: string) {
