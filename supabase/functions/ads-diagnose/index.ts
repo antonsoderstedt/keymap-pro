@@ -4,11 +4,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getAdsContext, searchGaql } from "../_shared/google-ads.ts";
 import { evaluateGates } from "../_shared/diagnostics/gates.ts";
 import { applyRootCauseTree, detectBrand, estimateValue } from "../_shared/diagnostics/tree.ts";
+import { runAllRules } from "../_shared/diagnostics/runner.ts";
 import type {
   AccountSnapshot,
+  AdGroupSnapshot,
+  AdSnapshot,
   CampaignSnapshot,
   Diagnosis,
   DiagnosisReport,
+  KeywordSnapshot,
   ProjectGoals,
 } from "../_shared/diagnostics/types.ts";
 
