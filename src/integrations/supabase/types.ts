@@ -681,6 +681,42 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_attribution_snapshots: {
+        Row: {
+          channels: Json
+          created_at: string
+          currency: string
+          end_date: string
+          id: string
+          project_id: string
+          sources: Json
+          start_date: string
+          totals: Json
+        }
+        Insert: {
+          channels?: Json
+          created_at?: string
+          currency?: string
+          end_date: string
+          id?: string
+          project_id: string
+          sources?: Json
+          start_date: string
+          totals?: Json
+        }
+        Update: {
+          channels?: Json
+          created_at?: string
+          currency?: string
+          end_date?: string
+          id?: string
+          project_id?: string
+          sources?: Json
+          start_date?: string
+          totals?: Json
+        }
+        Relationships: []
+      }
       cluster_resolution_logs: {
         Row: {
           analysis_id: string

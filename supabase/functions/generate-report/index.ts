@@ -70,45 +70,41 @@ Deno.serve(async (req) => {
       }
 
       case "yoy": {
-        // Jämför nuvarande GSC + GA4 mot snapshot ~365 dagar tillbaka
-        const { data: gscAll } = await supabase
-          .from("gsc_snapshots").select("totals, start_date, end_date, created_at")
-          .eq("project_id", project_id).order("created_at", { ascending: false }).limit(40);
-        const { data: ga4All } = await supabase
-          .from("ga4_snapshots").select("totals, start_date, end_date, created_at")
-          .eq("project_id", project_id).order("created_at", { ascending: false }).limit(40);
-
-        const yoy = (snaps: any[] | null, key: string, daysBack: number) => {
-          if (!snaps?.length) return null;
-          const latest = snaps[0];
-          const target = new Date(); target.setDate(target.getDate() - daysBack);
-          const past = snaps.find(s => Math.abs(new Date(s.created_at).getTime() - target.getTime()) < 14 * 86400_000);
-          if (!past) return null;
-          const lv = Number((latest.totals as any)?.[key] || 0);
-          const pv = Number((past.totals as any)?.[key] || 0);
-          return { current: lv, previous: pv, delta_pct: pv ? ((lv - pv) / pv) * 100 : null };
-        };
-
-        payload.sources = ["gsc", "ga4"];
-        payload.data = {
-          gsc: {
-            yoy_clicks: yoy(gscAll, "clicks", 365),
-            yoy_impressions: yoy(gscAll, "impressions", 365),
-            mom_clicks: yoy(gscAll, "clicks", 30),
-            mom_impressions: yoy(gscAll, "impressions", 30),
-          },
-          ga4: {
-            yoy_sessions: yoy(ga4All, "sessions", 365),
-            mom_sessions: yoy(ga4All, "sessions", 30),
-          },
-        };
-        if (!gscAll?.length && !ga4All?.length) {
-          throw new Error("Inga GSC/GA4-snapshots hittade. Aktivera Google-kopplingar och hämta data först.");
-        }
+        // Auto-trigga trend-compute (live GA4 + Ads + GSC mot -30d och -365d)
+        const { data: trendRes, error: trendErr } = await supabase.functions.invoke("trend-compute", {
+          body: { project_id, window_days: 30 },
+          headers: auth ? { Authorization: auth } : {},
+        });
+        if (trendErr) throw new Error(`Trend-beräkning misslyckades: ${trendErr.message}`);
+        if ((trendRes as any)?.error) throw new Error((trendRes as any).error);
+        const trend = (trendRes as any)?.trend;
+        if (!trend) throw new Error("Trend-data tom — kontrollera GA4/Ads/GSC-kopplingar.");
+        payload.sources = ["ga4", "google_ads", "gsc"];
+        payload.data = trend;
         break;
       }
 
       case "roi": {
+        // 1. Kanal-attribution (live GA4 + Ads) — auto-fetch om saknas/gammal
+        let { data: attrSnap } = await supabase
+          .from("channel_attribution_snapshots").select("*")
+          .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const stale = !attrSnap || (Date.now() - new Date(attrSnap.created_at).getTime() > 24 * 3600 * 1000);
+        if (stale) {
+          const { data: fetched, error: attrErr } = await supabase.functions.invoke("channel-attribution-fetch", {
+            body: { project_id }, headers: auth ? { Authorization: auth } : {},
+          });
+          if (attrErr) console.warn("channel-attribution-fetch failed", attrErr);
+          if ((fetched as any)?.snapshot) attrSnap = (fetched as any).snapshot;
+          else {
+            const { data: fresh } = await supabase
+              .from("channel_attribution_snapshots").select("*")
+              .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+            attrSnap = fresh || attrSnap;
+          }
+        }
+
+        // 2. Cluster-ROI (sökord) som komplement
         const [analysisRes, ga4Res, gscRes, settingsRes] = await Promise.all([
           supabase.from("analyses").select("keyword_universe_json")
             .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -126,15 +122,27 @@ Deno.serve(async (req) => {
         const revenueSnap = ga4Snapshots.find((s: any) => s.totals?.kind === "revenue_by_page");
         const ga4Rows = (revenueSnap?.rows as any[]) || [];
         const gscRows = (gscRes.data?.rows as any[]) || [];
-        const overview = computeRoi(clusters, ga4Rows, gscRows, settingsRes.data || undefined);
+        const clusterOverview = computeRoi(clusters, ga4Rows, gscRows, settingsRes.data || undefined);
 
-        payload.sources = ["analyses", "ga4", "gsc"];
+        if (!attrSnap && !clusters.length) {
+          throw new Error("Saknar både kanal-attribution och sökordsanalys. Koppla GA4/Ads eller kör en analys.");
+        }
+
+        payload.sources = ["ga4", "google_ads", "analyses"];
         payload.data = {
-          ...overview,
-          has_ga4_revenue: !!revenueSnap,
-          settings: settingsRes.data,
+          attribution: attrSnap ? {
+            period: { start: attrSnap.start_date, end: attrSnap.end_date },
+            currency: attrSnap.currency,
+            channels: attrSnap.channels,
+            totals: attrSnap.totals,
+            sources: attrSnap.sources,
+          } : null,
+          cluster_roi: {
+            ...clusterOverview,
+            has_ga4_revenue: !!revenueSnap,
+            settings: settingsRes.data,
+          },
         };
-        if (!clusters.length) throw new Error("Ingen sökordsanalys hittad för ROI-beräkning.");
         break;
       }
 
