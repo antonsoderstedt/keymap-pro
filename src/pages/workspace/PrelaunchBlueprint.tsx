@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw, Eye, EyeOff, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { formatMoney } from "@/lib/revenue";
+import { FactCheckCard, type FactCheckPayload } from "@/components/workspace/FactCheckCard";
+import { PrelaunchStepper, type PrelaunchStep } from "@/components/workspace/PrelaunchStepper";
 
 type Brief = {
   id: string;
@@ -24,6 +28,7 @@ type Brief = {
   locations: string[];
   error_message?: string | null;
   created_at: string;
+  fact_check?: FactCheckPayload | null;
 };
 
 type Blueprint = {
@@ -35,6 +40,8 @@ type Blueprint = {
   sitemap: any[];
   personas: any[];
   forecast: any;
+  selected_keywords?: string[] | null;
+  ads_plan?: any;
   created_at: string;
 };
 
@@ -51,6 +58,7 @@ export default function PrelaunchBlueprint() {
   // editingBriefId = null → skapar ny; satt → redigerar existerande brief
   const [editingBriefId, setEditingBriefId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [factChecking, setFactChecking] = useState(false);
 
   // Form state
   const [businessIdea, setBusinessIdea] = useState("");
@@ -91,7 +99,7 @@ export default function PrelaunchBlueprint() {
       .select("*")
       .eq("project_id", projectId!)
       .order("created_at", { ascending: false });
-    setBriefs((data as Brief[]) || []);
+    setBriefs(((data as unknown) as Brief[]) || []);
     if (data && data[0]) {
       setActiveBriefId(data[0].id);
       loadBlueprint(data[0].id);
@@ -106,8 +114,38 @@ export default function PrelaunchBlueprint() {
       .eq("brief_id", briefId)
       .order("created_at", { ascending: false })
       .maybeSingle();
-    setBlueprint(data as Blueprint | null);
+    setBlueprint(((data as unknown) as Blueprint) || null);
     if (data && !editingBriefId) setActiveTab("result");
+  }
+
+  async function runFactCheck() {
+    if (!activeBriefId) return;
+    setFactChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("prelaunch-factcheck", {
+        body: { brief_id: activeBriefId },
+      });
+      if (error) throw error;
+      toast({ title: "Faktakoll klar", description: data?.fact_check?.overall_summary?.slice(0, 120) || "Resultat sparat." });
+      await loadBriefs();
+    } catch (e: any) {
+      toast({ title: "Faktakoll misslyckades", description: e.message, variant: "destructive" });
+    } finally {
+      setFactChecking(false);
+    }
+  }
+
+  async function recomputeFromSelection(selected: string[]) {
+    if (!blueprint) return;
+    const { error } = await supabase.functions.invoke("prelaunch-recompute", {
+      body: { blueprint_id: blueprint.id, selected_keywords: selected },
+    });
+    if (error) {
+      toast({ title: "Omräkning misslyckades", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Klart!", description: "Sajtkarta, ads-plan och prognos uppdaterade." });
+    await loadBlueprint(blueprint.brief_id);
   }
 
   async function selectBrief(briefId: string) {
@@ -186,7 +224,7 @@ export default function PrelaunchBlueprint() {
           .single();
         if (error) throw error;
         briefId = brief.id;
-        setBriefs([brief as Brief, ...briefs]);
+        setBriefs([(brief as unknown) as Brief, ...briefs]);
       }
 
       setActiveBriefId(briefId!);
@@ -365,7 +403,32 @@ export default function PrelaunchBlueprint() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="result" className="mt-4">
+        <TabsContent value="result" className="mt-4 space-y-4">
+          {activeBrief && (
+            <PrelaunchStepper
+              current={
+                activeBrief.status === "researching" ? "market" :
+                !blueprint ? "factcheck" :
+                (blueprint.selected_keywords && blueprint.selected_keywords.length > 0) ? "export" :
+                "keywords"
+              }
+              completed={[
+                "brief",
+                ...(activeBrief.fact_check ? ["factcheck" as PrelaunchStep] : []),
+                ...(blueprint ? ["market" as PrelaunchStep, "keywords" as PrelaunchStep, "strategy" as PrelaunchStep] : []),
+                ...((blueprint?.selected_keywords?.length ?? 0) > 0 ? ["export" as PrelaunchStep] : []),
+              ]}
+            />
+          )}
+
+          {activeBrief && (
+            <FactCheckCard
+              factCheck={activeBrief.fact_check}
+              onRerun={runFactCheck}
+              rerunning={factChecking}
+            />
+          )}
+
           {activeBrief?.status === "researching" && (
             <Card><CardContent className="p-8 text-center space-y-2">
               <Loader2 className="h-6 w-6 animate-spin mx-auto" />
@@ -380,7 +443,14 @@ export default function PrelaunchBlueprint() {
               <p className="text-sm text-destructive">Misslyckades: {activeBrief.error_message}</p>
             </CardContent></Card>
           )}
-          {blueprint && <BlueprintResult blueprint={blueprint} currency={currency} projectId={projectId!} />}
+          {blueprint && (
+            <BlueprintResult
+              blueprint={blueprint}
+              currency={currency}
+              projectId={projectId!}
+              onRecompute={recomputeFromSelection}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
@@ -421,13 +491,14 @@ function ChipInput({ label, value, onChange, inputValue, setInputValue, placehol
   );
 }
 
-function BlueprintResult({ blueprint, currency, projectId }: { blueprint: Blueprint; currency: any; projectId: string }) {
+function BlueprintResult({ blueprint, currency, projectId, onRecompute }: { blueprint: Blueprint; currency: any; projectId: string; onRecompute: (selected: string[]) => Promise<void> }) {
   const ma = blueprint.market_analysis || {};
   const strat = blueprint.strategy || {};
   const sitemap = blueprint.sitemap || [];
   const personas = blueprint.personas || [];
   const forecast = blueprint.forecast || {};
   const kws = blueprint.keyword_universe?.keywords || [];
+  const adsPlan = blueprint.ads_plan;
 
   return (
     <Tabs defaultValue="market" className="space-y-4">
@@ -436,6 +507,7 @@ function BlueprintResult({ blueprint, currency, projectId }: { blueprint: Bluepr
         <TabsTrigger value="strategy">Strategi</TabsTrigger>
         <TabsTrigger value="keywords">Sökord ({kws.length})</TabsTrigger>
         <TabsTrigger value="sitemap">Sajtkarta ({sitemap.length})</TabsTrigger>
+        {adsPlan && <TabsTrigger value="ads">Ads-plan</TabsTrigger>}
         <TabsTrigger value="forecast">Prognos</TabsTrigger>
       </TabsList>
 
@@ -531,21 +603,18 @@ function BlueprintResult({ blueprint, currency, projectId }: { blueprint: Bluepr
       </TabsContent>
 
       <TabsContent value="keywords">
-        <Card><CardHeader><CardTitle>Sökordsuniversum ({kws.length})</CardTitle>
-          <CardDescription>Genererat från brief + konkurrentanalys, berikat med Google-volymer.</CardDescription></CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left p-2">Sökord</th><th className="text-left p-2">Kluster</th><th className="text-left p-2">Intent</th><th className="text-right p-2">Volym/mån</th><th className="text-right p-2">CPC</th></tr></thead>
-              <tbody>{kws.map((k: any, i: number) => (
-                <tr key={i} className="border-b hover:bg-muted/30"><td className="p-2 font-mono text-xs">{k.keyword}</td>
-                  <td className="p-2"><Badge variant="outline" className="text-[10px]">{k.cluster}</Badge></td>
-                  <td className="p-2 text-xs">{k.intent}</td>
-                  <td className="p-2 text-right tabular-nums">{(k.volume || 0).toLocaleString("sv-SE")}</td>
-                  <td className="p-2 text-right tabular-nums text-muted-foreground">{k.cpc ? k.cpc.toFixed(1) : "—"}</td>
-                </tr>
-              ))}</tbody></table></div>
-          </CardContent></Card>
+        <KeywordSelectorTab
+          keywords={kws}
+          initialSelected={blueprint.selected_keywords || []}
+          onRecompute={onRecompute}
+        />
       </TabsContent>
+
+      {adsPlan && (
+        <TabsContent value="ads">
+          <AdsPlanView adsPlan={adsPlan} currency={currency} />
+        </TabsContent>
+      )}
 
       <TabsContent value="sitemap">
         <Card><CardHeader><CardTitle>Sajtkarta ({sitemap.length} sidor)</CardTitle>
@@ -636,6 +705,169 @@ function ForecastView({ forecast, currency }: { forecast: any; currency: any }) 
               </tr>
             ))}</tbody>
           </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function KeywordSelectorTab({ keywords, initialSelected, onRecompute }: { keywords: any[]; initialSelected: string[]; onRecompute: (selected: string[]) => Promise<void> }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(initialSelected.map(k => k.toLowerCase().trim())));
+  const [hideZero, setHideZero] = useState(true);
+  const [recomputing, setRecomputing] = useState(false);
+
+  const visible = useMemo(
+    () => hideZero ? keywords.filter((k: any) => (k.volume || 0) >= 10) : keywords,
+    [keywords, hideZero],
+  );
+  const zeroCount = keywords.length - keywords.filter((k: any) => (k.volume || 0) >= 10).length;
+
+  const clusters = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const k of visible) {
+      const c = k.cluster || "Övrigt";
+      if (!m.has(c)) m.set(c, []);
+      m.get(c)!.push(k);
+    }
+    return Array.from(m.entries());
+  }, [visible]);
+
+  function toggle(kw: string) {
+    const key = kw.toLowerCase().trim();
+    setSelected(prev => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key); else n.add(key);
+      return n;
+    });
+  }
+
+  function toggleCluster(items: any[]) {
+    const allKeys = items.map(k => k.keyword.toLowerCase().trim());
+    const allSelected = allKeys.every(k => selected.has(k));
+    setSelected(prev => {
+      const n = new Set(prev);
+      if (allSelected) allKeys.forEach(k => n.delete(k));
+      else allKeys.forEach(k => n.add(k));
+      return n;
+    });
+  }
+
+  const selectedList = Array.from(selected);
+  const selectedKws = keywords.filter((k: any) => selected.has(k.keyword.toLowerCase().trim()));
+  const totalVolume = selectedKws.reduce((s, k: any) => s + (k.volume || 0), 0);
+
+  async function handleRecompute() {
+    setRecomputing(true);
+    try { await onRecompute(selectedList); }
+    finally { setRecomputing(false); }
+  }
+
+  return (
+    <div className="space-y-4 pb-24">
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle>Välj sökord ({selected.size}/{keywords.length})</CardTitle>
+              <CardDescription>Bocka i sökord — sajtkarta, ads-plan och prognos räknas om från valen.</CardDescription>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <Switch id="hide-zero" checked={hideZero} onCheckedChange={setHideZero} />
+              <Label htmlFor="hide-zero" className="cursor-pointer flex items-center gap-1">
+                {hideZero ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                Dölj 0-volym {zeroCount > 0 && `(${zeroCount} st)`}
+              </Label>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {clusters.map(([cluster, items]) => {
+            const allKeys = items.map((k: any) => k.keyword.toLowerCase().trim());
+            const allSel = allKeys.every((k: string) => selected.has(k));
+            const someSel = allKeys.some((k: string) => selected.has(k));
+            return (
+              <div key={cluster} className="border rounded-md overflow-hidden">
+                <div className="flex items-center justify-between p-2 bg-muted/30 border-b">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={allSel ? true : someSel ? "indeterminate" : false}
+                      onCheckedChange={() => toggleCluster(items)}
+                    />
+                    <span className="font-medium text-sm">{cluster}</span>
+                    <Badge variant="outline" className="text-[10px]">{items.length} ord</Badge>
+                  </div>
+                </div>
+                <div className="divide-y">
+                  {items.map((k: any, i: number) => {
+                    const key = k.keyword.toLowerCase().trim();
+                    return (
+                      <label key={i} className="flex items-center gap-3 p-2 hover:bg-muted/20 cursor-pointer">
+                        <Checkbox checked={selected.has(key)} onCheckedChange={() => toggle(k.keyword)} />
+                        <span className="font-mono text-xs flex-1 truncate">{k.keyword}</span>
+                        <span className="text-xs text-muted-foreground">{k.intent}</span>
+                        <span className="text-xs tabular-nums w-16 text-right">{(k.volume || 0).toLocaleString("sv-SE")}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground w-12 text-right">{k.cpc ? k.cpc.toFixed(1) : "—"}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {selected.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-card border border-primary/40 rounded-full shadow-lg px-5 py-3 flex items-center gap-4 text-sm">
+          <span><strong>{selected.size}</strong> sökord valda</span>
+          <span className="text-muted-foreground">·</span>
+          <span><strong>{totalVolume.toLocaleString("sv-SE")}</strong> sök/mån</span>
+          <Button size="sm" onClick={handleRecompute} disabled={recomputing} className="gap-2">
+            {recomputing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            Använd valda sökord
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdsPlanView({ adsPlan, currency }: { adsPlan: any; currency: any }) {
+  const campaigns = adsPlan?.campaigns || [];
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Google Ads-plan</CardTitle>
+          <CardDescription>
+            Total daglig budget: <strong>{formatMoney(adsPlan.recommended_total_daily_sek || 0, currency, { compact: true })}</strong> · {campaigns.length} kampanjer
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {campaigns.map((c: any, i: number) => (
+            <div key={i} className="border rounded-md p-3 space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="font-medium">{c.name}</div>
+                  <div className="text-xs text-muted-foreground">{c.type} · {formatMoney(c.daily_budget_sek, currency, { compact: true })}/dag</div>
+                </div>
+                <Badge variant="secondary">{c.ad_groups?.length || 0} ad groups</Badge>
+              </div>
+              {(c.ad_groups || []).map((ag: any, j: number) => (
+                <div key={j} className="border-l-2 border-primary/40 pl-3 ml-2 space-y-1">
+                  <div className="text-sm font-medium">{ag.name} <Badge variant="outline" className="text-[9px]">{ag.match_type}</Badge></div>
+                  <div className="text-xs text-muted-foreground font-mono">{(ag.keywords || []).slice(0, 6).join(", ")}{ag.keywords?.length > 6 ? "…" : ""}</div>
+                  <div className="text-xs"><span className="text-muted-foreground">Headlines:</span> {(ag.headlines || []).slice(0, 4).join(" · ")}</div>
+                  <div className="text-xs text-muted-foreground">→ /{ag.landing_slug}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+          {adsPlan.negative_keywords?.length > 0 && (
+            <div className="text-xs">
+              <strong>Negativa sökord:</strong> <span className="text-muted-foreground font-mono">{adsPlan.negative_keywords.join(", ")}</span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
