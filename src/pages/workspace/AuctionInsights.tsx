@@ -4,7 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Sparkles, Eye, RefreshCw, AlertCircle, Wand2, Copy, Check, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +39,9 @@ export default function AuctionInsights() {
     hint?: string;
   } | null>(null);
   const [csvWarnings, setCsvWarnings] = useState<string[]>([]);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingCampaign, setPendingCampaign] = useState("");
+  const [pendingIsBrand, setPendingIsBrand] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fileToBase64 = async (file: File) => {
@@ -49,12 +55,10 @@ export default function AuctionInsights() {
     return btoa(bin);
   };
 
-  const onCsvSelected = async (file: File) => {
-    if (!id) return;
-
-    // Klient-side sanity-checks innan vi laddar upp
+  const onCsvSelected = (file: File) => {
     setCsvError(null);
     setCsvWarnings([]);
+
     const okExt = /\.(csv|tsv|txt)$/i.test(file.name);
     if (!okExt) {
       setCsvError({
@@ -78,15 +82,38 @@ export default function AuctionInsights() {
       return;
     }
 
+    // Föreslå kampanjnamn från filnamnet (utan extension)
+    const suggested = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+    setPendingCampaign(suggested);
+    setPendingIsBrand(/brand|varum[äa]rk/i.test(suggested));
+    setPendingFile(file);
+  };
+
+  const confirmImport = async () => {
+    if (!id || !pendingFile) return;
+    const campaign = pendingCampaign.trim();
+    if (!campaign) {
+      toast.error("Ange ett kampanjnamn");
+      return;
+    }
+    if (campaign.length > 120) {
+      toast.error("Kampanjnamnet får vara max 120 tecken");
+      return;
+    }
+
     setCsvLoading(true);
     try {
-      const content_base64 = await fileToBase64(file);
-
+      const content_base64 = await fileToBase64(pendingFile);
       const { data, error } = await supabase.functions.invoke("ads-import-auction-csv", {
-        body: { project_id: id, filename: file.name, content_base64 },
+        body: {
+          project_id: id,
+          filename: pendingFile.name,
+          content_base64,
+          campaign_name: campaign,
+          is_brand: pendingIsBrand,
+        },
       });
 
-      // Edge-funktionen returnerar JSON med error+validation även vid 400
       if (data?.error) {
         setCsvError({
           message: data.error,
@@ -100,7 +127,10 @@ export default function AuctionInsights() {
       if (error) throw error;
 
       if (Array.isArray(data?.warnings) && data.warnings.length) setCsvWarnings(data.warnings);
-      toast.success(`Importerade ${data.competitors} konkurrent-domäner`);
+      toast.success(`Importerade ${data.competitors} domäner för "${campaign}"`);
+      setPendingFile(null);
+      setPendingCampaign("");
+      setPendingIsBrand(false);
       load();
     } catch (e: any) {
       setCsvError({
@@ -494,6 +524,53 @@ export default function AuctionInsights() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pendingFile} onOpenChange={(o) => { if (!o && !csvLoading) { setPendingFile(null); setPendingCampaign(""); setPendingIsBrand(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Tagga importen</DialogTitle>
+            <DialogDescription>
+              Google Ads CSV:n innehåller inte kampanjnamn — ange vilken kampanj exporten gäller så kan vi visa det i tabellen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="csv-campaign">Kampanjnamn</Label>
+              <Input
+                id="csv-campaign"
+                value={pendingCampaign}
+                onChange={(e) => setPendingCampaign(e.target.value)}
+                placeholder="t.ex. Brand – Generic"
+                maxLength={120}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Föreslogs från filnamnet. Justera om det behövs (max 120 tecken).
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div>
+                <Label htmlFor="csv-brand" className="cursor-pointer">Brand-kampanj</Label>
+                <p className="text-xs text-muted-foreground">Markeras med en Brand-tagg i tabellen.</p>
+              </div>
+              <Switch id="csv-brand" checked={pendingIsBrand} onCheckedChange={setPendingIsBrand} />
+            </div>
+            {pendingFile && (
+              <p className="text-xs text-muted-foreground">
+                Fil: <span className="font-mono">{pendingFile.name}</span> · {(pendingFile.size / 1024).toFixed(1)} kB
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setPendingFile(null); setPendingCampaign(""); setPendingIsBrand(false); }} disabled={csvLoading}>
+              Avbryt
+            </Button>
+            <Button onClick={confirmImport} disabled={csvLoading || !pendingCampaign.trim()}>
+              {csvLoading ? "Importerar…" : "Importera"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
