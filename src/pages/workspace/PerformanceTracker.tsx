@@ -121,10 +121,41 @@ export default function PerformanceTracker() {
     const kpisCurrent = summarizePeriod(current, rankings);
     const kpisPrevious = summarizePeriod(previous, rankings);
     const annotations = annotateActions(actions, trend);
-    const goals = evaluateGoals(targets, kpisCurrent, rankings);
+
+    // Build extra metrics from GA4 + Ads snapshots
+    const ga4Totals = ga4Snapshot?.totals ?? {};
+    const ga4Sessions = Number(ga4Totals.sessions ?? 0);
+    const ga4KeyEvents = Number(ga4Totals.keyEvents ?? ga4Totals.conversions ?? 0);
+    const ga4Revenue = Number(ga4Totals.totalRevenue ?? ga4Totals.purchaseRevenue ?? ga4Totals.revenue ?? 0);
+    const ga4Engaged = Number(ga4Totals.engagedSessions ?? 0);
+    const ga4ConvRate = ga4Sessions ? (ga4KeyEvents / ga4Sessions) * 100 : 0;
+    const ga4EngRate = ga4Sessions ? (ga4Engaged / ga4Sessions) * 100 : (Number(ga4Totals.engagementRate ?? 0) * 100);
+
+    const adsSummary = adsAudit?.summary ?? {};
+    const adsRaw = adsAudit?.raw ?? {};
+    const adsSpend = Number(adsSummary.total_spend ?? adsRaw.total_spend ?? adsRaw.cost ?? 0);
+    const adsConv = Number(adsSummary.total_conversions ?? adsRaw.total_conversions ?? adsRaw.conversions ?? 0);
+    const adsRevenue = Number(adsSummary.total_revenue ?? adsRaw.total_revenue ?? adsRaw.conversion_value ?? 0);
+    const adsRoas = adsSpend ? (adsRevenue / adsSpend) : Number(adsSummary.roas ?? 0);
+    const adsCpa = adsConv ? (adsSpend / adsConv) : Number(adsSummary.cpa ?? 0);
+
+    const extraMetrics: Record<string, number | null> = {
+      ga4_conversions: ga4KeyEvents || null,
+      ga4_conv_rate: ga4ConvRate || null,
+      ga4_revenue: ga4Revenue || null,
+      ga4_sessions: ga4Sessions || null,
+      ga4_engagement_rate: ga4EngRate || null,
+      ads_roas: adsRoas || null,
+      ads_cpa: adsCpa || null,
+      ads_spend: adsSpend || null,
+      total_revenue: (ga4Revenue || adsRevenue) ? (ga4Revenue || adsRevenue) : null,
+      total_leads: ga4KeyEvents || null,
+    };
+
+    const goals = evaluateGoals(targets, kpisCurrent, rankings, extraMetrics);
     const wl = winnersAndLosers(rankings);
-    return { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl };
-  }, [snapshot, actions, targets, revenue]);
+    return { trend, rankings, kpisCurrent, kpisPrevious, annotations, goals, wl, extraMetrics };
+  }, [snapshot, actions, targets, revenue, ga4Snapshot, adsAudit]);
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground text-sm">Laddar performance-data…</div>;
