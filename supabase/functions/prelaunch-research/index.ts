@@ -140,6 +140,39 @@ serve(async (req) => {
     await supabase.from("prelaunch_briefs")
       .update({ status: "researching", error_message: null }).eq("id", brief_id);
 
+    // 0. Faktakoll först — kör om den saknas, så vi har verifierad verklighet
+    let factCheck: any = brief.fact_check || null;
+    if (!factCheck) {
+      try {
+        console.log("[prelaunch] no fact_check found, running prelaunch-factcheck first");
+        const fcRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/prelaunch-factcheck`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ brief_id }),
+        });
+        if (fcRes.ok) {
+          const fcJson = await fcRes.json();
+          factCheck = fcJson?.fact_check || null;
+        } else {
+          console.error("[prelaunch] factcheck failed:", await fcRes.text());
+        }
+      } catch (e) {
+        console.error("[prelaunch] factcheck error:", e);
+      }
+    }
+
+    // Bygg "verified facts"-kontext att injicera i AI-prompten
+    const factsContext = factCheck?.claims?.length
+      ? `\n\n=== VERIFIED FACTS (use these instead of client claims when they conflict) ===\n${
+          factCheck.claims.map((c: any, i: number) =>
+            `${i + 1}. "${c.claim}" → ${c.verdict.toUpperCase()} (${c.confidence})\n   Evidens: ${c.evidence}\n   Rekommendation: ${c.recommendation}`
+          ).join("\n\n")
+        }\n\nVIKTIGT: När klientens påstående är CONTRADICTED — ignorera klientpåståendet helt och basera analys/sökord/strategi på den verifierade verkligheten. Nämn omkonstruktiv ompositionering i strategin.\n=== END VERIFIED FACTS ===\n`
+      : "";
+
     const { data: revSettings } = await supabase
       .from("project_revenue_settings").select("*").eq("project_id", brief.project_id).maybeSingle();
     const settings = {
