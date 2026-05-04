@@ -21,9 +21,7 @@ export function OnboardingChecklist({ projectId }: Props) {
   const storageKey = `onboarding-collapsed:${projectId}`;
   const [collapsed, setCollapsed] = useState<boolean | null>(null);
 
-  if (caps.loading) return null;
-
-  const steps = [
+  const steps = caps.loading ? [] : [
     { done: caps.hasGoals, label: "Sätt mål & konverteringsvärde", desc: "Vad räknas som vinst för den här kunden?", to: `${base}/settings`, key: "goals" },
     { done: caps.hasBrandKit, label: "Brand Kit", desc: "Färger, typsnitt, logo — för exporter och rapporter.", to: `${base}/brand-kit`, key: "brand" },
     { done: caps.hasGA4 || caps.hasGSC, label: "Koppla GA4 + Search Console", desc: "Krävs för dashboards, briefings och alerts.", to: `${base}/settings`, key: "ga4" },
@@ -35,19 +33,21 @@ export function OnboardingChecklist({ projectId }: Props) {
 
   const doneCount = steps.filter(s => s.done).length;
   const total = steps.length;
-  const allDone = doneCount === total;
-  const pct = Math.round((doneCount / total) * 100);
+  const allDone = total > 0 && doneCount === total;
+  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   // Auto-collapse när nästan klar (>= total - 1), om användaren inte explicit valt
   useEffect(() => {
+    if (caps.loading) return;
     const stored = localStorage.getItem(storageKey);
     if (stored === null) {
       setCollapsed(doneCount >= total - 1 && !allDone);
     } else {
       setCollapsed(stored === "1");
     }
-  }, [storageKey, doneCount, total, allDone]);
+  }, [storageKey, doneCount, total, allDone, caps.loading]);
 
+  if (caps.loading) return null;
   if (allDone) return null;
   if (collapsed === null) return null;
 
