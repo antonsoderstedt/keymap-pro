@@ -975,6 +975,7 @@ export type Database = {
           keyword: string
           location_code: number
           search_volume: number | null
+          strategy_quadrant: string | null
           trend_json: Json | null
           updated_at: string
         }
@@ -984,6 +985,7 @@ export type Database = {
           keyword: string
           location_code?: number
           search_volume?: number | null
+          strategy_quadrant?: string | null
           trend_json?: Json | null
           updated_at?: string
         }
@@ -993,6 +995,7 @@ export type Database = {
           keyword?: string
           location_code?: number
           search_volume?: number | null
+          strategy_quadrant?: string | null
           trend_json?: Json | null
           updated_at?: string
         }
@@ -1042,6 +1045,7 @@ export type Database = {
       }
       prelaunch_blueprints: {
         Row: {
+          ads_plan: Json | null
           brief_id: string
           created_at: string
           forecast: Json | null
@@ -1050,11 +1054,13 @@ export type Database = {
           market_analysis: Json | null
           personas: Json | null
           project_id: string
+          selected_keywords: Json
           sitemap: Json | null
           strategy: Json | null
           updated_at: string
         }
         Insert: {
+          ads_plan?: Json | null
           brief_id: string
           created_at?: string
           forecast?: Json | null
@@ -1063,11 +1069,13 @@ export type Database = {
           market_analysis?: Json | null
           personas?: Json | null
           project_id: string
+          selected_keywords?: Json
           sitemap?: Json | null
           strategy?: Json | null
           updated_at?: string
         }
         Update: {
+          ads_plan?: Json | null
           brief_id?: string
           created_at?: string
           forecast?: Json | null
@@ -1076,6 +1084,7 @@ export type Database = {
           market_analysis?: Json | null
           personas?: Json | null
           project_id?: string
+          selected_keywords?: Json
           sitemap?: Json | null
           strategy?: Json | null
           updated_at?: string
@@ -1097,6 +1106,7 @@ export type Database = {
           created_at: string
           error_message: string | null
           existing_sitemap: Json | null
+          fact_check: Json | null
           id: string
           locations: string[]
           project_id: string
@@ -1111,6 +1121,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           existing_sitemap?: Json | null
+          fact_check?: Json | null
           id?: string
           locations?: string[]
           project_id: string
@@ -1125,6 +1136,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           existing_sitemap?: Json | null
+          fact_check?: Json | null
           id?: string
           locations?: string[]
           project_id?: string
@@ -1132,6 +1144,81 @@ export type Database = {
           target_audience?: string | null
           updated_at?: string
           usp?: string | null
+        }
+        Relationships: []
+      }
+      project_baselines: {
+        Row: {
+          created_at: string
+          id: string
+          is_baseline: boolean
+          metrics: Json
+          project_id: string
+          snapshot_date: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_baseline?: boolean
+          metrics?: Json
+          project_id: string
+          snapshot_date: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_baseline?: boolean
+          metrics?: Json
+          project_id?: string
+          snapshot_date?: string
+          source?: string
+        }
+        Relationships: []
+      }
+      project_goals: {
+        Row: {
+          brand_terms: string[]
+          conversion_label: string | null
+          conversion_rate_pct: number
+          conversion_type: string
+          conversion_value: number
+          created_at: string
+          currency: string
+          id: string
+          primary_goal: string
+          project_id: string
+          strategy_split: Json
+          updated_at: string
+        }
+        Insert: {
+          brand_terms?: string[]
+          conversion_label?: string | null
+          conversion_rate_pct?: number
+          conversion_type?: string
+          conversion_value?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          primary_goal?: string
+          project_id: string
+          strategy_split?: Json
+          updated_at?: string
+        }
+        Update: {
+          brand_terms?: string[]
+          conversion_label?: string | null
+          conversion_rate_pct?: number
+          conversion_type?: string
+          conversion_value?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          primary_goal?: string
+          project_id?: string
+          strategy_split?: Json
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1220,6 +1307,7 @@ export type Database = {
           name: string
           products: string | null
           user_id: string
+          workspace_type: string
         }
         Insert: {
           company: string
@@ -1236,6 +1324,7 @@ export type Database = {
           name: string
           products?: string | null
           user_id: string
+          workspace_type?: string
         }
         Update: {
           company?: string
@@ -1252,6 +1341,7 @@ export type Database = {
           name?: string
           products?: string | null
           user_id?: string
+          workspace_type?: string
         }
         Relationships: []
       }
