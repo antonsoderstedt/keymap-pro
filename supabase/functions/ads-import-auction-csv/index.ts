@@ -76,6 +76,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Tagga varje rad med kampanjnamn så UI:t kan visa "Kampanjer"-kolumnen.
+    const taggedCompetitors = parsed.competitors.map((c: any) => ({
+      ...c, campaigns: [campaignName], campaign: campaignName,
+    }));
+
     const { data: ins, error: iErr } = await admin
       .from("auction_insights_snapshots")
       .insert({
@@ -83,13 +88,27 @@ Deno.serve(async (req) => {
         start_date: start,
         end_date: end,
         source: "csv",
-        rows: { competitors: parsed.competitors, campaigns: [], filename: filename || null },
+        rows: {
+          competitors: taggedCompetitors,
+          campaigns: [{ id: `csv-${Date.now()}`, name: campaignName, is_brand: isBrand }],
+          filename: filename || null,
+          imported_campaign: { name: campaignName, is_brand: isBrand },
+        },
       })
       .select("id")
       .single();
     if (iErr) throw iErr;
 
-    return json({ ok: true, snapshot_id: ins.id, competitors: parsed.competitors.length, start_date: start, end_date: end });
+    return json({
+      ok: true,
+      snapshot_id: ins.id,
+      competitors: taggedCompetitors.length,
+      campaign_name: campaignName,
+      is_brand: isBrand,
+      start_date: start,
+      end_date: end,
+      warnings: validation.warnings,
+    });
   } catch (e: any) {
     console.error("ads-import-auction-csv", e);
     return json({ error: e.message || "internal" }, 500);
