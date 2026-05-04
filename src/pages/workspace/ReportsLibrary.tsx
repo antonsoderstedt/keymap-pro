@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ReportTemplateView } from "@/components/workspace/ReportTemplateView";
 import {
   FileText, Download, Sparkles, BarChart3, Search, Eye, Layers,
   TrendingUp, Zap, AlertCircle, Calendar,
