@@ -106,6 +106,7 @@ Deno.serve(async (req) => {
       } else if (clicks <= 3) {
         action = "För lite data — vänta";
       }
+      const agId = String(r.adGroup?.id ?? "");
       return {
         keyword: r.adGroupCriterion?.keyword?.text,
         match_type: r.adGroupCriterion?.keyword?.matchType,
@@ -113,7 +114,8 @@ Deno.serve(async (req) => {
         campaign: r.campaign?.name,
         campaign_id: String(r.campaign?.id ?? ""),
         ad_group: r.adGroup?.name,
-        ad_group_id: String(r.adGroup?.id ?? ""),
+        ad_group_id: agId,
+        landing_page: landingByAdGroup[agId] || null,
         cost_sek: cost,
         clicks,
         ctr: Math.round(ctr * 10000) / 100,
@@ -122,6 +124,35 @@ Deno.serve(async (req) => {
         suggested_action: action,
       };
     });
+
+    // Aggregera landningssidor som berörs av tracking-/landningskontroller.
+    // Grupperar per URL och räknar keywords + total cost/clicks. Sorterad på
+    // total cost desc så att de mest prioriterade ligger högst.
+    const landingMap = new Map<string, { url: string; keywords: string[]; total_cost_sek: number; total_clicks: number; campaigns: Set<string>; needs_check: boolean }>();
+    for (const w of wasted) {
+      if (!w.landing_page) continue;
+      const needsCheck = w.suggested_action.startsWith("Kontrollera landningssida")
+        || w.suggested_action.startsWith("Installera/verifiera");
+      const key = w.landing_page;
+      const entry = landingMap.get(key) || { url: key, keywords: [], total_cost_sek: 0, total_clicks: 0, campaigns: new Set<string>(), needs_check: false };
+      if (w.keyword) entry.keywords.push(w.keyword);
+      entry.total_cost_sek += w.cost_sek;
+      entry.total_clicks += w.clicks;
+      if (w.campaign) entry.campaigns.add(w.campaign);
+      if (needsCheck) entry.needs_check = true;
+      landingMap.set(key, entry);
+    }
+    const landing_pages = Array.from(landingMap.values())
+      .map((e) => ({
+        url: e.url,
+        keyword_count: e.keywords.length,
+        keywords: e.keywords,
+        total_cost_sek: Math.round(e.total_cost_sek * 100) / 100,
+        total_clicks: e.total_clicks,
+        campaigns: Array.from(e.campaigns),
+        needs_check: e.needs_check,
+      }))
+      .sort((a, b) => b.total_cost_sek - a.total_cost_sek);
 
     const totalWaste = wasted.reduce((s, w) => s + w.cost_sek, 0);
 
