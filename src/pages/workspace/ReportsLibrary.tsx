@@ -134,17 +134,21 @@ export default function ReportsLibrary() {
             <p className="text-sm text-muted-foreground">Inga rapporter genererade ännu.</p>
           ) : (
             <div className="space-y-2">
-              {history.map(h => (
-                <div key={h.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium truncate">{h.name}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}</div>
+              {history.map(h => {
+                const p = h.payload as any;
+                const summary = summarizePayload(p);
+                return (
+                  <div key={h.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{h.name}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}{summary && ` · ${summary}`}</div>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
+                      Öppna
+                    </Button>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
-                    Öppna
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
