@@ -264,9 +264,13 @@ export default function PrelaunchBlueprint() {
         <TabsContent value="brief" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Brief — verksamhet & marknad</CardTitle>
+              <CardTitle>
+                {editingBriefId ? "Redigera brief" : "Brief — verksamhet & marknad"}
+              </CardTitle>
               <CardDescription>
-                Ju mer detaljerad input, desto bättre resultat. Beräkningstid: ~60-120 sekunder.
+                {editingBriefId
+                  ? "Ändra fälten och spara, eller spara + generera om resultatet (~60-120 sek)."
+                  : "Ju mer detaljerad input, desto bättre resultat. Beräkningstid: ~60-120 sekunder."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
