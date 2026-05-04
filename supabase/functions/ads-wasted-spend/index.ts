@@ -86,18 +86,23 @@ Deno.serve(async (req) => {
     let createdItems = 0;
     if (create_action_items && wasted.length > 0) {
       const top = wasted.slice(0, 5);
-      const items = top.map((w) => ({
-        project_id,
-        title: `${w.suggested_action}: "${w.keyword}"`,
-        description: `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.`,
-        category: "ads",
-        priority: w.cost_sek > 500 ? "high" : "medium",
-        status: "open",
-        source_type: "ads_wasted_spend",
-        source_payload: w,
-        expected_impact: `Spara ~${w.cost_sek} SEK/månad`,
-        expected_impact_sek: w.cost_sek,
-      }));
+      const items = top.map((w) => {
+        const isTrackingCheck = w.suggested_action.startsWith("Kontrollera landningssida");
+        return {
+          project_id,
+          title: `${w.suggested_action}: "${w.keyword}"`,
+          description: `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, CTR ${w.ctr}%, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.`,
+          category: "ads",
+          priority: w.cost_sek > 500 ? "high" : "medium",
+          status: "open",
+          source_type: "ads_wasted_spend",
+          source_payload: w,
+          expected_impact: isTrackingCheck
+            ? `Lås upp konverteringar (sökordet driver redan ${w.clicks} klick/30d)`
+            : `Spara ~${w.cost_sek} SEK/månad`,
+          expected_impact_sek: isTrackingCheck ? 0 : w.cost_sek,
+        };
+      });
       const { error } = await admin.from("action_items").insert(items);
       if (!error) createdItems = items.length;
     }
