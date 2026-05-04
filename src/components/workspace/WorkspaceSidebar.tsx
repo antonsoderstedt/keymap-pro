@@ -16,14 +16,22 @@ import {
   LineChart,
   Rocket,
   MessageSquare,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface NavItem {
   to: string;
   label: string;
   icon: any;
-  badge?: string;
+  /** If false, item is greyed and tooltip explains how to unlock. */
+  enabled?: boolean;
+  lockedReason?: string;
+  unlockTo?: string;
+  /** Hide entirely (e.g. pre-launch when analysis exists) */
+  hidden?: boolean;
 }
 
 interface SidebarProps {
@@ -35,41 +43,91 @@ interface SidebarProps {
 export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany }: SidebarProps) {
   const navigate = useNavigate();
   const base = `/clients/${workspaceId}`;
+  const caps = useProjectCapabilities(workspaceId);
+
+  const settingsTo = `${base}/settings`;
+  const noData = !caps.hasGA4 && !caps.hasGSC && !caps.hasAnalysis && !caps.hasPrelaunch;
 
   const sections: { title: string; items: NavItem[] }[] = [
     {
       title: "Översikt",
       items: [
         { to: `${base}`, label: "Executive", icon: LayoutDashboard },
-        { to: `${base}/performance`, label: "Performance & mål", icon: LineChart },
-        { to: `${base}/briefing`, label: "Veckans briefing", icon: Sparkles, badge: "premium" },
+        {
+          to: `${base}/performance`, label: "Performance & mål", icon: LineChart,
+          enabled: caps.hasGA4 || caps.hasGSC,
+          lockedReason: "Koppla GA4 eller Search Console för att se performance.",
+          unlockTo: settingsTo,
+        },
+        {
+          to: `${base}/briefing`, label: "Veckans briefing", icon: Sparkles,
+          enabled: caps.hasGA4 || caps.hasGSC,
+          lockedReason: "Briefingen behöver minst en datakälla (GA4 eller Search Console).",
+          unlockTo: settingsTo,
+        },
         { to: `${base}/overview`, label: "Workspace-översikt", icon: ClipboardCheck },
       ],
     },
     {
       title: "Kanaler",
       items: [
-        { to: `${base}/seo`, label: "SEO", icon: TrendingUp },
-        { to: `${base}/google-ads`, label: "Google Ads", icon: Sparkles, badge: "preview" },
-        { to: `${base}/ads-audit`, label: "Ads Audit", icon: ShieldCheck, badge: "ny" },
-        { to: `${base}/ads-chat`, label: "PPC-chat", icon: MessageSquare, badge: "ny" },
-        { to: `${base}/ga4`, label: "GA4", icon: LayoutDashboard },
-        { to: `${base}/paid-vs-organic`, label: "Paid vs Organic", icon: Layers },
+        {
+          to: `${base}/seo`, label: "SEO", icon: TrendingUp,
+          enabled: caps.hasGSC,
+          lockedReason: "Koppla Google Search Console.",
+          unlockTo: settingsTo,
+        },
+        {
+          to: `${base}/google-ads`, label: "Google Ads", icon: Sparkles,
+          enabled: caps.hasAds, lockedReason: "Koppla Google Ads-konto.", unlockTo: settingsTo,
+        },
+        {
+          to: `${base}/ads-audit`, label: "Ads Audit", icon: ShieldCheck,
+          enabled: caps.hasAds, lockedReason: "Kräver Google Ads-koppling.", unlockTo: settingsTo,
+        },
+        {
+          to: `${base}/ads-chat`, label: "PPC-chat", icon: MessageSquare,
+          enabled: caps.hasAds, lockedReason: "Kräver Google Ads-koppling.", unlockTo: settingsTo,
+        },
+        {
+          to: `${base}/ga4`, label: "GA4", icon: LayoutDashboard,
+          enabled: caps.hasGA4, lockedReason: "Koppla GA4-property.", unlockTo: settingsTo,
+        },
+        {
+          to: `${base}/paid-vs-organic`, label: "Paid vs Organic", icon: Layers,
+          enabled: caps.hasGA4 && caps.hasAds,
+          lockedReason: "Kräver både GA4 och Google Ads.",
+          unlockTo: settingsTo,
+        },
       ],
     },
     {
       title: "Analys",
       items: [
-        { to: `${base}/keyword-universe`, label: "Sökordsuniversum", icon: Search },
+        {
+          to: `${base}/keyword-universe`, label: "Sökordsuniversum", icon: Search,
+          enabled: caps.hasKeywordUniverse,
+          lockedReason: "Kör en analys eller pre-launch först.",
+          unlockTo: caps.hasPrelaunch ? `${base}/prelaunch` : `/project/${workspaceId}`,
+        },
         { to: `${base}/segments`, label: "Segment & paket", icon: Layers },
-        { to: `${base}/prelaunch`, label: "Pre-launch Blueprint", icon: Rocket, badge: "ny" },
+        {
+          to: `${base}/prelaunch`, label: "Pre-launch Blueprint", icon: Rocket,
+          // Dölj pre-launch när det finns riktig analys
+          hidden: caps.hasAnalysis && !caps.hasPrelaunch,
+        },
       ],
     },
     {
       title: "Action & uppföljning",
       items: [
         { to: `${base}/actions`, label: "Action Tracker", icon: ListChecks },
-        { to: `${base}/audit`, label: "SEO Audit", icon: ShieldCheck },
+        {
+          to: `${base}/audit`, label: "SEO Audit", icon: ShieldCheck,
+          enabled: caps.hasGSC || caps.hasAnalysis,
+          lockedReason: "Kräver Search Console eller en körd analys.",
+          unlockTo: settingsTo,
+        },
         { to: `${base}/alerts`, label: "Alerts", icon: Bell },
       ],
     },
@@ -105,45 +163,74 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
             <p className="text-xs text-muted-foreground mt-0.5">{workspaceCompany}</p>
           )}
         </div>
+        {noData && !caps.loading && (
+          <div className="mt-3 text-[11px] text-muted-foreground">
+            Många paneler är låsta tills data är kopplad. Se onboarding-listan på Executive.
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-6">
-        {sections.map((section) => (
-          <div key={section.title}>
-            <h3 className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {section.title}
-            </h3>
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === base}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        isActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      )
+      <TooltipProvider delayDuration={150}>
+        <nav className="flex-1 overflow-y-auto p-3 space-y-6">
+          {sections.map((section) => {
+            const visibleItems = section.items.filter(i => !i.hidden);
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={section.title}>
+                <h3 className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {section.title}
+                </h3>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const enabled = item.enabled !== false;
+
+                    if (!enabled) {
+                      return (
+                        <Tooltip key={item.to}>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => item.unlockTo && navigate(item.unlockTo)}
+                              className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+                            >
+                              <Icon className="h-4 w-4 shrink-0" />
+                              <span className="flex-1 text-left">{item.label}</span>
+                              <Lock className="h-3 w-3 shrink-0" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[220px]">
+                            <p className="text-xs">{item.lockedReason}</p>
+                            {item.unlockTo && <p className="text-[10px] text-muted-foreground mt-1">Klicka för att gå dit →</p>}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
                     }
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1">{item.label}</span>
-                    {item.badge && (
-                      <span className="text-[9px] uppercase font-medium tracking-wide text-muted-foreground/70">
-                        {item.badge}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
+
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.to === base}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                            isActive
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )
+                        }
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="flex-1">{item.label}</span>
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+      </TooltipProvider>
     </aside>
   );
 }
