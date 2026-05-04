@@ -2,6 +2,7 @@
 // Skapar topp-N som action_items med expected_savings_sek.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getAdsContext, searchGaql } from "../_shared/google-ads.ts";
+import { suggestAction } from "./rules.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
