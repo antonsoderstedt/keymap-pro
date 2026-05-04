@@ -285,6 +285,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Ads-diagnoser → actions/risks (delad sanning från ads-diagnose)
+    const adsReport: any = adsDiag.data?.report ?? null;
+    if (adsReport) {
+      // Blockers = risks med högt värde-proxy
+      for (const b of (adsReport.blockers ?? []).slice(0, 2)) {
+        risks.push({
+          title: `Ads: ${b.message}`,
+          value_sek: 0,
+          source: "ads_diagnosis_blocker",
+          why: b.resolution,
+          details: {
+            method: "Ads-diagnosmotorns quality gate.",
+            inputs: { gate: b.gate },
+            steps: [],
+            source_table: "ads_diagnostics_runs",
+          },
+        });
+      }
+      // Topp-3 rotorsaker som actions, sorterade på kronvärde
+      const topDiag = (adsReport.diagnoses ?? [])
+        .filter((d: any) => !d.is_symptom_of && (d.estimated_value_sek ?? 0) > 0)
+        .slice(0, 3);
+      for (const d of topDiag) {
+        actions.push({
+          title: `Ads: ${d.title} (${d.scope_ref?.map((r: any) => r.name).join(" / ") || "kontot"})`,
+          value_sek: d.estimated_value_sek ?? 0,
+          source: "ads_diagnosis",
+          why: d.proposed_actions?.[0]?.label ?? d.why,
+          details: {
+            method: "Ads diagnosmotor — regelbaserad estimering med ProjectGoals.conversion_value.",
+            inputs: {
+              rule_id: d.rule_id,
+              confidence: d.confidence,
+              expected_impact: d.expected_impact,
+            },
+            steps: (d.proposed_actions ?? []).slice(0, 2).map((a: any) => ({ label: a.label, value: a.detail })),
+            source_table: "ads_diagnostics_runs",
+          },
+        });
+        totalValue += d.estimated_value_sek ?? 0;
+      }
+    }
+
     // 4. AI-sammanfattning
     let summary_md = "";
     if (LOVABLE_API_KEY) {
