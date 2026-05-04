@@ -141,14 +141,83 @@ export default function Ga4Dashboard() {
         </Card>
       )}
 
-      {snapshot && (
+      {snapshot && (() => {
+        const sessionsVal = totals.sessions ?? rows.reduce((s, r) => s + (r.sessions || 0), 0);
+        const convVal = totals.conversions ?? rows.reduce((s, r) => s + (r.conversions || 0), 0);
+        const ratio = sessionsVal > 0 ? convVal / sessionsVal : 0;
+        const sanityWarn = ratio > 2;
+        const filterApplied = totals.filter_applied;
+        const rawConv = totals.conversions_raw;
+        return (
         <>
+          {sanityWarn && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Misstänkt hög konverteringsfrekvens</AlertTitle>
+              <AlertDescription className="text-xs space-y-1">
+                <div>Du har {convVal.toLocaleString("sv-SE")} konverteringar på {sessionsVal.toLocaleString("sv-SE")} sessioner ({ratio.toFixed(1)} per session). Detta är typiskt en indikator på att fel events är markerade som "Key event" i GA4 (t.ex. <code>page_view</code> eller <code>session_start</code>).</div>
+                <div>Kolla event-breakdown nedan, gå till GA4 → Admin → Events och avmarkera felaktiga key events. Du kan också vit-/svartlista events under <Link to={`/clients/${id}/settings`} className="underline font-medium">Inställningar</Link>.</div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {filterApplied && (filterApplied.allow?.length || filterApplied.deny?.length) && (
+            <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-[10px]">Filter aktivt</Badge>
+              {rawConv != null && <span>Råvärde från GA4: {Number(rawConv).toLocaleString("sv-SE")} → filtrerat: {convVal.toLocaleString("sv-SE")}</span>}
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="Användare" value={totals.users ?? totals.totalUsers ?? rows.reduce((s, r) => s + (r.users || r.totalUsers || 0), 0)} icon={Users} />
-            <Kpi label="Sessioner" value={totals.sessions ?? rows.reduce((s, r) => s + (r.sessions || 0), 0)} icon={Activity} />
+            <Kpi label="Sessioner" value={sessionsVal} icon={Activity} />
             <Kpi label="Sidvisningar" value={totals.pageviews ?? totals.screenPageViews ?? rows.reduce((s, r) => s + (r.pageviews || r.screenPageViews || 0), 0)} icon={Eye} />
-            <Kpi label="Konverteringar" value={totals.conversions ?? rows.reduce((s, r) => s + (r.conversions || 0), 0)} icon={Target} />
+            <Kpi label="Konverteringar" value={convVal} icon={Target} />
           </div>
+
+          {/* Event breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif text-lg flex items-center gap-2">
+                <ListTree className="h-4 w-4 text-primary" /> Konverteringar per event
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {eventsLoading ? (
+                <p className="text-sm text-muted-foreground">Laddar…</p>
+              ) : events.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Inga events. Klicka "Hämta nu".</p>
+              ) : (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-12 text-[10px] uppercase tracking-wider text-muted-foreground pb-2 border-b border-border">
+                    <div className="col-span-6">Event-namn</div>
+                    <div className="col-span-2 text-right">Event-count</div>
+                    <div className="col-span-2 text-right">Conversions</div>
+                    <div className="col-span-2 text-right">Key events</div>
+                  </div>
+                  {events.slice(0, 30).map((e) => {
+                    const isKey = e.conversions > 0 || e.keyEvents > 0;
+                    const looksWrong = isKey && (e.eventName === "page_view" || e.eventName === "session_start" || e.eventName === "first_visit" || e.eventName === "user_engagement");
+                    return (
+                      <div key={e.eventName} className={`grid grid-cols-12 py-1.5 text-sm border-b border-border/40 ${looksWrong ? "bg-destructive/5" : ""}`}>
+                        <div className="col-span-6 font-mono text-xs flex items-center gap-2">
+                          {e.eventName}
+                          {looksWrong && <Badge variant="destructive" className="text-[9px]">Felaktig key event?</Badge>}
+                          {isKey && !looksWrong && <Badge variant="outline" className="text-[9px]">key</Badge>}
+                        </div>
+                        <div className="col-span-2 text-right font-mono">{e.eventCount.toLocaleString("sv-SE")}</div>
+                        <div className="col-span-2 text-right font-mono">{e.conversions.toLocaleString("sv-SE")}</div>
+                        <div className="col-span-2 text-right font-mono">{e.keyEvents.toLocaleString("sv-SE")}</div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-muted-foreground pt-2">
+                    Avmarkera felmarkerade key events i GA4 (Admin → Events), eller filtrera dem under <Link to={`/clients/${id}/settings`} className="underline">Inställningar</Link>.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {sourceData.length > 0 && (
             <div className="grid gap-4 lg:grid-cols-2">
