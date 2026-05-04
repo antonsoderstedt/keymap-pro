@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ReportTemplateView } from "@/components/workspace/ReportTemplateView";
 import {
   FileText, Download, Sparkles, BarChart3, Search, Eye, Layers,
   TrendingUp, Zap, AlertCircle, Calendar,
@@ -40,6 +42,7 @@ export default function ReportsLibrary() {
   const navigate = useNavigate();
   const [history, setHistory] = useState<any[]>([]);
   const [generating, setGenerating] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<any>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -70,6 +73,8 @@ export default function ReportsLibrary() {
       else if (status === "partial") toast.warning(`${report.name} delvis genererad — ${missing.length} fält saknas`, { description: missing.slice(0, 3).join(" · ") });
       else if (status === "empty") toast.error(`${report.name}: inga datakällor tillgängliga`, { description: missing.slice(0, 3).join(" · ") });
       else toast.success(`${report.name} sparad`);
+      const artifact = (data as any)?.artifact;
+      if (artifact?.payload?.template) setViewing(artifact);
       const { data: hist } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
       setHistory(hist || []);
     } catch (e: any) {
@@ -160,9 +165,16 @@ export default function ReportsLibrary() {
                         </div>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1 shrink-0">
-                      Öppna
-                    </Button>
+                    <div className="flex gap-1 shrink-0">
+                      {p?.template && (
+                        <Button size="sm" variant="default" onClick={() => setViewing(h)} className="gap-1">
+                          Visa
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1">
+                        Öppna
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -170,6 +182,15 @@ export default function ReportsLibrary() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">{viewing?.name}</DialogTitle>
+          </DialogHeader>
+          {viewing?.payload?.template && <ReportTemplateView template={viewing.payload.template} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

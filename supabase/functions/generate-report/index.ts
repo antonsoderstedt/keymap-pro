@@ -1,6 +1,7 @@
 // Unified report generator — hämtar live-data per report_type och sparar i workspace_artifacts.
 // Stödjer: share_of_voice, auction_insights, yoy, roi (övriga använder existing snapshot-data).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { buildTemplate } from "./_templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -238,6 +239,13 @@ Deno.serve(async (req) => {
     payload.overall_status = statuses.includes("ok") || statuses.includes("partial")
       ? (statuses.every((s) => s === "ok") ? "complete" : "partial")
       : "empty";
+
+    // Standardiserad presentationsmall (summary + tables + charts)
+    try {
+      payload.template = buildTemplate(payload as any);
+    } catch (e) {
+      console.warn("template build failed", e);
+    }
 
     const { data: artifact, error } = await supabase.from("workspace_artifacts").insert({
       project_id,
