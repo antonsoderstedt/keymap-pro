@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             dateRanges: [{ startDate, endDate }],
             dimensions: [{ name: "eventName" }],
-            metrics: [{ name: "eventCount" }, { name: "conversions" }, { name: "keyEvents" }],
+            metrics: [{ name: "eventCount" }, { name: "conversions" }],
             orderBys: [{ metric: { metricName: "conversions" }, desc: true }],
             limit: 100,
           }),
