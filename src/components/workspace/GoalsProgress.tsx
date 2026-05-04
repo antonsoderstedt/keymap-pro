@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, CheckCircle2, AlertTriangle, Trash2, Sparkles, Lock, Settings2 } from "lucide-react";
+import { Plus, Target, CheckCircle2, AlertTriangle, Trash2, Sparkles, Lock, Settings2, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -149,6 +149,47 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
     }
   };
 
+  // Auto-föreslå en komplett uppsättning mål för alla tillgängliga måtttyper.
+  // Hoppar över metrics som redan har ett aktivt mål och de utan nuläge.
+  const onAutoSuggestAll = async () => {
+    const existingMetrics = new Set(goals.map((g) => g.target.metric));
+    const candidates: Array<{ tpl: MetricTemplate; currentVal: number; suggested: number }> = [];
+
+    for (const t of METRIC_TEMPLATES) {
+      if (!availableSources[t.source]) continue;
+      if (existingMetrics.has(t.value)) continue;
+      const cv = getCurrentValue(t.value, current, rankings, extraMetrics);
+      if (cv === null || cv === 0) continue;
+      const sug = suggestTarget(t.value, cv);
+      if (sug === null) continue;
+      candidates.push({ tpl: t, currentVal: cv, suggested: sug });
+    }
+
+    if (candidates.length === 0) {
+      toast.info("Inga nya mål att föreslå — antingen finns alla redan, eller saknas data.");
+      return;
+    }
+
+    setSaving(true);
+    const rows = candidates.map(({ tpl, suggested }) => ({
+      project_id: projectId,
+      metric: tpl.value,
+      label: tpl.label,
+      target_value: suggested,
+      direction: tpl.direction,
+      timeframe: "quarter",
+      is_active: true,
+    }));
+    const { error } = await supabase.from("kpi_targets").insert(rows);
+    setSaving(false);
+    if (error) {
+      toast.error("Kunde inte skapa auto-mål");
+      return;
+    }
+    toast.success(`Skapade ${rows.length} mål automatiskt 🎯`);
+    onChanged();
+  };
+
   // Gruppera templates per källa
   const grouped = useMemo(() => {
     const g: Record<GoalSource, MetricTemplate[]> = { gsc: [], ga4: [], ads: [], combined: [] };
@@ -168,12 +209,16 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
             Sätt mål för organiskt, GA4-konverteringar, Ads — eller hela tratten.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
-              <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till mål
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={onAutoSuggestAll} disabled={saving}>
+            <Wand2 className="h-3.5 w-3.5 mr-1" /> Auto-föreslå alla
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till mål
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Nytt mål</DialogTitle>
@@ -287,7 +332,8 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
               <Button onClick={onSave} disabled={saving || !targetValue || !sourceAvailable}>Spara mål</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         {goals.length === 0 ? (
