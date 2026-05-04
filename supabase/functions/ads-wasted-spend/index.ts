@@ -2,6 +2,7 @@
 // Skapar topp-N som action_items med expected_savings_sek.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getAdsContext, searchGaql } from "../_shared/google-ads.ts";
+import { suggestAction } from "./rules.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,28 +85,8 @@ Deno.serve(async (req) => {
       const ctr = Number(r.metrics?.ctr || 0); // 0..1
       const qs = r.adGroupCriterion?.qualityInfo?.qualityScore ?? null;
 
-      let action = "Granska manuellt";
+      const action = suggestAction({ clicks, ctr, qs, cost_sek: cost, trackingStatus });
 
-      const highCtr = ctr >= 0.05;
-      const lowCtr = ctr < 0.01 && clicks > 5;
-      const highQs = qs != null && qs >= 7;
-      const lowQs = qs != null && qs <= 4;
-
-      if (trackingStatus === "missing") {
-        action = "Installera/verifiera konverteringsspårning (hela kontot)";
-      } else if (highCtr && highQs) {
-        action = trackingStatus === "active"
-          ? "Kontrollera landningssida (spårning OK, men 0 konv på detta sökord)"
-          : "Kontrollera landningssida & konverteringsspårning";
-      } else if (lowCtr) {
-        action = "Lägg som negativt sökord";
-      } else if (lowQs) {
-        action = "Förbättra QS eller pausa";
-      } else if (cost > 1000) {
-        action = "Sänk maxbud −40%";
-      } else if (clicks <= 3) {
-        action = "För lite data — vänta";
-      }
       const agId = String(r.adGroup?.id ?? "");
       return {
         keyword: r.adGroupCriterion?.keyword?.text,
