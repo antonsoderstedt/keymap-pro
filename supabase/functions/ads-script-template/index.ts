@@ -181,7 +181,7 @@ function fetchAuctionInsights(campaignId, range) {
 
   var rows = [];
   try {
-    var it = AdsApp.search(gaql, { apiVersion: 'v17' });
+    var it = AdsApp.search(gaql);
     while (it.hasNext()) {
       var r = it.next();
       var domain = String((r.auctionInsightDomain && r.auctionInsightDomain.domain) || '').toLowerCase().trim();
