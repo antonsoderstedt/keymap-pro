@@ -37,9 +37,6 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
   try {
-    const masterSecret = Deno.env.get("ADS_WEBHOOK_SECRET");
-    if (!masterSecret) throw new Error("ADS_WEBHOOK_SECRET not configured");
-
     const projectId = req.headers.get("x-slay-project");
     const signature = req.headers.get("x-slay-signature");
     if (!projectId || !signature) return json({ error: "missing_auth_headers" }, 401);
@@ -60,9 +57,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (sErr || !settings?.ads_script_secret) return json({ error: "project_not_configured" }, 401);
 
-    // Verify HMAC: master + per-project secret combined
-    const combined = `${masterSecret}.${settings.ads_script_secret}`;
-    const expected = await hmacHex(combined, rawBody);
+    // Verify HMAC using per-project secret (64+ hex chars, generated server-side)
+    const expected = await hmacHex(settings.ads_script_secret, rawBody);
     if (!timingSafeEqual(expected, signature.toLowerCase())) {
       return json({ error: "invalid_signature" }, 401);
     }
