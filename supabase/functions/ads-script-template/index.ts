@@ -163,38 +163,38 @@ function collectCampaigns(range) {
 }
 
 function fetchAuctionInsights(campaignId, range) {
-  // Modern Google Ads API uses GAQL via AdsApp.search() against the
-  // 'campaign_auction_insight_domain_view' resource. Returns share metrics
-  // already as 0..1 floats.
+  // Auction Insights in Google Ads Scripts is exposed as allowlisted metrics
+  // on the campaign resource, segmented by segments.auction_insight_domain.
   var gaql =
     "SELECT " +
-      "auction_insight_domain.domain, " +
-      "metrics.search_impression_share, " +
-      "metrics.search_overlap_rate, " +
-      "metrics.search_position_above_rate, " +
-      "metrics.search_top_impression_share, " +
-      "metrics.search_absolute_top_impression_share, " +
-      "metrics.search_outranking_share " +
-    "FROM campaign_auction_insight_domain_view " +
+      "campaign.id, " +
+      "campaign.name, " +
+      "segments.auction_insight_domain, " +
+      "metrics.auction_insight_search_impression_share, " +
+      "metrics.auction_insight_search_overlap_rate, " +
+      "metrics.auction_insight_search_position_above_rate, " +
+      "metrics.auction_insight_search_top_impression_percentage, " +
+      "metrics.auction_insight_search_absolute_top_impression_percentage, " +
+      "metrics.auction_insight_search_outranking_share " +
+    "FROM campaign " +
     "WHERE segments.date BETWEEN '" + range.start + "' AND '" + range.end + "' " +
       "AND campaign.id = " + campaignId;
 
   var rows = [];
   try {
-    var it = AdsApp.search(gaql);
+    var it = AdsApp.report(gaql).rows();
     while (it.hasNext()) {
       var r = it.next();
-      var domain = String((r.auctionInsightDomain && r.auctionInsightDomain.domain) || '').toLowerCase().trim();
+      var domain = String(r['segments.auction_insight_domain'] || '').toLowerCase().trim();
       if (!domain || domain === 'you') continue;
-      var m = r.metrics || {};
       rows.push({
         domain: domain,
-        impression_share:     numOrNull(m.searchImpressionShare),
-        overlap_rate:         numOrNull(m.searchOverlapRate),
-        position_above_rate:  numOrNull(m.searchPositionAboveRate),
-        top_of_page_rate:     numOrNull(m.searchTopImpressionShare),
-        abs_top_of_page_rate: numOrNull(m.searchAbsoluteTopImpressionShare),
-        outranking_share:     numOrNull(m.searchOutrankingShare),
+        impression_share:     numOrNull(r['metrics.auction_insight_search_impression_share']),
+        overlap_rate:         numOrNull(r['metrics.auction_insight_search_overlap_rate']),
+        position_above_rate:  numOrNull(r['metrics.auction_insight_search_position_above_rate']),
+        top_of_page_rate:     numOrNull(r['metrics.auction_insight_search_top_impression_percentage']),
+        abs_top_of_page_rate: numOrNull(r['metrics.auction_insight_search_absolute_top_impression_percentage']),
+        outranking_share:     numOrNull(r['metrics.auction_insight_search_outranking_share']),
       });
     }
   } catch (e) {
