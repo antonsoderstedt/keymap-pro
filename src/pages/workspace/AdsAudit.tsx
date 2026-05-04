@@ -676,6 +676,76 @@ export default function AdsAudit() {
   );
 }
 
+// Översätt action_type + payload till klartext en människa förstår.
+function describeMutation(m: Mutation): { title: string; details: string } {
+  const p = m.payload || {};
+  const kw = p.keyword ? `"${p.keyword}"` : "";
+  const camp = p.campaign_name || p.campaign_id ? `kampanj ${p.campaign_name || `#${p.campaign_id}`}` : "";
+  const adGroup = p.ad_group_name || p.ad_group_id ? `annonsgrupp ${p.ad_group_name || `#${p.ad_group_id}`}` : "";
+
+  switch (m.action_type) {
+    case "pause_keyword":
+      return {
+        title: `Pausade sökord ${kw}`.trim(),
+        details: [adGroup, `Kriterie-ID: ${p.criterion_id ?? "—"}`].filter(Boolean).join("\n"),
+      };
+    case "enable_keyword":
+      return {
+        title: `Aktiverade sökord ${kw}`.trim(),
+        details: [adGroup, `Kriterie-ID: ${p.criterion_id ?? "—"}`].filter(Boolean).join("\n"),
+      };
+    case "add_negative_keyword":
+      return {
+        title: `Lade till negativt sökord ${kw}`.trim(),
+        details: [camp, `Matchningstyp: ${p.match_type || "PHRASE"}`].filter(Boolean).join("\n"),
+      };
+    case "remove_resource":
+      return {
+        title: `Tog bort resurs`,
+        details: `Resursnamn: ${p.resource_name ?? "—"}`,
+      };
+    case "pause_ad":
+      return {
+        title: `Pausade annons #${p.ad_id ?? "?"}`,
+        details: adGroup || "—",
+      };
+    case "replace_rsa_asset":
+      return {
+        title: `Bytte RSA-asset (${p.field || "headline"})`,
+        details: [
+          adGroup,
+          p.original ? `Från: "${p.original}"` : "",
+          p.replacement ? `Till: "${p.replacement}"` : "",
+        ].filter(Boolean).join("\n"),
+      };
+    case "set_bid":
+      return {
+        title: `Justerade bud till ${p.bid_micros ? (p.bid_micros / 1_000_000).toFixed(2) + " kr" : "—"}`,
+        details: [adGroup, kw].filter(Boolean).join(" · "),
+      };
+    case "set_budget":
+      return {
+        title: `Ändrade dagsbudget till ${p.amount_micros ? (p.amount_micros / 1_000_000).toFixed(0) + " kr" : "—"}`,
+        details: camp || "—",
+      };
+    default:
+      return {
+        title: m.action_type.replace(/_/g, " "),
+        details: kw || p.criterion_id || p.ad_id || JSON.stringify(p).slice(0, 120) || "—",
+      };
+  }
+}
+
+function statusLabel(s: string): string {
+  switch (s) {
+    case "success": return "Lyckades";
+    case "error": return "Misslyckades";
+    case "reverted": return "Återställd";
+    case "pending": return "Väntar";
+    default: return s;
+  }
+}
+
 function ConfirmPush({ label, description, onConfirm, disabled, loading }: {
   label: string; description: string; onConfirm: () => void; disabled?: boolean; loading?: boolean;
 }) {
