@@ -11,12 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw, Eye, EyeOff, Wand2 } from "lucide-react";
+import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw, Eye, EyeOff, Wand2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { formatMoney } from "@/lib/revenue";
 import { FactCheckCard, type FactCheckPayload } from "@/components/workspace/FactCheckCard";
 import { PrelaunchStepper, type PrelaunchStep } from "@/components/workspace/PrelaunchStepper";
+import { downloadAdsPlanCsv } from "@/lib/adsPlanExport";
 
 type Brief = {
   id: string;
