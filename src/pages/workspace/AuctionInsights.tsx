@@ -66,16 +66,31 @@ export default function AuctionInsights() {
       .from("project_google_settings").select("ads_customer_id").eq("project_id", id).maybeSingle();
     setAdsCustomerId(gset?.ads_customer_id ?? null);
 
-    const { data: snap } = await supabase
+    // Hämta senaste snapshot per källa och slå ihop:
+    // - konkurrenter: senaste från CSV/script (API ger inga domän-namn)
+    // - kampanjer: senaste från API (CSV innehåller inga kampanjsiffror)
+    const { data: snaps } = await supabase
       .from("auction_insights_snapshots").select("*").eq("project_id", id)
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (snap) {
-      const r = snap.rows as any;
+      .order("created_at", { ascending: false }).limit(20);
+
+    if (snaps && snaps.length) {
+      const latest = snaps[0];
+      const latestCompetitorsSnap = snaps.find((s: any) => {
+        const r = s.rows as any;
+        return Array.isArray(r?.competitors) && r.competitors.length > 0;
+      });
+      const latestCampaignsSnap = snaps.find((s: any) => {
+        const r = s.rows as any;
+        return Array.isArray(r?.campaigns) && r.campaigns.length > 0;
+      });
+      const compRows = (latestCompetitorsSnap?.rows as any)?.competitors || [];
+      const campRows = (latestCampaignsSnap?.rows as any)?.campaigns || [];
+
       setSnapshot({
-        competitors: r?.competitors || [],
-        campaigns: r?.campaigns || [],
-        created_at: snap.created_at,
-        source: (snap as any).source,
+        competitors: compRows,
+        campaigns: campRows,
+        created_at: latest.created_at,
+        source: (latest as any).source,
       });
     }
   };
