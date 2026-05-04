@@ -59,19 +59,16 @@ export default function ReportsLibrary() {
     if (!id) return;
     setGenerating(report.id);
     try {
-      // Create artifact entry — actual PPTX generation hooks into existing generate-presentation
-      await supabase.from("workspace_artifacts").insert({
-        project_id: id,
-        artifact_type: "report",
-        name: `${report.name} — ${new Date().toLocaleDateString("sv-SE")}`,
-        description: report.description,
-        payload: { report_type: report.id, generated_at: new Date().toISOString(), source: report.source },
+      const { data, error } = await supabase.functions.invoke("generate-report", {
+        body: { project_id: id, report_type: report.id, name: `${report.name} — ${new Date().toLocaleDateString("sv-SE")}` },
       });
-      toast.success(`${report.name} sparad i artefakter`);
-      const { data } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
-      setHistory(data || []);
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success(`${report.name} genererad med live-data`);
+      const { data: hist } = await supabase.from("workspace_artifacts").select("*").eq("project_id", id).eq("artifact_type", "report").order("created_at", { ascending: false }).limit(20);
+      setHistory(hist || []);
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e.message || "Kunde inte generera rapport");
     } finally {
       setGenerating(null);
     }
