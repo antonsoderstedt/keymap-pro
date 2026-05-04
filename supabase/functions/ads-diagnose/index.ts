@@ -146,6 +146,99 @@ async function buildSnapshot(
       : 0;
   }
 
+  // Hämta keywords + ads för aktiva kampanjer (parallellt, separata queries pga GAQL-restriktioner)
+  const activeCampaignIds = Array.from(byCampaign.keys());
+  const [keywordsRaw, adsRaw] = activeCampaignIds.length === 0
+    ? [[], []]
+    : await Promise.all([
+      searchGaql(
+        ctx,
+        customerId,
+        `SELECT campaign.id, ad_group.id, ad_group.name,
+           ad_group_criterion.criterion_id, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
+           ad_group_criterion.quality_info.quality_score,
+           ad_group_criterion.quality_info.creative_quality_score,
+           ad_group_criterion.quality_info.post_click_quality_score,
+           ad_group_criterion.quality_info.search_predicted_ctr,
+           metrics.clicks, metrics.impressions, metrics.cost_micros, metrics.conversions, metrics.ctr
+         FROM keyword_view
+         WHERE segments.date DURING LAST_30_DAYS
+           AND ad_group_criterion.status = 'ENABLED'
+         LIMIT 5000`,
+      ).catch(() => []),
+      searchGaql(
+        ctx,
+        customerId,
+        `SELECT campaign.id, ad_group.id, ad_group_ad.ad.id, ad_group_ad.ad_strength,
+           ad_group_ad.policy_summary.approval_status
+         FROM ad_group_ad
+         WHERE ad_group_ad.status = 'ENABLED'
+         LIMIT 5000`,
+      ).catch(() => []),
+    ]);
+
+  // Bygg ad_groups per kampanj från keyword_view
+  const adGroupsByCampaign = new Map<string, Map<string, AdGroupSnapshot>>();
+  for (const r of keywordsRaw as any[]) {
+    const campaignId = String(r.campaign?.id ?? "");
+    const adGroupId = String(r.adGroup?.id ?? "");
+    if (!campaignId || !adGroupId) continue;
+    if (!adGroupsByCampaign.has(campaignId)) adGroupsByCampaign.set(campaignId, new Map());
+    const groups = adGroupsByCampaign.get(campaignId)!;
+    let group = groups.get(adGroupId);
+    if (!group) {
+      group = {
+        id: adGroupId,
+        name: String(r.adGroup?.name ?? ""),
+        keywords: [],
+        ads: [],
+      };
+      groups.set(adGroupId, group);
+    }
+    const kw: KeywordSnapshot = {
+      criterion_id: String(r.adGroupCriterion?.criterionId ?? ""),
+      text: String(r.adGroupCriterion?.keyword?.text ?? ""),
+      match_type: String(r.adGroupCriterion?.keyword?.matchType ?? ""),
+      quality_score: r.adGroupCriterion?.qualityInfo?.qualityScore ?? null,
+      creative_qs: r.adGroupCriterion?.qualityInfo?.creativeQualityScore ?? null,
+      landing_qs: r.adGroupCriterion?.qualityInfo?.postClickQualityScore ?? null,
+      search_predicted_ctr: r.adGroupCriterion?.qualityInfo?.searchPredictedCtr ?? null,
+      metrics_30d: {
+        clicks: Number(r.metrics?.clicks ?? 0),
+        impressions: Number(r.metrics?.impressions ?? 0),
+        cost_micros: Number(r.metrics?.costMicros ?? 0),
+        conversions: Number(r.metrics?.conversions ?? 0),
+        ctr: Number(r.metrics?.ctr ?? 0),
+      },
+    };
+    group.keywords.push(kw);
+  }
+
+  // Lägg in ads
+  for (const r of adsRaw as any[]) {
+    const campaignId = String(r.campaign?.id ?? "");
+    const adGroupId = String(r.adGroup?.id ?? "");
+    const groups = adGroupsByCampaign.get(campaignId);
+    if (!groups) continue;
+    let group = groups.get(adGroupId);
+    if (!group) {
+      group = { id: adGroupId, name: "", keywords: [], ads: [] };
+      groups.set(adGroupId, group);
+    }
+    const ad: AdSnapshot = {
+      ad_id: String(r.adGroupAd?.ad?.id ?? ""),
+      ad_strength: String(r.adGroupAd?.adStrength ?? ""),
+      policy_summary_status: String(r.adGroupAd?.policySummary?.approvalStatus ?? ""),
+    };
+    group.ads.push(ad);
+  }
+
+  // Koppla till kampanjsnapshots
+  for (const [campaignId, groups] of adGroupsByCampaign) {
+    const c = byCampaign.get(campaignId);
+    if (c) c.ad_groups = Array.from(groups.values());
+  }
+
   const customer = (customerRaw as any[])[0]?.customer ?? {};
   const changeEvents = (changeHistory as any[]).map((ce) => ({
     campaign_id: ce.changeEvent?.campaign
