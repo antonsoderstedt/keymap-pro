@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, X, Rocket, ArrowRight } from "lucide-react";
+import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { formatMoney } from "@/lib/revenue";
