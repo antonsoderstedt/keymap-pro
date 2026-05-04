@@ -237,6 +237,57 @@ export default function AuctionInsights() {
         </div>
       </div>
 
+      {csvError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <div className="text-sm space-y-2 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium text-destructive">CSV-importen avbröts</p>
+                  <Button size="sm" variant="ghost" className="h-6 -mt-1" onClick={() => setCsvError(null)}>Stäng</Button>
+                </div>
+                <p className="text-foreground">{csvError.message}</p>
+                {csvError.missingColumns && csvError.missingColumns.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Saknade kolumner</p>
+                    <ul className="list-disc pl-5 text-muted-foreground">
+                      {csvError.missingColumns.map((c) => <li key={c}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {csvError.foundColumns && csvError.foundColumns.length > 0 && (
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer">Hittade kolumner i filen ({csvError.foundColumns.length})</summary>
+                    <p className="mt-1 font-mono break-all">{csvError.foundColumns.join(" • ")}</p>
+                  </details>
+                )}
+                {csvError.hint && <p className="text-muted-foreground">💡 {csvError.hint}</p>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {csvWarnings.length > 0 && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 shrink-0" />
+              <div className="text-sm space-y-1 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium">Importen genomfördes med varningar</p>
+                  <Button size="sm" variant="ghost" className="h-6 -mt-1" onClick={() => setCsvWarnings([])}>Stäng</Button>
+                </div>
+                <ul className="list-disc pl-5 text-muted-foreground">
+                  {csvWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
