@@ -137,6 +137,7 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       wasted,
+      tracking_status: trackingStatus,
       total_wasted_sek: Math.round(totalWaste * 100) / 100,
       action_items_created: createdItems,
     });
