@@ -136,7 +136,23 @@ export default function AuctionInsights() {
             Konkurrent-data från Google Ads: vilka domäner du delar auktion med, deras IS, overlap & outranking.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.tsv,.txt"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsvSelected(f); }}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={csvLoading}
+            variant="outline"
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {csvLoading ? "Importerar…" : "Importera CSV"}
+          </Button>
           {isLive && (
             <Button onClick={generateScript} disabled={scriptLoading} variant="outline" className="gap-2">
               <Wand2 className="h-4 w-4" />
@@ -151,6 +167,26 @@ export default function AuctionInsights() {
           )}
         </div>
       </div>
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Upload className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div className="text-sm space-y-2">
+              <p className="font-medium">Importera Auction Insights manuellt (rekommenderas)</p>
+              <p className="text-muted-foreground">
+                Google blockerar Auction Insights-metrics för standard-API-konton. Snabbaste vägen till riktiga konkurrent-domäner: exportera från Google Ads UI och ladda upp filen här.
+              </p>
+              <ol className="list-decimal pl-5 text-muted-foreground space-y-1">
+                <li>Gå till <strong>Google Ads → Kampanjer</strong></li>
+                <li>Markera kampanjerna du vill jämföra → <strong>Insikter → Auktionsstatistik</strong> (Auction insights)</li>
+                <li>Välj datumintervall (t.ex. senaste 30 dagar) → klicka <strong>Hämta</strong> → välj <strong>.csv</strong></li>
+                <li>Klicka <strong>Importera CSV</strong> här uppe och välj filen</li>
+              </ol>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {!isLive && (
         <Card className="border-primary/30 bg-primary/5">
