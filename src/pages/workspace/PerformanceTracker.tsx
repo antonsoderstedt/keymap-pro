@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
+import { TrendingUp, RefreshCw, ArrowUp, ArrowDown, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { formatMoney, type RevenueSettings, DEFAULT_REVENUE } from "@/lib/revenue";
@@ -34,24 +34,48 @@ export default function PerformanceTracker() {
   const [targets, setTargets] = useState<KpiTarget[]>([]);
   const [revenue, setRevenue] = useState<RevenueSettings>(DEFAULT_REVENUE);
   const [siteUrl, setSiteUrl] = useState<string | null>(null);
+  const [hasGA4, setHasGA4] = useState(false);
+  const [latestBaseline, setLatestBaseline] = useState<string | null>(null);
+  const [creatingBaseline, setCreatingBaseline] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: snap }, { data: acts }, { data: tgs }, { data: rev }, { data: gs }] = await Promise.all([
+    const [{ data: snap }, { data: acts }, { data: tgs }, { data: rev }, { data: gs }, { data: bl }] = await Promise.all([
       supabase.from("gsc_snapshots").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("action_items").select("id,title,category,implemented_at").eq("project_id", id).not("implemented_at", "is", null).order("implemented_at", { ascending: false }).limit(50),
       supabase.from("kpi_targets").select("*").eq("project_id", id).order("created_at", { ascending: false }),
       supabase.from("project_revenue_settings").select("*").eq("project_id", id).maybeSingle(),
-      supabase.from("project_google_settings").select("gsc_site_url").eq("project_id", id).maybeSingle(),
+      supabase.from("project_google_settings").select("gsc_site_url, ga4_property_id").eq("project_id", id).maybeSingle(),
+      supabase.from("project_baselines").select("snapshot_date").eq("project_id", id).order("snapshot_date", { ascending: false }).limit(1).maybeSingle(),
     ]);
     setSnapshot(snap);
     setActions(acts ?? []);
     setTargets((tgs ?? []) as any);
     if (rev) setRevenue(rev as any);
     setSiteUrl(gs?.gsc_site_url ?? null);
+    setHasGA4(!!gs?.ga4_property_id);
+    setLatestBaseline(bl?.snapshot_date ?? null);
     setLoading(false);
   }, [id]);
+
+  const onCreateBaseline = async () => {
+    if (!id) return;
+    setCreatingBaseline(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("baseline-snapshot", {
+        body: { projectId: id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success("Baseline-snapshot skapad — nuläget är nu fryst.");
+      await load();
+    } catch (e: any) {
+      toast.error(`Kunde inte skapa baseline: ${e.message ?? e}`);
+    } finally {
+      setCreatingBaseline(false);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
