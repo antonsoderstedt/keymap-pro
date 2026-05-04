@@ -32,6 +32,7 @@ export default function AdsAudit() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [wasted, setWasted] = useState<Wasted[]>([]);
   const [wastedTotal, setWastedTotal] = useState(0);
+  const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
   const [wastedLoading, setWastedLoading] = useState(false);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [miningLoading, setMiningLoading] = useState(false);
