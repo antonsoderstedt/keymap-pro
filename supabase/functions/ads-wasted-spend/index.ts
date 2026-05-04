@@ -38,23 +38,41 @@ Deno.serve(async (req) => {
       LIMIT 50
     `);
 
+    // Tracking probe: kollar om NÅGOT konto-konverterat senaste 30d.
+    // Aktiv = spårning fungerar (problem nedströms). Missing = spårning saknas troligen.
+    let trackingStatus: "active" | "missing" | "unknown" = "unknown";
+    try {
+      const probe = await searchGaql(ctx, settings.ads_customer_id, `
+        SELECT metrics.conversions
+        FROM customer
+        WHERE segments.date DURING LAST_30_DAYS
+        LIMIT 1
+      `);
+      const totalConv = probe.reduce((s: number, r: any) => s + Number(r.metrics?.conversions || 0), 0);
+      trackingStatus = totalConv > 0 ? "active" : "missing";
+    } catch (e) {
+      console.warn("tracking probe failed", e);
+    }
+
     const wasted = rows.map((r: any) => {
       const cost = Math.round(Number(r.metrics?.costMicros || 0) / 1_000_000 * 100) / 100;
       const clicks = Number(r.metrics?.clicks || 0);
       const ctr = Number(r.metrics?.ctr || 0); // 0..1
       const qs = r.adGroupCriterion?.qualityInfo?.qualityScore ?? null;
 
-      // Default: granska manuellt (säkrast — pausa aldrig blint)
       let action = "Granska manuellt";
 
-      const highCtr = ctr >= 0.05;        // ≥ 5%
+      const highCtr = ctr >= 0.05;
       const lowCtr = ctr < 0.01 && clicks > 5;
       const highQs = qs != null && qs >= 7;
       const lowQs = qs != null && qs <= 4;
 
-      if (highCtr && highQs) {
-        // Kärnsökord presterar — annonsen funkar, problemet ligger nedströms
-        action = "Kontrollera landningssida & konverteringsspårning";
+      if (trackingStatus === "missing") {
+        action = "Installera/verifiera konverteringsspårning (hela kontot)";
+      } else if (highCtr && highQs) {
+        action = trackingStatus === "active"
+          ? "Kontrollera landningssida (spårning OK, men 0 konv på detta sökord)"
+          : "Kontrollera landningssida & konverteringsspårning";
       } else if (lowCtr) {
         action = "Lägg som negativt sökord";
       } else if (lowQs) {
@@ -62,7 +80,6 @@ Deno.serve(async (req) => {
       } else if (cost > 1000) {
         action = "Sänk maxbud −40%";
       } else if (clicks <= 3) {
-        // Knappt någon data — för tidigt att agera
         action = "För lite data — vänta";
       }
       return {
@@ -77,6 +94,7 @@ Deno.serve(async (req) => {
         clicks,
         ctr: Math.round(ctr * 10000) / 100,
         quality_score: qs,
+        tracking_status: trackingStatus,
         suggested_action: action,
       };
     });
@@ -86,21 +104,30 @@ Deno.serve(async (req) => {
     let createdItems = 0;
     if (create_action_items && wasted.length > 0) {
       const top = wasted.slice(0, 5);
+      const trackingNote = trackingStatus === "active"
+        ? "Spårning verkar aktiv på kontot — problemet ligger troligen på landningssidan."
+        : trackingStatus === "missing"
+          ? "INGEN konvertering registrerad på hela kontot senaste 30d — spårning är troligen ej installerad."
+          : "Spårningsstatus okänd.";
       const items = top.map((w) => {
-        const isTrackingCheck = w.suggested_action.startsWith("Kontrollera landningssida");
+        const isTrackingFix = trackingStatus === "missing";
+        const isLandingCheck = w.suggested_action.startsWith("Kontrollera landningssida");
         return {
           project_id,
           title: `${w.suggested_action}: "${w.keyword}"`,
-          description: `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, CTR ${w.ctr}%, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.`,
+          description: `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, CTR ${w.ctr}%, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.\n\n${trackingNote}`,
           category: "ads",
-          priority: w.cost_sek > 500 ? "high" : "medium",
+          priority: isTrackingFix ? "high" : (w.cost_sek > 500 ? "high" : "medium"),
           status: "open",
           source_type: "ads_wasted_spend",
           source_payload: w,
-          expected_impact: isTrackingCheck
-            ? `Lås upp konverteringar (sökordet driver redan ${w.clicks} klick/30d)`
-            : `Spara ~${w.cost_sek} SEK/månad`,
-          expected_impact_sek: isTrackingCheck ? 0 : w.cost_sek,
+          tracking_status: trackingStatus,
+          expected_impact: isTrackingFix
+            ? "Lås upp ROI-mätning för hela kontot"
+            : isLandingCheck
+              ? `Lås upp konverteringar (sökordet driver redan ${w.clicks} klick/30d)`
+              : `Spara ~${w.cost_sek} SEK/månad`,
+          expected_impact_sek: (isTrackingFix || isLandingCheck) ? 0 : w.cost_sek,
         };
       });
       const { error } = await admin.from("action_items").insert(items);
