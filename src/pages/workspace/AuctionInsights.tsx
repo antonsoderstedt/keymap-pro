@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Sparkles, Eye, RefreshCw, AlertCircle, Wand2, Copy, Check, ExternalLink } from "lucide-react";
+import { Sparkles, Eye, RefreshCw, AlertCircle, Wand2, Copy, Check, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 interface Competitor {
@@ -28,6 +28,37 @@ export default function AuctionInsights() {
   const [scriptLoading, setScriptLoading] = useState(false);
   const [scriptData, setScriptData] = useState<{ webhook_url: string; per_project_secret: string; script: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onCsvSelected = async (file: File) => {
+    if (!id) return;
+    setCsvLoading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // Convert to base64 in chunks to avoid stack overflow on large files
+      const bytes = new Uint8Array(buf);
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
+      }
+      const content_base64 = btoa(bin);
+
+      const { data, error } = await supabase.functions.invoke("ads-import-auction-csv", {
+        body: { project_id: id, filename: file.name, content_base64 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Importerade ${data.competitors} konkurrent-domäner`);
+      load();
+    } catch (e: any) {
+      toast.error(e.message || "Kunde inte importera CSV");
+    } finally {
+      setCsvLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const load = async () => {
     if (!id) return;
