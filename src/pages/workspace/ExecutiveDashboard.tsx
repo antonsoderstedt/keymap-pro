@@ -63,7 +63,10 @@ export default function ExecutiveDashboard() {
         </p>
       </div>
 
-      {/* Weekly briefing-band */}
+      {/* Onboarding-checklista — försvinner när allt är klart */}
+      {id && <OnboardingChecklist projectId={id} />}
+
+
       {data.briefing ? (
         <Card
           className="bg-gradient-to-r from-primary/15 via-card to-card border-primary/30 cursor-pointer hover:border-primary/60 transition-colors"
