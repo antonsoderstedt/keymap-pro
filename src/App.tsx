@@ -35,6 +35,9 @@ import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import WeeklyBriefing from "./pages/workspace/WeeklyBriefing";
 import AdsAudit from "./pages/workspace/AdsAudit";
 import AdsChat from "./pages/workspace/AdsChat";
+import ChannelsHub from "./pages/workspace/ChannelsHub";
+import KeywordsHub from "./pages/workspace/KeywordsHub";
+import ActionHub from "./pages/workspace/ActionHub";
 
 const queryClient = new QueryClient();
 
