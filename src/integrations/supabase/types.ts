@@ -35,6 +35,7 @@ export type Database = {
           source_type: string | null
           status: string
           title: string
+          tracking_status: string | null
           updated_at: string
         }
         Insert: {
@@ -57,6 +58,7 @@ export type Database = {
           source_type?: string | null
           status?: string
           title: string
+          tracking_status?: string | null
           updated_at?: string
         }
         Update: {
@@ -79,6 +81,7 @@ export type Database = {
           source_type?: string | null
           status?: string
           title?: string
+          tracking_status?: string | null
           updated_at?: string
         }
         Relationships: [
