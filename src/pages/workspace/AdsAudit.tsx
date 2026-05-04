@@ -330,6 +330,63 @@ export default function AdsAudit() {
             </Button>
             {wastedTotal > 0 && <span className="text-sm">Total: <span className="font-mono text-primary">{wastedTotal} SEK</span></span>}
           </div>
+          {landingPages.length > 0 && (
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4 text-primary" />
+                    Landningssidor som behöver kontroll
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {landingPages.filter((l) => l.needs_check).length} av {landingPages.length} sidor flaggade — sorterade efter total kostnad.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={exportLandingPagesCsv}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> Exportera CSV
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/30">
+                    <tr className="text-left">
+                      <th className="p-2">Landningssida</th>
+                      <th className="p-2 text-right">Sökord</th>
+                      <th className="p-2 text-right">Kostnad 30d</th>
+                      <th className="p-2 text-right">Klick</th>
+                      <th className="p-2">Kampanjer</th>
+                      <th className="p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {landingPages.map((lp) => (
+                      <tr key={lp.url} className="border-t border-border align-top">
+                        <td className="p-2 max-w-[280px]">
+                          <a
+                            href={lp.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-xs text-primary hover:underline break-all"
+                          >
+                            {lp.url}
+                          </a>
+                        </td>
+                        <td className="p-2 text-right font-mono">{lp.keyword_count}</td>
+                        <td className="p-2 text-right font-mono">{lp.total_cost_sek}</td>
+                        <td className="p-2 text-right font-mono">{lp.total_clicks}</td>
+                        <td className="p-2 text-xs text-muted-foreground">{lp.campaigns.slice(0, 2).join(", ")}{lp.campaigns.length > 2 && ` +${lp.campaigns.length - 2}`}</td>
+                        <td className="p-2">
+                          {lp.needs_check
+                            ? <Badge variant="destructive" className="text-[10px]">Kontrollera</Badge>
+                            : <Badge variant="outline" className="text-[10px]">OK</Badge>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
           {wasted.length > 0 && (
             <Card className="overflow-hidden">
               <table className="w-full text-sm">
