@@ -1,60 +1,698 @@
-// Sökord & innehåll Hub — Fas 1
-// Sökordsuniversum, segment/paket, pre-launch, artefakter, brand kit i flikar.
+// Sökord & innehåll Hub — V2
+// Migrerar all funktionalitet från /project/:id/results (Results.tsx + KeywordUniverse.tsx)
+// in i workspace. 6 tabbar: Översikt / Sökord / Briefs / Strategi / Teknisk SEO / Google Ads-export.
 
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Layers, Rocket, ClipboardCheck, Palette } from "lucide-react";
-import WorkspaceKeywordUniverse from "./WorkspaceKeywordUniverse";
-import WorkspaceSegments from "./WorkspaceSegments";
-import PrelaunchBlueprint from "./PrelaunchBlueprint";
-import WorkspaceArtifacts from "./WorkspaceArtifacts";
-import BrandKit from "./BrandKit";
-import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Search, BarChart3, BookOpen, Target, ShieldCheck, Megaphone,
+  Download, RefreshCw, Loader2, Sparkles, FileText, MapPin, Ban,
+  Network, FileType, Presentation,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
+import {
+  KeywordTable, DIMENSION_LABELS, INTENT_LABELS,
+} from "@/components/keywords/KeywordTable";
+import { OverviewSection } from "@/components/results/sections/OverviewSection";
+import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
+import { TechSeoTab } from "@/components/universe/TechSeoTab";
+import { StrategyTab } from "@/components/universe/StrategyTab";
+import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
+import { AdsExportModal } from "@/components/universe/AdsExportModal";
+import type { UniverseKeyword, UniverseScale } from "@/lib/types";
+
+type ExportFormat = "pptx" | "pdf";
 
 export default function KeywordsHub() {
   const { id } = useParams<{ id: string }>();
-  const caps = useProjectCapabilities(id);
-  const [tab, setTab] = useState(caps.hasKeywordUniverse ? "universe" : "prelaunch");
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const data = useWorkspaceAnalysis(id);
+  const {
+    analysisId, result, universe, universeScale, createdAt, source, pending, loading, error, refetch,
+  } = data;
+
+  const [tab, setTab] = useState("overview");
+  const [regenerating, setRegenerating] = useState(false);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [adsModalOpen, setAdsModalOpen] = useState(false);
+  const [scale, setScale] = useState<UniverseScale>(
+    (universeScale as UniverseScale) || "broad",
+  );
+
+  // ── Filter state (Sökord-tabben) ───────────────────────────────────
+  const [search, setSearch] = useState("");
+  const [intent, setIntent] = useState("all");
+  const [funnel, setFunnel] = useState("all");
+  const [dimension, setDimension] = useState("all");
+  const [channel, setChannel] = useState("all");
+  const [priority, setPriority] = useState("all");
+  const [hideZeroVolume, setHideZeroVolume] = useState(true);
+  const [onlyReal, setOnlyReal] = useState(false);
+  const [onlyGap, setOnlyGap] = useState(false);
+  const [maxKd, setMaxKd] = useState("100");
+
+  const filtered = useMemo<UniverseKeyword[]>(() => {
+    if (!universe) return [];
+    const kdLimit = Number(maxKd) || 100;
+    const q = search.toLowerCase().trim();
+    return universe.keywords
+      .filter((k) => {
+        if (q && !k.keyword.toLowerCase().includes(q)) return false;
+        if (intent !== "all" && k.intent !== intent) return false;
+        if (funnel !== "all" && k.funnelStage !== funnel) return false;
+        if (dimension !== "all" && k.dimension !== dimension) return false;
+        if (channel !== "all" && k.channel !== channel) return false;
+        if (priority !== "all" && k.priority !== priority) return false;
+        if (onlyReal && k.dataSource !== "real") return false;
+        if (hideZeroVolume && k.dataSource === "real" && (k.searchVolume ?? 0) === 0) return false;
+        if (onlyGap && !k.competitorGap) return false;
+        if (k.kd != null && k.kd > kdLimit) return false;
+        return true;
+      })
+      .sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1));
+  }, [universe, search, intent, funnel, dimension, channel, priority, hideZeroVolume, onlyReal, onlyGap, maxKd]);
+
+  // ── Curated views ──────────────────────────────────────────────────
+  const priorityKeywords = useMemo(() => (universe?.keywords || [])
+    .filter((k) => k.priority === "high" && !k.isNegative)
+    .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
+  const seoOpps = useMemo(() => (universe?.keywords || [])
+    .filter((k) => (k.channel === "SEO" || k.channel === "Landing Page") && !k.isNegative && (k.searchVolume ?? 0) > 0)
+    .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
+  const adsOpps = useMemo(() => (universe?.keywords || [])
+    .filter((k) => k.channel === "Google Ads" && !k.isNegative && k.intent === "transactional")
+    .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
+  const contentOpps = useMemo(() => (universe?.keywords || [])
+    .filter((k) => k.channel === "Content" && !k.isNegative)
+    .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
+  const localOpps = useMemo(() => (universe?.keywords || [])
+    .filter((k) => k.channel === "Lokal SEO" && !k.isNegative)
+    .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
+  const negatives = useMemo(() => (universe?.keywords || []).filter((k) => k.isNegative), [universe]);
+
+  // ── Aggregate stats ────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    if (!universe) return { total: 0, totalVolume: 0, avgCpc: 0, highPriority: 0 };
+    const real = universe.keywords.filter((k) => k.dataSource === "real");
+    const totalVolume = real.reduce((s, k) => s + (k.searchVolume ?? 0), 0);
+    const cpcs = real.filter((k) => k.cpc != null).map((k) => k.cpc!);
+    const avgCpc = cpcs.length ? cpcs.reduce((a, b) => a + b, 0) / cpcs.length : 0;
+    return {
+      total: universe.totalKeywords ?? universe.keywords.length,
+      totalVolume,
+      avgCpc,
+      highPriority: priorityKeywords.length,
+    };
+  }, [universe, priorityKeywords]);
+
+  const dimensions = useMemo(
+    () => Array.from(new Set((universe?.keywords || []).map((k) => k.dimension))),
+    [universe],
+  );
+  const channels = useMemo(
+    () => Array.from(new Set((universe?.keywords || []).map((k) => k.channel))),
+    [universe],
+  );
+
+  // ── Actions ────────────────────────────────────────────────────────
+  const downloadCSV = (rows: string[][], filename: string) => {
+    const csv = rows.map((r) => r.map((c) => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportFiltered = () => {
+    if (filtered.length === 0) {
+      toast({ title: "Inga sökord", description: "Filtret matchar inga sökord.", variant: "destructive" });
+      return;
+    }
+    const rows = [[
+      "Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal",
+      "Volym/mån", "CPC (SEK)", "Konkurrens", "KD%", "Konkurrent-gap",
+      "SERP features", "Top domäner", "Datakälla", "Landningssida", "Annonsgrupp",
+      "Contentidé", "Negativt",
+    ]];
+    filtered.forEach((k) => {
+      rows.push([
+        k.keyword, k.cluster, DIMENSION_LABELS[k.dimension] || k.dimension,
+        INTENT_LABELS[k.intent] || k.intent, k.funnelStage, k.priority, k.channel,
+        k.searchVolume?.toString() ?? "", k.cpc?.toFixed(2) ?? "", k.competition?.toFixed(2) ?? "",
+        k.kd != null ? Math.round(k.kd).toString() : "",
+        k.competitorGap ? "Ja" : "",
+        (k.serpFeatures || []).join("; "),
+        (k.topRankingDomains || []).join("; "),
+        k.dataSource === "real" ? "DataForSEO" : "Uppskattad",
+        k.recommendedLandingPage ?? "", k.recommendedAdGroup ?? "", k.contentIdea ?? "",
+        k.isNegative ? "Ja" : "",
+      ]);
+    });
+    downloadCSV(rows, `sokord-filtrerade-${Date.now()}.csv`);
+    toast({ title: "Export klar", description: `${filtered.length} sökord` });
+  };
+
+  const exportAllUniverseCsv = () => {
+    if (!universe) return;
+    const all = universe.keywords;
+    if (all.length === 0) {
+      toast({ title: "Inga sökord", description: "Universumet är tomt.", variant: "destructive" });
+      return;
+    }
+    const rows = [[
+      "Sökord", "Kluster", "Dimension", "Intent", "Funnel", "Prioritet", "Kanal",
+      "Volym/mån", "CPC (SEK)", "Konkurrens", "KD%", "Konkurrent-gap", "Datakälla",
+      "Landningssida", "Annonsgrupp", "Contentidé", "Negativt",
+    ]];
+    all.forEach((k) => {
+      rows.push([
+        k.keyword, k.cluster, DIMENSION_LABELS[k.dimension] || k.dimension,
+        INTENT_LABELS[k.intent] || k.intent, k.funnelStage, k.priority, k.channel,
+        k.searchVolume?.toString() ?? "", k.cpc?.toFixed(2) ?? "", k.competition?.toFixed(2) ?? "",
+        k.kd != null ? Math.round(k.kd).toString() : "",
+        k.competitorGap ? "Ja" : "",
+        k.dataSource === "real" ? "DataForSEO" : "Uppskattad",
+        k.recommendedLandingPage ?? "", k.recommendedAdGroup ?? "", k.contentIdea ?? "",
+        k.isNegative ? "Ja" : "",
+      ]);
+    });
+    downloadCSV(rows, `sokord-universum-${Date.now()}.csv`);
+    toast({ title: "Export klar", description: `${all.length} sökord` });
+  };
+
+  const exportPresentation = async (format: ExportFormat) => {
+    if (!analysisId) {
+      toast({ title: "Saknar analys", description: "Behöver en sparad analys för PPTX/PDF.", variant: "destructive" });
+      return;
+    }
+    setExporting(format);
+    try {
+      const { data: payload, error: err } = await supabase.functions.invoke("generate-presentation", {
+        body: { analysis_id: analysisId, format },
+      });
+      if (err) throw err;
+      const base64 = (payload as any)?.file;
+      if (!base64) throw new Error("Inget filinnehåll returnerades");
+      const bin = atob(base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const mime = format === "pptx"
+        ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        : "application/pdf";
+      const blob = new Blob([bytes], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sokord-rapport-${Date.now()}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Klar", description: `${format.toUpperCase()} nedladdad.` });
+    } catch (e: any) {
+      toast({ title: "Export misslyckades", description: e.message || "Försök igen.", variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!id) return;
+    const ok = window.confirm(
+      "Detta genererar ett nytt sökordsuniversum baserat på befintlig analysdata. Det tar 1-2 minuter. Vill du fortsätta?",
+    );
+    if (!ok) return;
+    setRegenerating(true);
+    try {
+      const { data: resp, error: err } = await supabase.functions.invoke("keyword-universe", {
+        body: { project_id: id, scale },
+      });
+      if (err) throw err;
+      const newUniverse = (resp as any)?.universe;
+      if (!newUniverse) throw new Error("Ingen universe-data returnerades");
+      if (analysisId) {
+        await supabase
+          .from("analyses")
+          .update({ keyword_universe_json: newUniverse, universe_scale: newUniverse.scale || scale })
+          .eq("id", analysisId);
+      }
+      toast({ title: "Universum genererat", description: `${newUniverse.totalKeywords ?? 0} sökord.` });
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Kunde inte generera om", description: e.message, variant: "destructive" });
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // ── Loading / empty ────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!universe && !pending) {
+    return <EmptyState projectId={id!} navigate={navigate} />;
+  }
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
-      <div>
-        <h1 className="font-serif text-3xl flex items-center gap-2">
-          <Search className="h-7 w-7 text-primary" /> Sökord & innehåll
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Sökordsuniversum, segmentering, pre-launch, artefakter och varumärkesmaterial.
-        </p>
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="font-serif text-3xl flex items-center gap-2">
+            <Search className="h-7 w-7 text-primary" /> Sökord & innehåll
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sökordsuniversum, briefs, strategi, teknisk SEO och Google Ads-export.
+          </p>
+          {createdAt && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {source === "prelaunch" ? "Baserad på pre-launch-analys" : "Baserad på full analys"}
+              {universe?.totalEnriched ? ` • ${universe.totalEnriched} berikade` : ""}
+              {` • Genererad ${new Date(createdAt).toLocaleDateString("sv-SE")}`}
+              {universeScale ? ` • Skala: ${universeScale}` : ""}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Select value={scale} onValueChange={(v) => setScale(v as UniverseScale)}>
+            <SelectTrigger className="h-9 w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="focused">Fokuserad (~500)</SelectItem>
+              <SelectItem value="broad">Bred (~1500)</SelectItem>
+              <SelectItem value="max">Max (~4000)</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={handleRegenerate}
+            disabled={regenerating || pending}
+            className="gap-2"
+          >
+            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {regenerating ? "Genererar…" : "Regenerera"}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="gap-2"><Download className="h-4 w-4" /> Exportera</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-xs">Sökord</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportFiltered} className="gap-3 cursor-pointer">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-sm">CSV (filtrerade)</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {filtered.length} sökord • 19 kolumner
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAllUniverseCsv} className="gap-3 cursor-pointer">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-sm">CSV (hela universumet)</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {universe?.keywords.length ?? 0} sökord
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs">Presentation</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => exportPresentation("pptx")}
+                disabled={!!exporting || !analysisId}
+                className="gap-3 cursor-pointer"
+              >
+                {exporting === "pptx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Presentation className="h-4 w-4 text-primary" />}
+                <div className="text-sm">PowerPoint (.pptx)</div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => exportPresentation("pdf")}
+                disabled={!!exporting || !analysisId}
+                className="gap-3 cursor-pointer"
+              >
+                {exporting === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileType className="h-4 w-4 text-primary" />}
+                <div className="text-sm">PDF</div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs">Google Ads</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setAdsModalOpen(true)}
+                disabled={!analysisId}
+                className="gap-3 cursor-pointer"
+              >
+                <Megaphone className="h-4 w-4 text-primary" />
+                <div className="text-sm">Google Ads Editor (.zip)</div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="universe" className="gap-1.5">
-            <Search className="h-3.5 w-3.5" /> Universum
-          </TabsTrigger>
-          <TabsTrigger value="segments" className="gap-1.5">
-            <Layers className="h-3.5 w-3.5" /> Segment
-          </TabsTrigger>
-          <TabsTrigger value="prelaunch" className="gap-1.5">
-            <Rocket className="h-3.5 w-3.5" /> Pre-launch
-          </TabsTrigger>
-          <TabsTrigger value="artifacts" className="gap-1.5">
-            <ClipboardCheck className="h-3.5 w-3.5" /> Artefakter
-          </TabsTrigger>
-          <TabsTrigger value="brand-kit" className="gap-1.5">
-            <Palette className="h-3.5 w-3.5" /> Brand Kit
-          </TabsTrigger>
-        </TabsList>
+      {/* Pending banner */}
+      {pending && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Analys pågår…</p>
+              <p className="text-xs text-muted-foreground">
+                Sökordsuniversumet genereras. Tar vanligtvis 1–3 min. Sidan uppdateras automatiskt.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <div className="mt-4">
-          <TabsContent value="universe"><WorkspaceKeywordUniverse /></TabsContent>
-          <TabsContent value="segments"><WorkspaceSegments /></TabsContent>
-          <TabsContent value="prelaunch"><PrelaunchBlueprint /></TabsContent>
-          <TabsContent value="artifacts"><WorkspaceArtifacts /></TabsContent>
-          <TabsContent value="brand-kit"><BrandKit /></TabsContent>
+      {/* Pre-launch banner */}
+      {source === "prelaunch" && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-warning shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Baserat på pre-launch-analys</p>
+              <p className="text-xs text-muted-foreground">
+                Kör en full analys för att låsa upp briefs, strategi och teknisk SEO.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => navigate(`/project/${id}`)}>Kör full analys</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats */}
+      {universe && (
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Totala sökord" value={stats.total.toLocaleString("sv-SE")} />
+          <StatCard label="Total volym/mån" value={stats.totalVolume.toLocaleString("sv-SE")} />
+          <StatCard label="Snitt-CPC" value={stats.avgCpc ? `${stats.avgCpc.toFixed(2)} kr` : "—"} />
+          <StatCard label="Prioriterade (high)" value={stats.highPriority.toLocaleString("sv-SE")} />
         </div>
-      </Tabs>
+      )}
+
+      {error && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4 text-sm text-destructive">Analys-fel: {error}</CardContent>
+        </Card>
+      )}
+
+      {universe && (
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
+          <TabsList className="flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="overview" className="gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" /> Översikt
+            </TabsTrigger>
+            <TabsTrigger value="keywords" className="gap-1.5">
+              <Search className="h-3.5 w-3.5" /> Sökord
+            </TabsTrigger>
+            <TabsTrigger value="briefs" className="gap-1.5" disabled={!analysisId}>
+              <BookOpen className="h-3.5 w-3.5" /> Briefs
+            </TabsTrigger>
+            <TabsTrigger value="strategy" className="gap-1.5" disabled={!analysisId}>
+              <Target className="h-3.5 w-3.5" /> Strategi
+            </TabsTrigger>
+            <TabsTrigger value="techseo" className="gap-1.5" disabled={!analysisId}>
+              <ShieldCheck className="h-3.5 w-3.5" /> Teknisk SEO
+            </TabsTrigger>
+            <TabsTrigger value="ads-export" className="gap-1.5" disabled={!analysisId}>
+              <Megaphone className="h-3.5 w-3.5" /> Google Ads-export
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Översikt */}
+          <TabsContent value="overview" className="mt-4 space-y-6">
+            {result ? (
+              <OverviewSection result={result} universe={universe} />
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                  Översiktsdata kräver en full analys.
+                </CardContent>
+              </Card>
+            )}
+            {result?.quickWins?.length ? (
+              <div>
+                <h3 className="font-serif text-xl mb-3 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-accent" /> Quick wins
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {result.quickWins.map((q, i) => (
+                    <Card key={i} className="border-accent/30 bg-card shadow-card">
+                      <CardContent className="space-y-2 p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="font-mono text-sm">{q.keyword}</p>
+                          <Badge variant="outline" className="border-accent/40 text-accent">{q.channel}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{q.reason}</p>
+                        <div className="rounded-md border border-accent/20 bg-accent/5 px-3 py-2 text-xs">
+                          <span className="font-semibold text-accent">Åtgärd: </span>{q.action}
+                        </div>
+                        <div className="flex gap-3 text-[11px] text-muted-foreground">
+                          <span>Volym: {q.volumeEstimate}</span>
+                          <span>Intent: {q.intent}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div>
+              <h3 className="font-serif text-xl mb-3 flex items-center gap-2">
+                <Network className="h-5 w-5 text-primary" /> Klusteråtgärder
+              </h3>
+              <ClusterActionsTab projectId={id!} universe={universe} />
+            </div>
+          </TabsContent>
+
+          {/* Sökord */}
+          <TabsContent value="keywords" className="mt-4 space-y-4">
+            <Tabs defaultValue="universe">
+              <TabsList className="h-auto flex-wrap">
+                <TabsTrigger value="universe" className="gap-1"><Network className="h-3 w-3" />Universe</TabsTrigger>
+                <TabsTrigger value="priority" className="gap-1"><Sparkles className="h-3 w-3" />Prioriterade</TabsTrigger>
+                <TabsTrigger value="seo" className="gap-1"><FileText className="h-3 w-3" />SEO</TabsTrigger>
+                <TabsTrigger value="ads" className="gap-1"><Megaphone className="h-3 w-3" />Google Ads</TabsTrigger>
+                <TabsTrigger value="content" className="gap-1"><FileText className="h-3 w-3" />Content</TabsTrigger>
+                <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal</TabsTrigger>
+                <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="universe" className="space-y-4 mt-4">
+                <Card className="border-border bg-card">
+                  <CardContent className="p-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Sök</Label>
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Filtrera sökord..."
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+                    <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[
+                      ["all","Alla"],["informational","Info"],["commercial","Kommersiell"],
+                      ["transactional","Transaktionell"],["navigational","Navigations"],
+                    ]} />
+                    <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[
+                      ["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"],
+                    ]} />
+                    <FilterSelect label="Dimension" value={dimension} onChange={setDimension}
+                      options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
+                    <FilterSelect label="Kanal" value={channel} onChange={setChannel}
+                      options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
+                    <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[
+                      ["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"],
+                    ]} />
+                    <div>
+                      <Label className="text-xs">KD max</Label>
+                      <Input
+                        type="number" min={0} max={100} value={maxKd}
+                        onChange={(e) => setMaxKd(e.target.value)} className="h-9"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
+                      <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
+                      <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                      <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
+                    </div>
+                  </CardContent>
+                </Card>
+                <KeywordTable items={filtered} />
+              </TabsContent>
+
+              <TabsContent value="priority" className="mt-4"><KeywordTable items={priorityKeywords} /></TabsContent>
+              <TabsContent value="seo" className="mt-4"><KeywordTable items={seoOpps} /></TabsContent>
+              <TabsContent value="ads" className="mt-4"><KeywordTable items={adsOpps} /></TabsContent>
+              <TabsContent value="content" className="mt-4"><KeywordTable items={contentOpps} /></TabsContent>
+              <TabsContent value="local" className="mt-4"><KeywordTable items={localOpps} /></TabsContent>
+              <TabsContent value="negatives" className="mt-4"><KeywordTable items={negatives} /></TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          {/* Briefs */}
+          <TabsContent value="briefs" className="mt-4">
+            {analysisId && <ContentBriefsTab analysisId={analysisId} universe={universe} />}
+          </TabsContent>
+
+          {/* Strategi */}
+          <TabsContent value="strategy" className="mt-4">
+            {analysisId && <StrategyTab projectId={id!} analysisId={analysisId} />}
+          </TabsContent>
+
+          {/* Teknisk SEO */}
+          <TabsContent value="techseo" className="mt-4">
+            {analysisId && <TechSeoTab analysisId={analysisId} />}
+          </TabsContent>
+
+          {/* Google Ads-export */}
+          <TabsContent value="ads-export" className="mt-4">
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div>
+                  <h3 className="font-serif text-xl flex items-center gap-2">
+                    <Megaphone className="h-5 w-5 text-primary" /> Google Ads Editor-export
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Bygg en komplett ZIP med kampanjer, annonsgrupper, sökord, negativa och AI-genererade RSA-annonser
+                    redo att importeras i Google Ads Editor.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <Stat
+                    label="Sökord (Google Ads)"
+                    value={(universe.keywords.filter((k) => !k.isNegative && (k.searchVolume ?? 0) > 0 && k.channel === "Google Ads")).length}
+                  />
+                  <Stat label="Negativa" value={negatives.length} />
+                  <Stat label="Annonsgrupper" value={
+                    new Set(universe.keywords
+                      .filter((k) => !k.isNegative && (k.searchVolume ?? 0) > 0 && k.channel === "Google Ads")
+                      .map((k) => k.recommendedAdGroup || k.cluster)).size
+                  } />
+                </div>
+                <Button onClick={() => setAdsModalOpen(true)} disabled={!analysisId} className="gap-2">
+                  <Download className="h-4 w-4" /> Konfigurera och exportera
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {analysisId && universe && (
+        <AdsExportModal
+          open={adsModalOpen}
+          onClose={() => setAdsModalOpen(false)}
+          universe={universe}
+          projectId={id!}
+          analysisId={analysisId}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="p-4 rounded-lg border border-border bg-card">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{label}</div>
+      <div className="font-serif text-3xl mt-1">
+        {typeof value === "number" ? value.toLocaleString("sv-SE") : value}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border p-3">
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="font-mono text-xl mt-1">{value.toLocaleString("sv-SE")}</div>
+    </div>
+  );
+}
+
+function FilterSelect({
+  label, value, onChange, options,
+}: {
+  label: string; value: string; onChange: (v: string) => void; options: [string, string][];
+}) {
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function EmptyState({ projectId, navigate }: { projectId: string; navigate: (p: string) => void }) {
+  return (
+    <div className="p-6 lg:p-8 max-w-3xl mx-auto">
+      <Card className="border-dashed">
+        <CardContent className="p-10 text-center space-y-4">
+          <Search className="h-12 w-12 text-primary mx-auto" />
+          <div>
+            <h2 className="font-serif text-2xl">Inget sökordsuniversum ännu</h2>
+            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+              Generera ett sökordsuniversum för att se kluster, sökord med volym och estimerat
+              affärsvärde per kluster.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+            <Button onClick={() => navigate(`/project/${projectId}`)} className="gap-2">
+              <Sparkles className="h-4 w-4" /> Kör full analys
+            </Button>
+            <Button variant="outline" onClick={() => navigate(`/clients/${projectId}/prelaunch`)} className="gap-2">
+              Pre-launch (snabbare)
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground pt-2">
+            Full analys: sökordsuniversum + SEO-audit + strategi. Pre-launch: snabb marknadsanalys + sökord.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
