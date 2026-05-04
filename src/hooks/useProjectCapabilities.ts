@@ -53,7 +53,6 @@ export function useProjectCapabilities(projectId: string | null | undefined): Pr
         supabase.from("project_baselines").select("id").eq("project_id", projectId!).limit(1).maybeSingle(),
         supabase.from("brand_kits").select("id").eq("project_id", projectId!).maybeSingle(),
         supabase.from("kpi_targets").select("id").eq("project_id", projectId!).eq("is_active", true).limit(1).maybeSingle(),
-        supabase.from("weekly_briefings" as any).select("id").eq("project_id", projectId!).limit(1).maybeSingle(),
       ]);
 
       if (cancelled) return;
