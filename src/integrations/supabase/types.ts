@@ -1246,6 +1246,51 @@ export type Database = {
         }
         Relationships: []
       }
+      share_of_voice_snapshots: {
+        Row: {
+          competitors: Json
+          created_at: string
+          end_date: string
+          id: string
+          project_id: string
+          sources: Json
+          sov_pct: number
+          start_date: string
+          total_market_impressions: number
+          your_clicks: number
+          your_domain: string | null
+          your_impressions: number
+        }
+        Insert: {
+          competitors?: Json
+          created_at?: string
+          end_date: string
+          id?: string
+          project_id: string
+          sources?: Json
+          sov_pct?: number
+          start_date: string
+          total_market_impressions?: number
+          your_clicks?: number
+          your_domain?: string | null
+          your_impressions?: number
+        }
+        Update: {
+          competitors?: Json
+          created_at?: string
+          end_date?: string
+          id?: string
+          project_id?: string
+          sources?: Json
+          sov_pct?: number
+          start_date?: string
+          total_market_impressions?: number
+          your_clicks?: number
+          your_domain?: string | null
+          your_impressions?: number
+        }
+        Relationships: []
+      }
       site_audits: {
         Row: {
           analysis_id: string
