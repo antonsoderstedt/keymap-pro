@@ -80,11 +80,16 @@ const App = () => (
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
             <Route index element={<ExecutiveDashboard />} />
+            {/* 7-områdes navigation (Fas 1) */}
+            <Route path="channels" element={<ChannelsHub />} />
+            {/* keyword-universe pekar på hub (sökord & innehåll) — gamla djupare rutter behålls nedan */}
+            <Route path="keyword-universe" element={<KeywordsHub />} />
+            <Route path="actions" element={<ActionHub />} />
+
+            {/* Bakåtkompatibilitet — direktrutter behålls för djuplänkar */}
             <Route path="briefing" element={<WeeklyBriefing />} />
             <Route path="overview" element={<WorkspaceOverview />} />
-            <Route path="actions" element={<ActionTracker />} />
             <Route path="artifacts" element={<WorkspaceArtifacts />} />
-            <Route path="keyword-universe" element={<WorkspaceKeywordUniverse />} />
             <Route path="segments" element={<WorkspaceSegments />} />
             <Route path="reports" element={<ReportsLibrary />} />
             <Route path="seo" element={<SeoDashboard />} />
