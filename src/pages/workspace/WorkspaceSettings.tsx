@@ -183,6 +183,8 @@ export default function WorkspaceSettings() {
 
       <GoogleAdsConnection projectId={id!} />
 
+      <MembersCard projectId={id!} />
+
       {/* Övriga kopplingar */}
       <Card>
         <CardHeader>
