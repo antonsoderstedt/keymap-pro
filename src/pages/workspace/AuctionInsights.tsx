@@ -29,31 +29,85 @@ export default function AuctionInsights() {
   const [scriptData, setScriptData] = useState<{ webhook_url: string; per_project_secret: string; script: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
+  const [csvError, setCsvError] = useState<{
+    message: string;
+    missingColumns?: string[];
+    foundColumns?: string[];
+    hint?: string;
+  } | null>(null);
+  const [csvWarnings, setCsvWarnings] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fileToBase64 = async (file: File) => {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
+    }
+    return btoa(bin);
+  };
 
   const onCsvSelected = async (file: File) => {
     if (!id) return;
+
+    // Klient-side sanity-checks innan vi laddar upp
+    setCsvError(null);
+    setCsvWarnings([]);
+    const okExt = /\.(csv|tsv|txt)$/i.test(file.name);
+    if (!okExt) {
+      setCsvError({
+        message: `Filtypen "${file.name.split(".").pop()}" stöds inte.`,
+        hint: "Använd en .csv, .tsv eller .txt-fil exporterad från Google Ads.",
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (file.size === 0) {
+      setCsvError({ message: "Filen är tom.", hint: "Välj en fil med data." });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (file.size > 6 * 1024 * 1024) {
+      setCsvError({
+        message: `Filen är för stor (${(file.size / 1024 / 1024).toFixed(1)} MB, max 6 MB).`,
+        hint: "Exportera ett kortare datumintervall eller färre kampanjer.",
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setCsvLoading(true);
     try {
-      const buf = await file.arrayBuffer();
-      // Convert to base64 in chunks to avoid stack overflow on large files
-      const bytes = new Uint8Array(buf);
-      let bin = "";
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
-      }
-      const content_base64 = btoa(bin);
+      const content_base64 = await fileToBase64(file);
 
       const { data, error } = await supabase.functions.invoke("ads-import-auction-csv", {
         body: { project_id: id, filename: file.name, content_base64 },
       });
+
+      // Edge-funktionen returnerar JSON med error+validation även vid 400
+      if (data?.error) {
+        setCsvError({
+          message: data.error,
+          missingColumns: data.validation?.missing_columns,
+          foundColumns: data.validation?.found_columns,
+          hint: data.validation?.hint,
+        });
+        toast.error("Importen avbröts — se detaljer ovanför tabellen");
+        return;
+      }
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+
+      if (Array.isArray(data?.warnings) && data.warnings.length) setCsvWarnings(data.warnings);
       toast.success(`Importerade ${data.competitors} konkurrent-domäner`);
       load();
     } catch (e: any) {
-      toast.error(e.message || "Kunde inte importera CSV");
+      setCsvError({
+        message: e.message || "Kunde inte importera CSV",
+        hint: "Försök igen eller kontakta support om problemet kvarstår.",
+      });
+      toast.error("Importen misslyckades");
     } finally {
       setCsvLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -182,6 +236,57 @@ export default function AuctionInsights() {
           )}
         </div>
       </div>
+
+      {csvError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <div className="text-sm space-y-2 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium text-destructive">CSV-importen avbröts</p>
+                  <Button size="sm" variant="ghost" className="h-6 -mt-1" onClick={() => setCsvError(null)}>Stäng</Button>
+                </div>
+                <p className="text-foreground">{csvError.message}</p>
+                {csvError.missingColumns && csvError.missingColumns.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Saknade kolumner</p>
+                    <ul className="list-disc pl-5 text-muted-foreground">
+                      {csvError.missingColumns.map((c) => <li key={c}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {csvError.foundColumns && csvError.foundColumns.length > 0 && (
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer">Hittade kolumner i filen ({csvError.foundColumns.length})</summary>
+                    <p className="mt-1 font-mono break-all">{csvError.foundColumns.join(" • ")}</p>
+                  </details>
+                )}
+                {csvError.hint && <p className="text-muted-foreground">💡 {csvError.hint}</p>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {csvWarnings.length > 0 && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 shrink-0" />
+              <div className="text-sm space-y-1 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium">Importen genomfördes med varningar</p>
+                  <Button size="sm" variant="ghost" className="h-6 -mt-1" onClick={() => setCsvWarnings([])}>Stäng</Button>
+                </div>
+                <ul className="list-disc pl-5 text-muted-foreground">
+                  {csvWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-4">
