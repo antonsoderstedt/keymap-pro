@@ -43,6 +43,44 @@ export default function ReportsLibrary() {
   const [history, setHistory] = useState<any[]>([]);
   const [generating, setGenerating] = useState<string | null>(null);
   const [viewing, setViewing] = useState<any>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadPptx = async (artifact: any) => {
+    if (!artifact?.id && !artifact?.payload?.template) return;
+    setDownloading(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/render-pptx`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify(artifact.id ? { artifact_id: artifact.id } : { name: artifact.name, payload: artifact.payload }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition") || "";
+      const m = dispo.match(/filename="([^"]+)"/);
+      const filename = m?.[1] || `${artifact.name || "rapport"}.pptx`;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success("PPTX nedladdad");
+    } catch (e: any) {
+      toast.error("Kunde inte skapa PPTX", { description: e.message });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -167,9 +205,14 @@ export default function ReportsLibrary() {
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {p?.template && (
-                        <Button size="sm" variant="default" onClick={() => setViewing(h)} className="gap-1">
-                          Visa
-                        </Button>
+                        <>
+                          <Button size="sm" variant="default" onClick={() => setViewing(h)} className="gap-1">
+                            Visa
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => downloadPptx(h)} disabled={downloading} className="gap-1">
+                            <Download className="h-3 w-3" /> PPTX
+                          </Button>
+                        </>
                       )}
                       <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${id}/artifacts`)} className="gap-1">
                         Öppna
@@ -186,7 +229,14 @@ export default function ReportsLibrary() {
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{viewing?.name}</DialogTitle>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <DialogTitle className="font-serif text-xl">{viewing?.name}</DialogTitle>
+              {viewing?.payload?.template && (
+                <Button size="sm" variant="default" onClick={() => downloadPptx(viewing)} disabled={downloading} className="gap-1">
+                  <Download className="h-3 w-3" /> {downloading ? "Skapar…" : "Ladda ner PPTX"}
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {viewing?.payload?.template && <ReportTemplateView template={viewing.payload.template} />}
         </DialogContent>
