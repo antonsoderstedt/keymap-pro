@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "Du är en senior PPC-strateg. Bedöm hälsa på Google Ads-kontot baserat på data och returnera kortfattat på svenska." },
+          { role: "system", content: "Du är en senior PPC-strateg. Bedöm hälsa på Google Ads-kontot baserat på data och returnera kortfattat på svenska. KRITISKT: När brand_auction_context visar att konkurrenter budar på varumärket (>=2 st med impression_share >=5%), ska du ALDRIG rekommendera att pausa eller drastiskt sänka brand-budget — rekommendera istället 'defensiv brand-budget' (behåll eller höj måttligt) eftersom konkurrenter annars tar varumärkesklicken. Detta gäller även om organisk SEO är stark." },
           { role: "user", content: `Här är kontodata för senaste 30 dagar:\n${JSON.stringify(summaryInput, null, 2)}\n\nGenerera en hälsobedömning.` },
         ],
         tools: [{
