@@ -833,6 +833,36 @@ export type Database = {
           },
         ]
       }
+      ga4_conversion_filters: {
+        Row: {
+          created_at: string
+          event_name: string
+          id: string
+          is_active: boolean
+          mode: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_name: string
+          id?: string
+          is_active?: boolean
+          mode?: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          id?: string
+          is_active?: boolean
+          mode?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ga4_filters: {
         Row: {
           created_at: string
