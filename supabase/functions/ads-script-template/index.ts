@@ -163,30 +163,38 @@ function collectCampaigns(range) {
 }
 
 function fetchAuctionInsights(campaignId, range) {
-  // auction_insight_performance_report is a real AWQL report available via AdsApp.report.
-  var query =
-    "SELECT Domain, ImpressionShare, OverlapRate, PositionAboveRate, " +
-    "TopOfPageRate, AbsoluteTopOfPageRate, OutrankingShare " +
-    "FROM auction_insight_performance_report " +
-    "WHERE CampaignId = " + campaignId + " " +
-    "DURING " + range.start.replace(/-/g,'') + "," + range.end.replace(/-/g,'');
+  // Modern Google Ads API uses GAQL via AdsApp.search() against the
+  // 'campaign_auction_insight_domain_view' resource. Returns share metrics
+  // already as 0..1 floats.
+  var gaql =
+    "SELECT " +
+      "auction_insight_domain.domain, " +
+      "metrics.search_impression_share, " +
+      "metrics.search_overlap_rate, " +
+      "metrics.search_position_above_rate, " +
+      "metrics.search_top_impression_share, " +
+      "metrics.search_absolute_top_impression_share, " +
+      "metrics.search_outranking_share " +
+    "FROM campaign_auction_insight_domain_view " +
+    "WHERE segments.date BETWEEN '" + range.start + "' AND '" + range.end + "' " +
+      "AND campaign.id = " + campaignId;
 
   var rows = [];
   try {
-    var report = AdsApp.report(query);
-    var it = report.rows();
+    var it = AdsApp.search(gaql, { apiVersion: 'v17' });
     while (it.hasNext()) {
       var r = it.next();
-      var domain = String(r['Domain'] || '').toLowerCase().trim();
+      var domain = String((r.auctionInsightDomain && r.auctionInsightDomain.domain) || '').toLowerCase().trim();
       if (!domain || domain === 'you') continue;
+      var m = r.metrics || {};
       rows.push({
         domain: domain,
-        impression_share:     pct(r['ImpressionShare']),
-        overlap_rate:         pct(r['OverlapRate']),
-        position_above_rate:  pct(r['PositionAboveRate']),
-        top_of_page_rate:     pct(r['TopOfPageRate']),
-        abs_top_of_page_rate: pct(r['AbsoluteTopOfPageRate']),
-        outranking_share:     pct(r['OutrankingShare']),
+        impression_share:     numOrNull(m.searchImpressionShare),
+        overlap_rate:         numOrNull(m.searchOverlapRate),
+        position_above_rate:  numOrNull(m.searchPositionAboveRate),
+        top_of_page_rate:     numOrNull(m.searchTopImpressionShare),
+        abs_top_of_page_rate: numOrNull(m.searchAbsoluteTopImpressionShare),
+        outranking_share:     numOrNull(m.searchOutrankingShare),
       });
     }
   } catch (e) {
@@ -195,12 +203,10 @@ function fetchAuctionInsights(campaignId, range) {
   return rows;
 }
 
-function pct(v) {
-  if (v == null || v === '' || v === '--') return null;
-  var s = String(v).replace('%','').replace('<','').replace('>','').trim();
-  var n = parseFloat(s);
+function numOrNull(v) {
+  if (v == null || v === '') return null;
+  var n = parseFloat(v);
   if (!isFinite(n)) return null;
-  // Reports return percentages like "12.34%" — normalize to 0..1
   return n > 1 ? n / 100 : n;
 }
 
