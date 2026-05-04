@@ -13,6 +13,7 @@ import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
 import Ga4Filters from "@/components/workspace/Ga4Filters";
 import GoalsCard from "@/components/workspace/GoalsCard";
+import MembersCard from "@/components/workspace/MembersCard";
 
 interface KpiTarget {
   id: string;
