@@ -61,12 +61,31 @@ export default function Ga4Dashboard() {
       if (error) throw error;
       toast.success("GA4 uppdaterad");
       await load();
+      await loadEvents();
     } catch (e: any) {
       toast.error("Misslyckades: " + e.message);
     } finally {
       setRefreshing(false);
     }
   };
+
+  const loadEvents = useCallback(async () => {
+    if (!propertyId) return;
+    setEventsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ga4-fetch", {
+        body: { action: "eventBreakdown", propertyId, startDate: range, endDate: "today" },
+      });
+      if (error) throw error;
+      setEvents((data?.events as EventRow[]) || []);
+    } catch {
+      // silent
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [propertyId, range]);
+
+  useEffect(() => { if (propertyId) loadEvents(); }, [propertyId, range, loadEvents]);
 
   const rows: any[] = (snapshot?.rows as any[]) || [];
   const totals = snapshot?.totals || {};
