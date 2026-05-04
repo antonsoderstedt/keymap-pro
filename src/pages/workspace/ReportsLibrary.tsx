@@ -157,6 +157,20 @@ export default function ReportsLibrary() {
   );
 }
 
+function summarizePayload(p: any): string | null {
+  if (!p?.data) return null;
+  const t = p.report_type;
+  const d = p.data;
+  if (t === "share_of_voice") return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
+  if (t === "auction_insights") return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
+  if (t === "roi") return `${d.clusters?.length ?? 0} kluster · uplift ${Math.round((d.total_uplift_potential_sek || 0) / 1000)}k kr`;
+  if (t === "yoy") {
+    const c = d.gsc?.yoy_clicks?.delta_pct;
+    return c != null ? `Klick YoY ${c > 0 ? "+" : ""}${c.toFixed(1)}%` : "YoY-data";
+  }
+  return null;
+}
+
 function WeeklyReportPanel({ projectId }: { projectId: string }) {
   const [latest, setLatest] = useState<any>(null);
   const [running, setRunning] = useState(false);
