@@ -47,6 +47,10 @@ export default function PrelaunchBlueprint() {
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("brief");
+  // editingBriefId = null → skapar ny; satt → redigerar existerande brief
+  const [editingBriefId, setEditingBriefId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [businessIdea, setBusinessIdea] = useState("");
@@ -56,6 +60,24 @@ export default function PrelaunchBlueprint() {
   const [competitors, setCompetitors] = useState<string[]>([]);
   const [locationInput, setLocationInput] = useState("");
   const [locations, setLocations] = useState<string[]>([]);
+
+  function resetForm() {
+    setBusinessIdea(""); setTargetAudience(""); setUsp("");
+    setCompetitors([]); setLocations([]);
+    setCompetitorInput(""); setLocationInput("");
+    setEditingBriefId(null);
+  }
+
+  function loadBriefIntoForm(b: Brief) {
+    setBusinessIdea(b.business_idea || "");
+    setTargetAudience(b.target_audience || "");
+    setUsp(b.usp || "");
+    setCompetitors(b.competitors || []);
+    setLocations(b.locations || []);
+    setCompetitorInput(""); setLocationInput("");
+    setEditingBriefId(b.id);
+    setActiveTab("brief");
+  }
 
   useEffect(() => {
     if (!projectId) return;
