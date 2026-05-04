@@ -82,6 +82,9 @@ export default function WorkspaceSettings() {
         </p>
       </div>
 
+      {/* Goals & kundtyp (Fas 3) */}
+      <GoalsCard projectId={id!} />
+
       {/* KPI Targets */}
       <Card>
         <CardHeader>
