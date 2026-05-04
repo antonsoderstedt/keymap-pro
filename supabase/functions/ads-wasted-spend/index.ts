@@ -112,12 +112,21 @@ Deno.serve(async (req) => {
       const items = top.map((w) => {
         const isTrackingFix = trackingStatus === "missing";
         const isLandingCheck = w.suggested_action.startsWith("Kontrollera landningssida");
+        // Datavolymen styr alltid prioriteten — ett sökord med 200 klick & 2000 SEK
+        // är alltid viktigare att åtgärda än ett med 5 klick & 50 SEK,
+        // även om det är tracking/landningskontroll.
+        const dataPriority: "high" | "medium" | "low" =
+          w.cost_sek >= 1000 || w.clicks >= 100
+            ? "high"
+            : w.cost_sek >= 200 || w.clicks >= 25
+              ? "medium"
+              : "low";
         return {
           project_id,
           title: `${w.suggested_action}: "${w.keyword}"`,
           description: `Kampanj "${w.campaign}" — ${w.cost_sek} SEK på 30d, ${w.clicks} klick, CTR ${w.ctr}%, 0 konverteringar${w.quality_score ? `, QS ${w.quality_score}` : ""}.\n\n${trackingNote}`,
           category: "ads",
-          priority: isTrackingFix ? "high" : (w.cost_sek > 500 ? "high" : "medium"),
+          priority: dataPriority,
           status: "open",
           source_type: "ads_wasted_spend",
           source_payload: w,
