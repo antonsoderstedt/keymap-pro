@@ -84,6 +84,9 @@ export default function WorkspaceSettings() {
         </p>
       </div>
 
+      {/* Kunduppgifter */}
+      <ClientInfoCard projectId={id!} />
+
       {/* Goals & kundtyp (Fas 3) */}
       <GoalsCard projectId={id!} />
 
