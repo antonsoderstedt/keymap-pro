@@ -66,16 +66,16 @@ Deno.serve(async (req) => {
       } = body;
       if (!propertyId) return json({ error: "propertyId required" }, 400);
 
-      // Auto-add keyEvents alongside conversions, dedupe by name
+      // Dedupe metrics by name. NOTE: GA4 treats `conversions` and `keyEvents` as
+      // the same metric and rejects requests with both ("duplicate metrics").
       const seen = new Set<string>();
       const metrics = (rawMetrics as any[]).filter((m) => {
         if (!m?.name || seen.has(m.name)) return false;
+        if (m.name === "keyEvents" && seen.has("conversions")) return false;
+        if (m.name === "conversions" && seen.has("keyEvents")) return false;
         seen.add(m.name);
         return true;
       });
-      if (seen.has("conversions") && !seen.has("keyEvents")) {
-        metrics.push({ name: "keyEvents" });
-      }
 
       // Normalize property ID: strip whitespace, "properties/" prefix, and non-digits
       const normalizedPropertyId = String(propertyId).trim().replace(/^properties\//i, "").replace(/\D/g, "");
@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
                 body: JSON.stringify({
                   dateRanges: [{ startDate, endDate }],
                   dimensions: [{ name: "eventName" }],
-                  metrics: [{ name: "conversions" }, { name: "keyEvents" }],
+                  metrics: [{ name: "conversions" }],
                   limit: 200,
                 }),
               },
@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
             for (const r of evRows) {
               const name = r.dimensionValues?.[0]?.value || "";
               const c = Number(r.metricValues?.[0]?.value || 0);
-              const k = Number(r.metricValues?.[1]?.value || 0);
+              const k = c; // GA4 aliases keyEvents to conversions
               breakdown[name] = { conversions: c, keyEvents: k };
               const include = allow.length ? allow.includes(name) : !deny.includes(name);
               if (include) {
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             dateRanges: [{ startDate, endDate }],
             dimensions: [{ name: "eventName" }],
-            metrics: [{ name: "eventCount" }, { name: "conversions" }, { name: "keyEvents" }],
+            metrics: [{ name: "eventCount" }, { name: "conversions" }],
             orderBys: [{ metric: { metricName: "conversions" }, desc: true }],
             limit: 100,
           }),
@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
         eventName: r.dimensionValues?.[0]?.value,
         eventCount: Number(r.metricValues?.[0]?.value || 0),
         conversions: Number(r.metricValues?.[1]?.value || 0),
-        keyEvents: Number(r.metricValues?.[2]?.value || 0),
+        keyEvents: Number(r.metricValues?.[1]?.value || 0),
       }));
       return json({ events });
     }
