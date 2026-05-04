@@ -75,7 +75,7 @@ export default function DiagnosisPanel({ projectId }: Props) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (data?.report) setReport(data.report as DiagnosisReport);
+    if (data?.report) setReport(data.report as unknown as DiagnosisReport);
     setLoading(false);
   };
 
@@ -151,7 +151,7 @@ export default function DiagnosisPanel({ projectId }: Props) {
                   {report.blockers.map((b, i) => (
                     <Alert key={i} variant="destructive">
                       <ShieldAlert className="h-4 w-4" />
-                      <AlertTitle>{b.gate.replaceAll("_", " ")}</AlertTitle>
+                      <AlertTitle>{b.gate.replace(/_/g, " ")}</AlertTitle>
                       <AlertDescription className="space-y-1">
                         <p>{b.message}</p>
                         <p className="text-xs opacity-80">→ {b.resolution}</p>
