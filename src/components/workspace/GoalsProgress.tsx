@@ -332,7 +332,8 @@ export function GoalsProgress({ projectId, goals, current, rankings, extraMetric
               <Button onClick={onSave} disabled={saving || !targetValue || !sourceAvailable}>Spara mål</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         {goals.length === 0 ? (
