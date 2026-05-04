@@ -60,11 +60,17 @@ Deno.serve(async (req) => {
         startDate = "28daysAgo",
         endDate = "today",
         dimensions = [{ name: "date" }],
-        metrics = [{ name: "sessions" }, { name: "totalUsers" }],
+        metrics: rawMetrics = [{ name: "sessions" }, { name: "totalUsers" }],
         limit = 100,
         persist = false,
       } = body;
       if (!propertyId) return json({ error: "propertyId required" }, 400);
+
+      // Auto-add keyEvents alongside conversions (GA4's newer name; same value but future-proof)
+      const metrics = [...rawMetrics];
+      const hasConv = metrics.some((m: any) => m.name === "conversions");
+      const hasKey = metrics.some((m: any) => m.name === "keyEvents");
+      if (hasConv && !hasKey) metrics.push({ name: "keyEvents" });
 
       // Normalize property ID: strip whitespace, "properties/" prefix, and non-digits
       const normalizedPropertyId = String(propertyId).trim().replace(/^properties\//i, "").replace(/\D/g, "");
@@ -113,7 +119,6 @@ Deno.serve(async (req) => {
           const row: any = {};
           dimNames.forEach((n, i) => (row[n] = r.dimensionValues?.[i]?.value));
           metNames.forEach((n, i) => (row[n] = Number(r.metricValues?.[i]?.value || 0)));
-          // Friendly aliases
           if (row.sessions !== undefined) row.sessions = Number(row.sessions);
           if (row.totalUsers !== undefined) row.users = Number(row.totalUsers);
           if (row.screenPageViews !== undefined) row.pageviews = Number(row.screenPageViews);
@@ -126,6 +131,55 @@ Deno.serve(async (req) => {
         });
         if (totals.totalUsers !== undefined) totals.users = totals.totalUsers;
         if (totals.screenPageViews !== undefined) totals.pageviews = totals.screenPageViews;
+
+        // Apply conversion event filters: re-fetch breakdown by eventName if needed
+        if (totals.conversions !== undefined || totals.keyEvents !== undefined) {
+          const { data: filters } = await sb
+            .from("ga4_conversion_filters")
+            .select("event_name, mode, is_active")
+            .eq("project_id", projectId)
+            .eq("is_active", true);
+          const allow = (filters || []).filter((f: any) => f.mode === "allow").map((f: any) => f.event_name);
+          const deny = (filters || []).filter((f: any) => f.mode === "deny").map((f: any) => f.event_name);
+          if (allow.length || deny.length) {
+            // Fetch event-level conversion breakdown
+            const evRes = await fetch(
+              `https://analyticsdata.googleapis.com/v1beta/properties/${normalizedPropertyId}:runReport`,
+              {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  dateRanges: [{ startDate, endDate }],
+                  dimensions: [{ name: "eventName" }],
+                  metrics: [{ name: "conversions" }, { name: "keyEvents" }],
+                  limit: 200,
+                }),
+              },
+            );
+            const evData = await evRes.json().catch(() => ({}));
+            const evRows = evData.rows || [];
+            let filteredConv = 0;
+            let filteredKey = 0;
+            const breakdown: Record<string, { conversions: number; keyEvents: number }> = {};
+            for (const r of evRows) {
+              const name = r.dimensionValues?.[0]?.value || "";
+              const c = Number(r.metricValues?.[0]?.value || 0);
+              const k = Number(r.metricValues?.[1]?.value || 0);
+              breakdown[name] = { conversions: c, keyEvents: k };
+              const include = allow.length ? allow.includes(name) : !deny.includes(name);
+              if (include) {
+                filteredConv += c;
+                filteredKey += k;
+              }
+            }
+            totals.conversions_raw = totals.conversions;
+            totals.keyEvents_raw = totals.keyEvents;
+            totals.conversions = filteredConv;
+            totals.keyEvents = filteredKey;
+            totals.event_breakdown = breakdown;
+            totals.filter_applied = { allow, deny };
+          }
+        }
 
         const today = new Date();
         const end = endDate === "today" ? today : new Date(endDate);
@@ -144,6 +198,39 @@ Deno.serve(async (req) => {
       }
 
       return json(data, res.status);
+    }
+
+    if (action === "eventBreakdown") {
+      const { propertyId, startDate = "28daysAgo", endDate = "today" } = body;
+      if (!propertyId) return json({ error: "propertyId required" }, 400);
+      const normalizedPropertyId = String(propertyId).trim().replace(/^properties\//i, "").replace(/\D/g, "");
+      const res = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${normalizedPropertyId}:runReport`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: "eventName" }],
+            metrics: [{ name: "eventCount" }, { name: "conversions" }, { name: "keyEvents" }],
+            orderBys: [{ metric: { metricName: "conversions" }, desc: true }],
+            limit: 100,
+          }),
+        },
+      );
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch {
+        return json({ error: "GA4 API non-JSON", details: text.slice(0, 500) }, 502);
+      }
+      if (!res.ok) return json(data, res.status);
+      const events = (data.rows || []).map((r: any) => ({
+        eventName: r.dimensionValues?.[0]?.value,
+        eventCount: Number(r.metricValues?.[0]?.value || 0),
+        conversions: Number(r.metricValues?.[1]?.value || 0),
+        keyEvents: Number(r.metricValues?.[2]?.value || 0),
+      }));
+      return json({ events });
     }
 
     return json({ error: "unknown action" }, 400);
