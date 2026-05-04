@@ -197,6 +197,75 @@ function parseAuctionCsv(text: string): ParsedCsv {
   return { competitors: out, rowCount: lines.length - headerIdx - 1, header, startDate, endDate };
 }
 
+interface Validation {
+  ok: boolean;
+  message?: string;
+  missingColumns: string[];
+  hint?: string;
+  warnings: string[];
+}
+
+function validateParsed(p: ParsedCsv): Validation {
+  const warnings: string[] = [];
+  if (p.header.length === 0) {
+    return {
+      ok: false,
+      message: "Kunde inte hitta någon kolumnrubrik i filen. Är det verkligen en CSV/TSV-export från Google Ads?",
+      missingColumns: ["Visnings-URL-domän (Display URL domain)"],
+      hint: "Exportera från Google Ads → Kampanjer → Insikter → Auktionsstatistik → Hämta → .csv.",
+      warnings,
+    };
+  }
+
+  const idx = matchColumns(p.header);
+  const required: { key: keyof ReturnType<typeof matchColumns>; label: string }[] = [
+    { key: "domain", label: "Visnings-URL-domän (Display URL domain)" },
+    { key: "imprShare", label: "Exponeringsandel (Impr. share)" },
+  ];
+  const recommended: { key: keyof ReturnType<typeof matchColumns>; label: string }[] = [
+    { key: "overlap", label: "Överlappningsfrekvens (Overlap rate)" },
+    { key: "posAbove", label: "Position över (Position above rate)" },
+    { key: "topOfPage", label: "Överst på sidan (Top of page rate)" },
+    { key: "absTop", label: "Absolut överst (Abs. top of page rate)" },
+    { key: "outranking", label: "Rangordningsandel (Outranking share)" },
+  ];
+
+  const missing = required.filter((r) => idx[r.key] < 0).map((r) => r.label);
+  if (missing.length) {
+    return {
+      ok: false,
+      message: `Filen saknar obligatoriska kolumner: ${missing.join(", ")}.`,
+      missingColumns: missing,
+      hint: "Kontrollera att du exporterat 'Auktionsstatistik'-rapporten — inte Kampanj-rapporten — och att alla standardkolumner är aktiverade innan du klickar Hämta.",
+      warnings,
+    };
+  }
+
+  const missingRec = recommended.filter((r) => idx[r.key] < 0).map((r) => r.label);
+  if (missingRec.length) {
+    warnings.push(
+      `Saknar rekommenderade kolumner: ${missingRec.join(", ")}. Importen genomförs men dessa fält visas som "—" i tabellen.`,
+    );
+  }
+
+  if (p.competitors.length === 0) {
+    return {
+      ok: false,
+      message: "Inga konkurrent-rader hittades i filen.",
+      missingColumns: [],
+      hint: "Filen verkar ha rätt kolumner men är tom på data. Verifiera datumintervallet i Google Ads och att kampanjerna har auktionsdata för perioden.",
+      warnings,
+    };
+  }
+
+  const withShare = p.competitors.filter((c) => c.impressionShare != null).length;
+  if (withShare === 0) {
+    warnings.push("Inga giltiga procentvärden för Exponeringsandel kunde läsas. Kontrollera att kolumnen innehåller % eller decimaltal.");
+  }
+
+  return { ok: true, missingColumns: [], warnings };
+}
+
 function splitRow(line: string, delim: string): string[] {
   // Handle simple quoted CSV fields (commas inside quotes). For tabs, simple split is fine.
   if (delim === "\t") return line.split("\t");
