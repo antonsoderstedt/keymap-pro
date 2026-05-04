@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, X, Rocket, ArrowRight } from "lucide-react";
+import { Loader2, Plus, X, Rocket, ArrowRight, Pencil, Save, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectCurrency } from "@/hooks/useProjectCurrency";
 import { formatMoney } from "@/lib/revenue";
@@ -47,6 +47,10 @@ export default function PrelaunchBlueprint() {
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("brief");
+  // editingBriefId = null → skapar ny; satt → redigerar existerande brief
+  const [editingBriefId, setEditingBriefId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [businessIdea, setBusinessIdea] = useState("");
@@ -56,6 +60,24 @@ export default function PrelaunchBlueprint() {
   const [competitors, setCompetitors] = useState<string[]>([]);
   const [locationInput, setLocationInput] = useState("");
   const [locations, setLocations] = useState<string[]>([]);
+
+  function resetForm() {
+    setBusinessIdea(""); setTargetAudience(""); setUsp("");
+    setCompetitors([]); setLocations([]);
+    setCompetitorInput(""); setLocationInput("");
+    setEditingBriefId(null);
+  }
+
+  function loadBriefIntoForm(b: Brief) {
+    setBusinessIdea(b.business_idea || "");
+    setTargetAudience(b.target_audience || "");
+    setUsp(b.usp || "");
+    setCompetitors(b.competitors || []);
+    setLocations(b.locations || []);
+    setCompetitorInput(""); setLocationInput("");
+    setEditingBriefId(b.id);
+    setActiveTab("brief");
+  }
 
   useEffect(() => {
     if (!projectId) return;
@@ -85,12 +107,43 @@ export default function PrelaunchBlueprint() {
       .order("created_at", { ascending: false })
       .maybeSingle();
     setBlueprint(data as Blueprint | null);
+    if (data && !editingBriefId) setActiveTab("result");
   }
 
   async function selectBrief(briefId: string) {
     setActiveBriefId(briefId);
     setBlueprint(null);
     await loadBlueprint(briefId);
+    // Om vi byter brief — avsluta ev. redigeringsläge
+    if (editingBriefId && editingBriefId !== briefId) resetForm();
+  }
+
+  async function saveBriefOnly() {
+    if (!editingBriefId) return;
+    if (!businessIdea.trim()) {
+      toast({ title: "Verksamhetsbeskrivning krävs", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("prelaunch_briefs")
+        .update({
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          usp,
+          competitors,
+          locations,
+        })
+        .eq("id", editingBriefId);
+      if (error) throw error;
+      toast({ title: "Brief sparad", description: "Tryck \"Generera om\" för att uppdatera resultatet." });
+      await loadBriefs();
+    } catch (e: any) {
+      toast({ title: "Fel", description: e.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function createBriefAndRun() {
@@ -100,35 +153,54 @@ export default function PrelaunchBlueprint() {
     }
     setRunning(true);
     try {
-      const { data: brief, error } = await supabase
-        .from("prelaunch_briefs")
-        .insert({
-          project_id: projectId!,
-          business_idea: businessIdea,
-          target_audience: targetAudience,
-          usp,
-          competitors,
-          locations,
-          status: "researching",
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      let briefId = editingBriefId;
 
-      setActiveBriefId(brief.id);
-      setBriefs([brief as Brief, ...briefs]);
+      if (editingBriefId) {
+        // Uppdatera existerande brief och kör om research
+        const { error } = await supabase
+          .from("prelaunch_briefs")
+          .update({
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            usp,
+            competitors,
+            locations,
+            status: "researching",
+            error_message: null,
+          })
+          .eq("id", editingBriefId);
+        if (error) throw error;
+      } else {
+        const { data: brief, error } = await supabase
+          .from("prelaunch_briefs")
+          .insert({
+            project_id: projectId!,
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            usp,
+            competitors,
+            locations,
+            status: "researching",
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        briefId = brief.id;
+        setBriefs([brief as Brief, ...briefs]);
+      }
 
-      // Reset form
-      setBusinessIdea(""); setTargetAudience(""); setUsp("");
-      setCompetitors([]); setLocations([]);
+      setActiveBriefId(briefId!);
+      resetForm();
 
       const { error: invErr } = await supabase.functions.invoke("prelaunch-research", {
-        body: { brief_id: brief.id },
+        body: { brief_id: briefId },
       });
       if (invErr) throw invErr;
 
       toast({ title: "Klart!", description: "Blueprint genererad." });
       await loadBriefs();
+      await loadBlueprint(briefId!);
+      setActiveTab("result");
     } catch (e: any) {
       toast({ title: "Fel", description: e.message, variant: "destructive" });
     } finally {
@@ -153,33 +225,53 @@ export default function PrelaunchBlueprint() {
 
       {/* Briefs list */}
       {briefs.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {briefs.map(b => (
-            <Button
-              key={b.id}
-              variant={activeBriefId === b.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => selectBrief(b.id)}
-            >
-              {new Date(b.created_at).toLocaleDateString("sv-SE")}
-              <Badge variant="secondary" className="ml-2 text-[10px]">{b.status}</Badge>
-            </Button>
+            <div key={b.id} className="inline-flex items-center rounded-md border border-border overflow-hidden">
+              <Button
+                variant={activeBriefId === b.id ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none border-0"
+                onClick={() => selectBrief(b.id)}
+              >
+                {new Date(b.created_at).toLocaleDateString("sv-SE")}
+                <Badge variant="secondary" className="ml-2 text-[10px]">{b.status}</Badge>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-none border-0 border-l border-border px-2"
+                title="Redigera brief"
+                onClick={() => loadBriefIntoForm(b)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           ))}
+          {editingBriefId && (
+            <Button variant="ghost" size="sm" onClick={resetForm} className="text-xs">
+              <Plus className="h-3.5 w-3.5 mr-1" /> Ny brief istället
+            </Button>
+          )}
         </div>
       )}
 
-      <Tabs defaultValue={blueprint ? "result" : "brief"} key={activeBriefId || "new"}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="brief">Ny brief</TabsTrigger>
+          <TabsTrigger value="brief">{editingBriefId ? "Redigera brief" : "Ny brief"}</TabsTrigger>
           <TabsTrigger value="result" disabled={!blueprint}>Resultat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="brief" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Brief — verksamhet & marknad</CardTitle>
+              <CardTitle>
+                {editingBriefId ? "Redigera brief" : "Brief — verksamhet & marknad"}
+              </CardTitle>
               <CardDescription>
-                Ju mer detaljerad input, desto bättre resultat. Beräkningstid: ~60-120 sekunder.
+                {editingBriefId
+                  ? "Ändra fälten och spara, eller spara + generera om resultatet (~60-120 sek)."
+                  : "Ju mer detaljerad input, desto bättre resultat. Beräkningstid: ~60-120 sekunder."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -229,13 +321,37 @@ export default function PrelaunchBlueprint() {
                 placeholder="exempel.se"
               />
 
-              <Button onClick={createBriefAndRun} disabled={running} className="w-full">
-                {running ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererar blueprint…</>
-                ) : (
-                  <><Rocket className="mr-2 h-4 w-4" /> Generera blueprint</>
-                )}
-              </Button>
+              {editingBriefId ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={saveBriefOnly}
+                    disabled={saving || running}
+                    className="flex-1"
+                  >
+                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Spara ändringar
+                  </Button>
+                  <Button onClick={createBriefAndRun} disabled={running || saving} className="flex-1">
+                    {running ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererar om…</>
+                    ) : (
+                      <><RefreshCw className="mr-2 h-4 w-4" /> Spara & generera om</>
+                    )}
+                  </Button>
+                  <Button variant="ghost" onClick={resetForm} disabled={running || saving}>
+                    Avbryt
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={createBriefAndRun} disabled={running} className="w-full">
+                  {running ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererar blueprint…</>
+                  ) : (
+                    <><Rocket className="mr-2 h-4 w-4" /> Generera blueprint</>
+                  )}
+                </Button>
+              )}
 
               {running && (
                 <div className="space-y-2">
