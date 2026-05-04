@@ -42,6 +42,7 @@ export default function ReportsLibrary() {
   const navigate = useNavigate();
   const [history, setHistory] = useState<any[]>([]);
   const [generating, setGenerating] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<any>(null);
 
   useEffect(() => {
     if (!id) return;
