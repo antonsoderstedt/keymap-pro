@@ -206,6 +206,88 @@ export type Database = {
           },
         ]
       }
+      ads_diagnostics_cache: {
+        Row: {
+          created_at: string
+          customer_id: string
+          hour_bucket: string
+          id: string
+          project_id: string
+          snapshot: Json
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          hour_bucket: string
+          id?: string
+          project_id: string
+          snapshot: Json
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          hour_bucket?: string
+          id?: string
+          project_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_diagnostics_cache_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_diagnostics_runs: {
+        Row: {
+          cache_hit: boolean
+          created_at: string
+          customer_id: string
+          duration_ms: number | null
+          id: string
+          project_id: string
+          report: Json
+          rules_evaluated: number
+          rules_fired: number
+          scope: Json | null
+        }
+        Insert: {
+          cache_hit?: boolean
+          created_at?: string
+          customer_id: string
+          duration_ms?: number | null
+          id?: string
+          project_id: string
+          report: Json
+          rules_evaluated?: number
+          rules_fired?: number
+          scope?: Json | null
+        }
+        Update: {
+          cache_hit?: boolean
+          created_at?: string
+          customer_id?: string
+          duration_ms?: number | null
+          id?: string
+          project_id?: string
+          report?: Json
+          rules_evaluated?: number
+          rules_fired?: number
+          scope?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_diagnostics_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_mutations: {
         Row: {
           action_type: string
@@ -256,6 +338,72 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ads_recommendation_outcomes: {
+        Row: {
+          applied_at: string | null
+          campaign_id: string | null
+          created_at: string
+          diagnosis_id: string | null
+          fired_at: string
+          id: string
+          measured_14d: Json | null
+          measured_30d: Json | null
+          mutation_id: string | null
+          notes: string | null
+          predicted: Json
+          project_id: string
+          reverted_at: string | null
+          rule_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          diagnosis_id?: string | null
+          fired_at: string
+          id?: string
+          measured_14d?: Json | null
+          measured_30d?: Json | null
+          mutation_id?: string | null
+          notes?: string | null
+          predicted: Json
+          project_id: string
+          reverted_at?: string | null
+          rule_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          diagnosis_id?: string | null
+          fired_at?: string
+          id?: string
+          measured_14d?: Json | null
+          measured_30d?: Json | null
+          mutation_id?: string | null
+          notes?: string | null
+          predicted?: Json
+          project_id?: string
+          reverted_at?: string | null
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_recommendation_outcomes_mutation_id_fkey"
+            columns: ["mutation_id"]
+            isOneToOne: false
+            referencedRelation: "ads_mutations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_recommendation_outcomes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       alerts: {
         Row: {
