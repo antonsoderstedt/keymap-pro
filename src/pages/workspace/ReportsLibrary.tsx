@@ -25,14 +25,14 @@ const REPORTS: ReportType[] = [
   { id: "ga4_traffic", name: "GA4 trafikrapport", description: "Sessioner, källor, kanaler, konvertering", icon: Eye, source: "GA4", status: "ready" },
   { id: "keyword_universe", name: "Sökordsanalys (universum)", description: "Alla sökord med volym, CPC, kluster", icon: Search, source: "DataForSEO + Semrush", status: "ready" },
   { id: "segments", name: "Segmentrapport", description: "Identifierade segment + paket per segment", icon: Layers, source: "Egen analys", status: "ready" },
-  { id: "auction_insights", name: "Auction Insights", description: "Konkurrent-IS, Overlap, trend", icon: Sparkles, source: "Google Ads", status: "needs_data" },
+  { id: "auction_insights", name: "Auction Insights", description: "Konkurrent-IS, Overlap, trend", icon: Sparkles, source: "Google Ads", status: "ready" },
   { id: "competitor", name: "Konkurrentrapport", description: "Sökord, backlinks, content gap mot konkurrenter", icon: AlertCircle, source: "Semrush + GSC", status: "ready" },
-  { id: "share_of_voice", name: "Share of Voice", description: "Din andel av synlighet i nischen", icon: Zap, source: "Semrush + Ads", status: "needs_data" },
+  { id: "share_of_voice", name: "Share of Voice", description: "Din andel av synlighet i nischen", icon: Zap, source: "Semrush + Ads", status: "ready" },
   { id: "content_gap", name: "Content gap", description: "Sidor du saknar mot ranking-konkurrenter", icon: FileText, source: "GSC + Semrush + AI", status: "ready" },
   { id: "cannibalization", name: "Cannibalization (SEO)", description: "Flera sidor som rankar för samma sökord", icon: AlertCircle, source: "GSC", status: "ready" },
   { id: "paid_vs_organic", name: "Paid vs Organic", description: "Brand vs non-brand, kanal-split", icon: Layers, source: "Ads + GSC", status: "ready" },
-  { id: "yoy", name: "YoY/MoM trend", description: "Jämför mot förra månaden/året", icon: TrendingUp, source: "Allt", status: "coming" },
-  { id: "roi", name: "ROI/Attribution", description: "Spend vs intäkt per kanal", icon: BarChart3, source: "Ads + GA4", status: "needs_data" },
+  { id: "yoy", name: "YoY/MoM trend", description: "Jämför mot förra månaden/året", icon: TrendingUp, source: "Allt", status: "ready" },
+  { id: "roi", name: "ROI/Attribution", description: "Spend vs intäkt per kanal", icon: BarChart3, source: "Ads + GA4", status: "ready" },
 ];
 
 export default function ReportsLibrary() {
