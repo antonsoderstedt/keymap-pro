@@ -98,7 +98,7 @@ export default function PrelaunchBlueprint() {
       .select("*")
       .eq("project_id", projectId!)
       .order("created_at", { ascending: false });
-    setBriefs((data as Brief[]) || []);
+    setBriefs(((data as unknown) as Brief[]) || []);
     if (data && data[0]) {
       setActiveBriefId(data[0].id);
       loadBlueprint(data[0].id);
@@ -193,7 +193,7 @@ export default function PrelaunchBlueprint() {
           .single();
         if (error) throw error;
         briefId = brief.id;
-        setBriefs([brief as Brief, ...briefs]);
+        setBriefs([(brief as unknown) as Brief, ...briefs]);
       }
 
       setActiveBriefId(briefId!);
