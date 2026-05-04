@@ -6,17 +6,23 @@ export interface AdsPlanCampaign {
   daily_budget_sek?: number;
   ad_groups: Array<{
     name: string;
-    keywords: Array<{ text: string; match_type?: "BROAD" | "PHRASE" | "EXACT"; max_cpc?: number }>;
+    match_type?: string;
+    keywords: Array<string | { text: string; match_type?: string; max_cpc?: number }>;
     headlines?: string[];
     descriptions?: string[];
+    landing_slug?: string;
     final_url?: string;
   }>;
   negatives?: string[];
+  type?: string;
+  daily_budget_sek?: number;
 }
 
 export interface AdsPlan {
   campaigns: AdsPlanCampaign[];
   default_daily_budget?: number;
+  negative_keywords?: string[];
+  recommended_total_daily_sek?: number;
 }
 
 const esc = (v: string | number | undefined | null) => {
