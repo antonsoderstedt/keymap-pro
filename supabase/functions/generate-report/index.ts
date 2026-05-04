@@ -240,6 +240,13 @@ Deno.serve(async (req) => {
       ? (statuses.every((s) => s === "ok") ? "complete" : "partial")
       : "empty";
 
+    // Standardiserad presentationsmall (summary + tables + charts)
+    try {
+      payload.template = buildTemplate(payload as any);
+    } catch (e) {
+      console.warn("template build failed", e);
+    }
+
     const { data: artifact, error } = await supabase.from("workspace_artifacts").insert({
       project_id,
       artifact_type: "report",
