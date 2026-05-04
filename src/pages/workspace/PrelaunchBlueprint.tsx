@@ -224,24 +224,40 @@ export default function PrelaunchBlueprint() {
 
       {/* Briefs list */}
       {briefs.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {briefs.map(b => (
-            <Button
-              key={b.id}
-              variant={activeBriefId === b.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => selectBrief(b.id)}
-            >
-              {new Date(b.created_at).toLocaleDateString("sv-SE")}
-              <Badge variant="secondary" className="ml-2 text-[10px]">{b.status}</Badge>
-            </Button>
+            <div key={b.id} className="inline-flex items-center rounded-md border border-border overflow-hidden">
+              <Button
+                variant={activeBriefId === b.id ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none border-0"
+                onClick={() => selectBrief(b.id)}
+              >
+                {new Date(b.created_at).toLocaleDateString("sv-SE")}
+                <Badge variant="secondary" className="ml-2 text-[10px]">{b.status}</Badge>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-none border-0 border-l border-border px-2"
+                title="Redigera brief"
+                onClick={() => loadBriefIntoForm(b)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           ))}
+          {editingBriefId && (
+            <Button variant="ghost" size="sm" onClick={resetForm} className="text-xs">
+              <Plus className="h-3.5 w-3.5 mr-1" /> Ny brief istället
+            </Button>
+          )}
         </div>
       )}
 
-      <Tabs defaultValue={blueprint ? "result" : "brief"} key={activeBriefId || "new"}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="brief">Ny brief</TabsTrigger>
+          <TabsTrigger value="brief">{editingBriefId ? "Redigera brief" : "Ny brief"}</TabsTrigger>
           <TabsTrigger value="result" disabled={!blueprint}>Resultat</TabsTrigger>
         </TabsList>
 
