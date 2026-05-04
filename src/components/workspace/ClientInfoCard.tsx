@@ -1,0 +1,143 @@
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Building2 } from "lucide-react";
+import { toast } from "sonner";
+
+const schema = z.object({
+  name: z.string().trim().min(1, "Namn krävs").max(120, "Max 120 tecken"),
+  company: z.string().trim().min(1, "Företag krävs").max(160, "Max 160 tecken"),
+  domain: z
+    .string()
+    .trim()
+    .max(253, "Max 253 tecken")
+    .optional()
+    .or(z.literal("")),
+});
+
+export default function ClientInfoCard({ projectId }: { projectId: string }) {
+  const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
+  const [domain, setDomain] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("projects")
+        .select("name, company, domain")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (data) {
+        setName(data.name ?? "");
+        setCompany(data.company ?? "");
+        setDomain(data.domain ?? "");
+      }
+      setLoading(false);
+      setDirty(false);
+    })();
+  }, [projectId]);
+
+  const save = async () => {
+    const parsed = schema.safeParse({ name, company, domain });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    setSaving(true);
+    // Normalise domain (strip protocol/trailing slash)
+    const normDomain =
+      parsed.data.domain
+        ?.replace(/^https?:\/\//i, "")
+        .replace(/\/+$/, "")
+        .toLowerCase() || null;
+
+    const { error } = await supabase
+      .from("projects")
+      .update({
+        name: parsed.data.name,
+        company: parsed.data.company,
+        domain: normDomain,
+      })
+      .eq("id", projectId);
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Kunduppgifter sparade");
+    setDirty(false);
+    if (normDomain) setDomain(normDomain);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-serif text-lg flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-primary" /> Kunduppgifter
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid md:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="client-name">Namn</Label>
+            <Input
+              id="client-name"
+              value={name}
+              disabled={loading}
+              maxLength={120}
+              onChange={(e) => {
+                setName(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="t.ex. Norrtälje Bygg"
+            />
+          </div>
+          <div>
+            <Label htmlFor="client-company">Företag</Label>
+            <Input
+              id="client-company"
+              value={company}
+              disabled={loading}
+              maxLength={160}
+              onChange={(e) => {
+                setCompany(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="Juridiskt företagsnamn"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor="client-domain">Domän</Label>
+            <Input
+              id="client-domain"
+              value={domain}
+              disabled={loading}
+              maxLength={253}
+              onChange={(e) => {
+                setDomain(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="example.se"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Utan https:// — bara domänen, t.ex. <code>example.se</code>.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={save} disabled={saving || loading || !dirty}>
+            {saving ? "Sparar…" : "Spara ändringar"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
