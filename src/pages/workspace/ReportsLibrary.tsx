@@ -170,19 +170,30 @@ export default function ReportsLibrary() {
 }
 
 function summarizePayload(p: any): string | null {
-  if (!p?.data) return null;
+  if (!p) return null;
   const t = p.report_type;
-  const d = p.data;
-  if (t === "share_of_voice") return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
-  if (t === "auction_insights") return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
+  const sec = p.sections || {};
+  if (t === "share_of_voice") {
+    const d = sec.share_of_voice?.data;
+    if (!d) return null;
+    return `SoV ${d.sov_pct?.toFixed?.(1) ?? "?"}% · ${d.competitors?.length ?? 0} konkurrenter`;
+  }
+  if (t === "auction_insights") {
+    const d = sec.auction_insights?.data;
+    if (!d) return null;
+    return `${d.campaigns?.length ?? 0} kampanjer · IS ${((d.totals?.avg_is ?? 0) * 100).toFixed(0)}%`;
+  }
   if (t === "roi") {
-    const tot = d.attribution?.totals;
-    if (tot) return `Blended ROAS ${tot.blended_roas ?? "—"} · spend ${Math.round((tot.spend || 0) / 1000)}k · ${d.attribution.channels?.length ?? 0} kanaler`;
-    return `${d.cluster_roi?.clusters?.length ?? 0} kluster · uplift ${Math.round((d.cluster_roi?.total_uplift_potential_sek || 0) / 1000)}k kr`;
+    const tot = sec.attribution?.data?.totals;
+    if (tot) return `Blended ROAS ${tot.blended_roas ?? "—"} · spend ${Math.round((tot.spend || 0) / 1000)}k · ${sec.attribution.data.channels?.length ?? 0} kanaler`;
+    const cr = sec.cluster_roi?.data;
+    if (cr) return `${cr.clusters?.length ?? 0} kluster · uplift ${Math.round((cr.total_uplift_potential_sek || 0) / 1000)}k kr`;
+    return null;
   }
   if (t === "yoy") {
-    const sess = d.ga4_delta?.sessions?.yoy?.pct;
-    const rev = d.ga4_delta?.revenue?.yoy?.pct;
+    const trend = p.trend;
+    const sess = trend?.ga4_delta?.sessions?.yoy?.pct;
+    const rev = trend?.ga4_delta?.revenue?.yoy?.pct;
     if (sess != null || rev != null) return `Sessions YoY ${fmtTrendPct(sess)} · Intäkt YoY ${fmtTrendPct(rev)}`;
     return "Trend-data";
   }
