@@ -205,6 +205,14 @@ export default function WorkspaceSettings() {
           <ConnectionRow name="DataForSEO" status="aktiv (global)" />
         </CardContent>
       </Card>
+
+      {/* Brand Kit */}
+      <div>
+        <h2 className="font-serif text-xl mb-4 flex items-center gap-2">
+          <Palette className="h-5 w-5 text-primary" /> Brand Kit
+        </h2>
+        <BrandKit />
+      </div>
     </div>
   );
 }
