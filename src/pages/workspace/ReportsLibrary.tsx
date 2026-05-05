@@ -8,8 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ReportTemplateView } from "@/components/workspace/ReportTemplateView";
 import {
   FileText, Download, Sparkles, BarChart3, Search, Eye, Layers,
-  TrendingUp, Zap, AlertCircle, Calendar,
+  TrendingUp, Zap, AlertCircle, Calendar, Plus, ChevronDown, BookOpen, Megaphone,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 interface ReportType {
@@ -41,9 +46,15 @@ export default function ReportsLibrary() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [viewing, setViewing] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
+
+  const generateReportById = async (reportTypeId: string) => {
+    const r = REPORTS.find((x) => x.id === reportTypeId);
+    if (r) await generateReport(r);
+  };
 
   const downloadPptx = async (artifact: any) => {
     if (!artifact?.id && !artifact?.payload?.template) return;
@@ -85,6 +96,7 @@ export default function ReportsLibrary() {
   useEffect(() => {
     if (!id) return;
     (async () => {
+      setLoadingHistory(true);
       const { data } = await supabase
         .from("workspace_artifacts")
         .select("*")
@@ -93,6 +105,7 @@ export default function ReportsLibrary() {
         .order("created_at", { ascending: false })
         .limit(20);
       setHistory(data || []);
+      setLoadingHistory(false);
     })();
   }, [id]);
 
@@ -124,11 +137,42 @@ export default function ReportsLibrary() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl">Rapportbibliotek</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Generera rapporter med kundens Brand Kit. Allt sparas som artefakt med tidsstämpel.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-serif text-3xl">Rapportbibliotek</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Generera rapporter med kundens Brand Kit. Allt sparas som artefakt med tidsstämpel.
+          </p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Generera ny
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Välj rapporttyp</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => generateReportById("executive")}>
+              <BarChart3 className="h-4 w-4 mr-2" /> Månadsrapport (PPTX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => generateReportById("seo_performance")}>
+              <TrendingUp className="h-4 w-4 mr-2" /> SEO-rapport (PPTX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => generateReportById("competitor")}>
+              <AlertCircle className="h-4 w-4 mr-2" /> Konkurrentrapport (PPTX)
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate(`/clients/${id}/keywords?tab=briefs`)}>
+              <BookOpen className="h-4 w-4 mr-2" /> Content brief (i Sökord)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate(`/clients/${id}/keywords?tab=ads-export`)}>
+              <Megaphone className="h-4 w-4 mr-2" /> Google Ads-export (i Sökord)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <WeeklyReportPanel projectId={id!} />
@@ -178,8 +222,18 @@ export default function ReportsLibrary() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Inga rapporter genererade ännu.</p>
+          {loadingHistory ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
+            </div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-10">
+              <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm">Inga genererade rapporter ännu.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Använd "Generera ny"-knappen ovan för att skapa din första rapport.
+              </p>
+            </div>
           ) : (
             <div className="space-y-2">
               {history.map(h => {

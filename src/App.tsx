@@ -12,7 +12,7 @@ import Clients from "./pages/Clients";
 import ProjectWizard from "./pages/ProjectWizard";
 import Results from "./pages/Results";
 import KeywordUniverse from "./pages/KeywordUniverse";
-import WorkspaceSegments from "./pages/workspace/WorkspaceSegments";
+// WorkspaceSegments is now redirected to KeywordsHub via WorkspaceRedirect — no direct import needed
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";

@@ -127,15 +127,12 @@ export default function BrandKit() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-serif text-3xl">Brand Kit</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Logo, färger, typsnitt och tone of voice. Allt vi exporterar (PPTX, PDF, ads, briefs)
-            använder den här profilen automatiskt.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Logo, färger, typsnitt och tone of voice. Allt vi exporterar (PPTX, PDF, ads, briefs)
+          använder den här profilen automatiskt.
+        </p>
         <Button onClick={handleSave} disabled={saving} className="gap-2">
           <Save className="h-4 w-4" />
           {saving ? "Sparar…" : "Spara Brand Kit"}

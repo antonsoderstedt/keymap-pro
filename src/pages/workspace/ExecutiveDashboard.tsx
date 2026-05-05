@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, MousePointerClick, Target, Users, ListChecks, ArrowRight,
   Sparkles, TrendingUp, TrendingDown, Search, Megaphone, Layers, Rocket,
@@ -186,6 +187,22 @@ export default function ExecutiveDashboard() {
   const hasAdsData = data.adsCampaigns.length > 0 || data.wastedSpend != null;
   const hasGA4Data = !!data.ga4;
   const noChannelData = !hasGSCData && !hasAdsData && !hasGA4Data;
+
+  if (loading) {
+    return (
+      <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+        </div>
+        <Skeleton className="h-64 w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-4">
+          <Skeleton className="h-40 rounded-lg" />
+          <Skeleton className="h-40 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw } from "lucide-react";
+import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw, Palette } from "lucide-react";
 import { toast } from "sonner";
 import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
@@ -16,6 +16,7 @@ import Ga4ConversionFilters from "@/components/workspace/Ga4ConversionFilters";
 import GoalsCard from "@/components/workspace/GoalsCard";
 import MembersCard from "@/components/workspace/MembersCard";
 import ClientInfoCard from "@/components/workspace/ClientInfoCard";
+import BrandKit from "./BrandKit";
 
 interface KpiTarget {
   id: string;
@@ -204,6 +205,14 @@ export default function WorkspaceSettings() {
           <ConnectionRow name="DataForSEO" status="aktiv (global)" />
         </CardContent>
       </Card>
+
+      {/* Brand Kit */}
+      <div>
+        <h2 className="font-serif text-xl mb-4 flex items-center gap-2">
+          <Palette className="h-5 w-5 text-primary" /> Brand Kit
+        </h2>
+        <BrandKit />
+      </div>
     </div>
   );
 }

@@ -13,7 +13,9 @@ export interface ActionItem {
   source_id: string | null;
   source_payload: any;
   expected_impact: string | null;
+  expected_impact_sek: number | null;
   baseline_metrics: any;
+  metadata?: any;
   implemented_at: string | null;
   implementation_notes: string | null;
   due_date: string | null;
@@ -33,6 +35,7 @@ export function useActionItems(projectId: string | undefined) {
       .from("action_items")
       .select("*")
       .eq("project_id", projectId)
+      .order("expected_impact_sek", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     setItems((data as ActionItem[]) ?? []);
     setLoading(false);

@@ -1,3 +1,4 @@
+// TODO: DEAD FILE — ingen route pekar hit
 import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 
