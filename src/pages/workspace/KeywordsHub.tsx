@@ -601,56 +601,142 @@ export default function KeywordsHub() {
               </TabsList>
 
               <TabsContent value="universe" className="space-y-4 mt-4">
-                <Card className="border-border bg-card">
-                  <CardContent className="p-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-                    <div className="md:col-span-2">
-                      <Label className="text-xs">Sök</Label>
-                      <div className="relative">
-                        <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Filtrera sökord..."
-                          className="pl-7"
-                        />
-                      </div>
-                    </div>
-                    <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[
-                      ["all","Alla"],["informational","Info"],["commercial","Kommersiell"],
-                      ["transactional","Transaktionell"],["navigational","Navigations"],
-                    ]} />
-                    <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[
-                      ["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"],
-                    ]} />
-                    <FilterSelect label="Dimension" value={dimension} onChange={setDimension}
-                      options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
-                    <FilterSelect label="Kanal" value={channel} onChange={setChannel}
-                      options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
-                    <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[
-                      ["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"],
-                    ]} />
-                    <div>
-                      <Label className="text-xs">KD max</Label>
+                {/* Grid-header: sökning + sortering + vy-växlare */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
-                        type="number" min={0} max={100} value={maxKd}
-                        onChange={(e) => setMaxKd(e.target.value)} className="h-9"
+                        placeholder={view === "grid" ? "Sök kluster eller sökord..." : "Filtrera sökord..."}
+                        value={view === "grid" ? clusterSearch : search}
+                        onChange={(e) =>
+                          view === "grid" ? setClusterSearch(e.target.value) : setSearch(e.target.value)
+                        }
+                        className="pl-8 h-9 text-sm"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
-                      <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                    {view === "grid" && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Sortera:</span>
+                        {([
+                          ["value", "Värde"],
+                          ["volume", "Volym"],
+                          ["gap", "Gaps"],
+                          ["kd", "Lättast"],
+                        ] as const).map(([key, label]) => (
+                          <Button
+                            key={key}
+                            variant={clusterSort === key ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-7 text-xs px-2"
+                            onClick={() => setClusterSort(key)}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+                      <Button
+                        variant={view === "grid" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 px-2 gap-1.5"
+                        onClick={() => setView("grid")}
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                        <span className="text-xs">Kluster</span>
+                      </Button>
+                      <Button
+                        variant={view === "table" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 px-2 gap-1.5"
+                        onClick={() => setView("table")}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                        <span className="text-xs">Tabell</span>
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
-                      <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                  </div>
+
+                  {goals?.brand_terms && goals.brand_terms.length > 0 && view === "grid" && (
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      <span>Strategi:</span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-teal-500/70 inline-block" />
+                        Nykund
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-500/70 inline-block" />
+                        Brand
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-purple-500/70 inline-block" />
+                        Retention
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
-                      <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
+                  )}
+                </div>
+
+                {view === "grid" ? (
+                  sortedClusters.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground text-sm">
+                      <Network className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      <p>Inga kluster hittades i universumet.</p>
+                      <p className="text-xs mt-1">
+                        Generera om universumet eller justera din sökning.
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-                <KeywordTable items={filtered} />
+                  ) : (
+                    <ClusterGrid
+                      clusters={sortedClusters}
+                      onClusterClick={(c) => {
+                        setSelectedCluster(c);
+                        setSheetOpen(true);
+                      }}
+                    />
+                  )
+                ) : (
+                  <>
+                    <Card className="border-border bg-card">
+                      <CardContent className="p-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                        <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[
+                          ["all","Alla"],["informational","Info"],["commercial","Kommersiell"],
+                          ["transactional","Transaktionell"],["navigational","Navigations"],
+                        ]} />
+                        <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[
+                          ["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"],
+                        ]} />
+                        <FilterSelect label="Dimension" value={dimension} onChange={setDimension}
+                          options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
+                        <FilterSelect label="Kanal" value={channel} onChange={setChannel}
+                          options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
+                        <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[
+                          ["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"],
+                        ]} />
+                        <div>
+                          <Label className="text-xs">KD max</Label>
+                          <Input
+                            type="number" min={0} max={100} value={maxKd}
+                            onChange={(e) => setMaxKd(e.target.value)} className="h-9"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
+                          <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
+                          <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                          <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <KeywordTable items={filtered} />
+                  </>
+                )}
               </TabsContent>
 
               <TabsContent value="priority" className="mt-4"><KeywordTable items={priorityKeywords} /></TabsContent>
