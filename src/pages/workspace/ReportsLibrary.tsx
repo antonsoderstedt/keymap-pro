@@ -96,6 +96,7 @@ export default function ReportsLibrary() {
   useEffect(() => {
     if (!id) return;
     (async () => {
+      setLoadingHistory(true);
       const { data } = await supabase
         .from("workspace_artifacts")
         .select("*")
@@ -104,6 +105,7 @@ export default function ReportsLibrary() {
         .order("created_at", { ascending: false })
         .limit(20);
       setHistory(data || []);
+      setLoadingHistory(false);
     })();
   }, [id]);
 
