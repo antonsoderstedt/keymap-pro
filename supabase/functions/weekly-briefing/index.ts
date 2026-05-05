@@ -334,7 +334,43 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4. AI-sammanfattning
+    // SEO-diagnoser → actions/risks (delad sanning från seo-diagnose)
+    if (seoReport) {
+      for (const b of (seoReport.blockers ?? []).slice(0, 2)) {
+        risks.push({
+          title: `SEO: ${b.message}`,
+          value_sek: 0,
+          source: "seo_diagnosis_blocker",
+          why: b.resolution,
+          details: {
+            method: "SEO-diagnosmotorns quality gate.",
+            inputs: { gate: b.gate },
+            steps: [],
+            source_table: "seo_diagnostics_runs",
+          },
+        });
+      }
+      for (const d of topSeoDiagnoses) {
+        actions.push({
+          title: `SEO: ${d.title} (${d.scope_ref?.map((r: any) => r.name).join(" / ") || "sajten"})`,
+          value_sek: d.estimated_value_sek ?? 0,
+          source: "seo_diagnosis",
+          why: d.proposed_actions?.[0]?.label ?? d.why,
+          details: {
+            method: "SEO-diagnosmotor — regelbaserad värdering via CTR-kurva och ProjectGoals.",
+            inputs: {
+              rule_id: d.rule_id,
+              confidence: d.confidence,
+              category: d.category,
+              expected_impact: d.expected_impact,
+            },
+            steps: (d.proposed_actions ?? []).slice(0, 2).map((a: any) => ({ label: a.label, value: a.detail })),
+            source_table: "seo_diagnostics_runs",
+          },
+        });
+        totalValue += d.estimated_value_sek ?? 0;
+      }
+    }
     let summary_md = "";
     if (LOVABLE_API_KEY) {
       const prompt = `Du är senior digital strateg för ${project.name}${project.company ? ` (${project.company})` : ""}.
