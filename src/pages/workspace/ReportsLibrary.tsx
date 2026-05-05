@@ -8,8 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ReportTemplateView } from "@/components/workspace/ReportTemplateView";
 import {
   FileText, Download, Sparkles, BarChart3, Search, Eye, Layers,
-  TrendingUp, Zap, AlertCircle, Calendar,
+  TrendingUp, Zap, AlertCircle, Calendar, Plus, ChevronDown, BookOpen, Megaphone,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 interface ReportType {
