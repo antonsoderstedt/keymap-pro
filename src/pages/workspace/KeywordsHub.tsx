@@ -447,7 +447,7 @@ export default function KeywordsHub() {
 
           {/* Översikt */}
           <TabsContent value="overview" className="mt-4 space-y-6">
-            {projectId && <SeoDiagnosisPanel projectId={projectId} />}
+            {id && <SeoDiagnosisPanel projectId={id} />}
             {result ? (
               <OverviewSection result={result} universe={universe} />
             ) : (
