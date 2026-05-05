@@ -222,8 +222,18 @@ export default function ReportsLibrary() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Inga rapporter genererade ännu.</p>
+          {loadingHistory ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
+            </div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-10">
+              <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm">Inga genererade rapporter ännu.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Använd "Generera ny"-knappen ovan för att skapa din första rapport.
+              </p>
+            </div>
           ) : (
             <div className="space-y-2">
               {history.map(h => {
