@@ -1,3 +1,4 @@
+// TODO: DEAD FILE — ta bort när ActionHub inte längre refererar till den
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
