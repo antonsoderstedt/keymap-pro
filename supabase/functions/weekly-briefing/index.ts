@@ -95,14 +95,20 @@ Deno.serve(async (req) => {
     const since = new Date(); since.setDate(since.getDate() - 28);
     const sinceIso = since.toISOString();
 
-    const [gsc, ga4, alerts, outcomes, audit, adsDiag] = await Promise.all([
+    const [gsc, ga4, alerts, outcomes, audit, adsDiag, seoDiag] = await Promise.all([
       supabase.from("gsc_snapshots").select("rows,totals,start_date,end_date").eq("project_id", project_id).order("created_at", { ascending: false }).limit(2),
       supabase.from("ga4_snapshots").select("rows,totals,start_date,end_date").eq("project_id", project_id).order("created_at", { ascending: false }).limit(2),
       supabase.from("alerts").select("*").eq("project_id", project_id).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(50),
       supabase.from("action_outcomes").select("metric_name,delta_pct,delta,measured_at,action_id,baseline_value,current_value").gte("measured_at", sinceIso).limit(50),
       supabase.from("audit_findings").select("title,severity,category,recommendation,affected_url").eq("project_id", project_id).eq("status", "open").order("created_at", { ascending: false }).limit(20),
       supabase.from("ads_diagnostics_runs").select("report, created_at").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("seo_diagnostics_runs").select("report, created_at").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
+
+    const seoReport: any = (seoDiag as any)?.data?.report ?? null;
+    const topSeoDiagnoses = ((seoReport?.diagnoses ?? []) as any[])
+      .filter((d) => d.severity === "critical" || d.severity === "warn")
+      .slice(0, 3);
 
     // 3. Räkna värde
     const wins: any[] = [];
@@ -328,7 +334,43 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4. AI-sammanfattning
+    // SEO-diagnoser → actions/risks (delad sanning från seo-diagnose)
+    if (seoReport) {
+      for (const b of (seoReport.blockers ?? []).slice(0, 2)) {
+        risks.push({
+          title: `SEO: ${b.message}`,
+          value_sek: 0,
+          source: "seo_diagnosis_blocker",
+          why: b.resolution,
+          details: {
+            method: "SEO-diagnosmotorns quality gate.",
+            inputs: { gate: b.gate },
+            steps: [],
+            source_table: "seo_diagnostics_runs",
+          },
+        });
+      }
+      for (const d of topSeoDiagnoses) {
+        actions.push({
+          title: `SEO: ${d.title} (${d.scope_ref?.map((r: any) => r.name).join(" / ") || "sajten"})`,
+          value_sek: d.estimated_value_sek ?? 0,
+          source: "seo_diagnosis",
+          why: d.proposed_actions?.[0]?.label ?? d.why,
+          details: {
+            method: "SEO-diagnosmotor — regelbaserad värdering via CTR-kurva och ProjectGoals.",
+            inputs: {
+              rule_id: d.rule_id,
+              confidence: d.confidence,
+              category: d.category,
+              expected_impact: d.expected_impact,
+            },
+            steps: (d.proposed_actions ?? []).slice(0, 2).map((a: any) => ({ label: a.label, value: a.detail })),
+            source_table: "seo_diagnostics_runs",
+          },
+        });
+        totalValue += d.estimated_value_sek ?? 0;
+      }
+    }
     let summary_md = "";
     if (LOVABLE_API_KEY) {
       const prompt = `Du är senior digital strateg för ${project.name}${project.company ? ` (${project.company})` : ""}.

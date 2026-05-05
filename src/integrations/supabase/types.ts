@@ -1597,6 +1597,165 @@ export type Database = {
         }
         Relationships: []
       }
+      seo_diagnostics_cache: {
+        Row: {
+          analysis_id: string | null
+          cache_key: string
+          created_at: string
+          id: string
+          project_id: string
+          snapshot: Json
+        }
+        Insert: {
+          analysis_id?: string | null
+          cache_key: string
+          created_at?: string
+          id?: string
+          project_id: string
+          snapshot: Json
+        }
+        Update: {
+          analysis_id?: string | null
+          cache_key?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_diagnostics_cache_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seo_diagnostics_cache_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seo_diagnostics_runs: {
+        Row: {
+          analysis_id: string | null
+          cache_hit: boolean
+          created_at: string
+          duration_ms: number | null
+          id: string
+          project_id: string
+          report: Json
+          rules_evaluated: number
+          rules_fired: number
+        }
+        Insert: {
+          analysis_id?: string | null
+          cache_hit?: boolean
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          project_id: string
+          report: Json
+          rules_evaluated?: number
+          rules_fired?: number
+        }
+        Update: {
+          analysis_id?: string | null
+          cache_hit?: boolean
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          project_id?: string
+          report?: Json
+          rules_evaluated?: number
+          rules_fired?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_diagnostics_runs_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seo_diagnostics_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seo_recommendation_outcomes: {
+        Row: {
+          action_item_id: string | null
+          applied_at: string | null
+          created_at: string
+          diagnosis_id: string
+          fired_at: string
+          id: string
+          measured_14d: Json | null
+          measured_30d: Json | null
+          measured_90d: Json | null
+          notes: string | null
+          predicted: Json
+          project_id: string
+          reverted_at: string | null
+          rule_id: string
+        }
+        Insert: {
+          action_item_id?: string | null
+          applied_at?: string | null
+          created_at?: string
+          diagnosis_id: string
+          fired_at: string
+          id?: string
+          measured_14d?: Json | null
+          measured_30d?: Json | null
+          measured_90d?: Json | null
+          notes?: string | null
+          predicted: Json
+          project_id: string
+          reverted_at?: string | null
+          rule_id: string
+        }
+        Update: {
+          action_item_id?: string | null
+          applied_at?: string | null
+          created_at?: string
+          diagnosis_id?: string
+          fired_at?: string
+          id?: string
+          measured_14d?: Json | null
+          measured_30d?: Json | null
+          measured_90d?: Json | null
+          notes?: string | null
+          predicted?: Json
+          project_id?: string
+          reverted_at?: string | null
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_recommendation_outcomes_action_item_id_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seo_recommendation_outcomes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       share_of_voice_snapshots: {
         Row: {
           competitors: Json

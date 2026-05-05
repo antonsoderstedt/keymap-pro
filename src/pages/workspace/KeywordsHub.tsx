@@ -37,6 +37,7 @@ import { TechSeoTab } from "@/components/universe/TechSeoTab";
 import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
+import { SeoDiagnosisPanel } from "@/components/keywords/SeoDiagnosisPanel";
 import type { UniverseKeyword, UniverseScale } from "@/lib/types";
 
 type ExportFormat = "pptx" | "pdf";
@@ -446,6 +447,7 @@ export default function KeywordsHub() {
 
           {/* Översikt */}
           <TabsContent value="overview" className="mt-4 space-y-6">
+            {id && <SeoDiagnosisPanel projectId={id} />}
             {result ? (
               <OverviewSection result={result} universe={universe} />
             ) : (
