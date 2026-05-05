@@ -24,13 +24,15 @@ import {
 import {
   Search, BarChart3, BookOpen, Target, ShieldCheck, Megaphone,
   Download, RefreshCw, Loader2, Sparkles, FileText, MapPin, Ban,
-  Network, FileType, Presentation,
+  Network, FileType, Presentation, LayoutGrid, List,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
 import {
   KeywordTable, DIMENSION_LABELS, INTENT_LABELS,
 } from "@/components/keywords/KeywordTable";
+import { ClusterGrid, type ClusterData } from "@/components/keywords/ClusterGrid";
+import { ClusterSheet } from "@/components/keywords/ClusterSheet";
 import { OverviewSection } from "@/components/results/sections/OverviewSection";
 import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
@@ -38,6 +40,8 @@ import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
 import { SeoDiagnosisPanel } from "@/components/keywords/SeoDiagnosisPanel";
+import { useProjectGoals } from "@/hooks/useProjectGoals";
+import { monthlyKeywordValue, classifyKeyword } from "@/lib/goalsEngine";
 import type { UniverseKeyword, UniverseScale } from "@/lib/types";
 
 type ExportFormat = "pptx" | "pdf";
