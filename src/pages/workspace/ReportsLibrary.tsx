@@ -137,11 +137,42 @@ export default function ReportsLibrary() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl">Rapportbibliotek</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Generera rapporter med kundens Brand Kit. Allt sparas som artefakt med tidsstämpel.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-serif text-3xl">Rapportbibliotek</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Generera rapporter med kundens Brand Kit. Allt sparas som artefakt med tidsstämpel.
+          </p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Generera ny
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Välj rapporttyp</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => generateReportById("executive")}>
+              <BarChart3 className="h-4 w-4 mr-2" /> Månadsrapport (PPTX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => generateReportById("seo_performance")}>
+              <TrendingUp className="h-4 w-4 mr-2" /> SEO-rapport (PPTX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => generateReportById("competitor")}>
+              <AlertCircle className="h-4 w-4 mr-2" /> Konkurrentrapport (PPTX)
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate(`/clients/${id}/keywords?tab=briefs`)}>
+              <BookOpen className="h-4 w-4 mr-2" /> Content brief (i Sökord)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate(`/clients/${id}/keywords?tab=ads-export`)}>
+              <Megaphone className="h-4 w-4 mr-2" /> Google Ads-export (i Sökord)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <WeeklyReportPanel projectId={id!} />
