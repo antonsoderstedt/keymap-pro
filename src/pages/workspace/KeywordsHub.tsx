@@ -75,6 +75,14 @@ export default function KeywordsHub() {
   const [onlyGap, setOnlyGap] = useState(false);
   const [maxKd, setMaxKd] = useState("100");
 
+  // ── Vy-växlare + sortering för Universe-tabben ─────────────────────
+  const { goals } = useProjectGoals(id);
+  const [view, setView] = useState<"grid" | "table">("grid");
+  const [clusterSort, setClusterSort] = useState<"value" | "volume" | "gap" | "kd">("value");
+  const [clusterSearch, setClusterSearch] = useState("");
+  const [selectedCluster, setSelectedCluster] = useState<ClusterData | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   const filtered = useMemo<UniverseKeyword[]>(() => {
     if (!universe) return [];
     const kdLimit = Number(maxKd) || 100;
