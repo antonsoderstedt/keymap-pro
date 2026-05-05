@@ -13,7 +13,9 @@ export interface ActionItem {
   source_id: string | null;
   source_payload: any;
   expected_impact: string | null;
+  expected_impact_sek: number | null;
   baseline_metrics: any;
+  metadata?: any;
   implemented_at: string | null;
   implementation_notes: string | null;
   due_date: string | null;
