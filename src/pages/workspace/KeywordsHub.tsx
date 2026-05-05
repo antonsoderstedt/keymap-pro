@@ -24,13 +24,15 @@ import {
 import {
   Search, BarChart3, BookOpen, Target, ShieldCheck, Megaphone,
   Download, RefreshCw, Loader2, Sparkles, FileText, MapPin, Ban,
-  Network, FileType, Presentation,
+  Network, FileType, Presentation, LayoutGrid, List,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
 import {
   KeywordTable, DIMENSION_LABELS, INTENT_LABELS,
 } from "@/components/keywords/KeywordTable";
+import { ClusterGrid, type ClusterData } from "@/components/keywords/ClusterGrid";
+import { ClusterSheet } from "@/components/keywords/ClusterSheet";
 import { OverviewSection } from "@/components/results/sections/OverviewSection";
 import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
@@ -38,6 +40,8 @@ import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
 import { SeoDiagnosisPanel } from "@/components/keywords/SeoDiagnosisPanel";
+import { useProjectGoals } from "@/hooks/useProjectGoals";
+import { monthlyKeywordValue, classifyKeyword } from "@/lib/goalsEngine";
 import type { UniverseKeyword, UniverseScale } from "@/lib/types";
 
 type ExportFormat = "pptx" | "pdf";
@@ -70,6 +74,14 @@ export default function KeywordsHub() {
   const [onlyReal, setOnlyReal] = useState(false);
   const [onlyGap, setOnlyGap] = useState(false);
   const [maxKd, setMaxKd] = useState("100");
+
+  // ── Vy-växlare + sortering för Universe-tabben ─────────────────────
+  const { goals } = useProjectGoals(id);
+  const [view, setView] = useState<"grid" | "table">("grid");
+  const [clusterSort, setClusterSort] = useState<"value" | "volume" | "gap" | "kd">("value");
+  const [clusterSearch, setClusterSearch] = useState("");
+  const [selectedCluster, setSelectedCluster] = useState<ClusterData | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const filtered = useMemo<UniverseKeyword[]>(() => {
     if (!universe) return [];
@@ -109,6 +121,89 @@ export default function KeywordsHub() {
     .filter((k) => k.channel === "Lokal SEO" && !k.isNegative)
     .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
   const negatives = useMemo(() => (universe?.keywords || []).filter((k) => k.isNegative), [universe]);
+
+  // ── Klusteraggregering ─────────────────────────────────────────────
+  const clusters = useMemo<ClusterData[]>(() => {
+    if (!universe) return [];
+    const map = new Map<string, UniverseKeyword[]>();
+    for (const kw of universe.keywords) {
+      if (kw.isNegative) continue;
+      const c = kw.cluster || "Övrigt";
+      if (!map.has(c)) map.set(c, []);
+      map.get(c)!.push(kw);
+    }
+    const brandTerms = goals?.brand_terms ?? [];
+
+    return Array.from(map.entries()).map(([name, kws]) => {
+      const realKws = kws.filter((k) => k.dataSource === "real");
+      const totalVolume = realKws.reduce((s, k) => s + (k.searchVolume ?? 0), 0);
+      const kds = kws.filter((k) => k.kd != null).map((k) => k.kd!);
+      const avgKd = kds.length ? kds.reduce((a, b) => a + b, 0) / kds.length : null;
+      const cpcs = kws.filter((k) => k.cpc != null).map((k) => k.cpc!);
+      const avgCpc = cpcs.length ? cpcs.reduce((a, b) => a + b, 0) / cpcs.length : null;
+      const competitorGapCount = kws.filter((k) => k.competitorGap).length;
+
+      const intentCounts: Record<string, number> = {};
+      const channelCounts: Record<string, number> = {};
+      for (const k of kws) {
+        intentCounts[k.intent] = (intentCounts[k.intent] || 0) + 1;
+        channelCounts[k.channel] = (channelCounts[k.channel] || 0) + 1;
+      }
+      const dominantIntent =
+        Object.entries(intentCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "informational";
+      const dominantChannel =
+        Object.entries(channelCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "SEO";
+
+      const strategyBreakdown = {
+        acquire_nonbrand: 0,
+        acquire_brand: 0,
+        retain_nonbrand: 0,
+        retain_brand: 0,
+      };
+      for (const k of kws) {
+        const q = classifyKeyword(k.keyword, brandTerms, k.intent);
+        strategyBreakdown[q]++;
+      }
+
+      const estimatedValueSek = goals
+        ? kws.reduce((s, k) => s + monthlyKeywordValue(k.searchVolume ?? 0, 20, goals), 0)
+        : 0;
+
+      return {
+        name,
+        keywords: kws,
+        totalVolume,
+        avgKd,
+        avgCpc,
+        competitorGapCount,
+        dominantIntent,
+        dominantChannel,
+        strategyBreakdown,
+        estimatedValueSek,
+        enrichedCount: realKws.length,
+        totalCount: kws.length,
+      };
+    });
+  }, [universe, goals]);
+
+  const sortedClusters = useMemo(() => {
+    let result = clusters;
+    if (clusterSearch.trim()) {
+      const q = clusterSearch.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.keywords.some((k) => k.keyword.toLowerCase().includes(q)),
+      );
+    }
+    return [...result].sort((a, b) => {
+      if (clusterSort === "value") return b.estimatedValueSek - a.estimatedValueSek;
+      if (clusterSort === "volume") return b.totalVolume - a.totalVolume;
+      if (clusterSort === "gap") return b.competitorGapCount - a.competitorGapCount;
+      if (clusterSort === "kd") return (a.avgKd ?? 100) - (b.avgKd ?? 100);
+      return 0;
+    });
+  }, [clusters, clusterSort, clusterSearch]);
 
   // ── Aggregate stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -506,56 +601,142 @@ export default function KeywordsHub() {
               </TabsList>
 
               <TabsContent value="universe" className="space-y-4 mt-4">
-                <Card className="border-border bg-card">
-                  <CardContent className="p-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-                    <div className="md:col-span-2">
-                      <Label className="text-xs">Sök</Label>
-                      <div className="relative">
-                        <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Filtrera sökord..."
-                          className="pl-7"
-                        />
-                      </div>
-                    </div>
-                    <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[
-                      ["all","Alla"],["informational","Info"],["commercial","Kommersiell"],
-                      ["transactional","Transaktionell"],["navigational","Navigations"],
-                    ]} />
-                    <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[
-                      ["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"],
-                    ]} />
-                    <FilterSelect label="Dimension" value={dimension} onChange={setDimension}
-                      options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
-                    <FilterSelect label="Kanal" value={channel} onChange={setChannel}
-                      options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
-                    <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[
-                      ["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"],
-                    ]} />
-                    <div>
-                      <Label className="text-xs">KD max</Label>
+                {/* Grid-header: sökning + sortering + vy-växlare */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                       <Input
-                        type="number" min={0} max={100} value={maxKd}
-                        onChange={(e) => setMaxKd(e.target.value)} className="h-9"
+                        placeholder={view === "grid" ? "Sök kluster eller sökord..." : "Filtrera sökord..."}
+                        value={view === "grid" ? clusterSearch : search}
+                        onChange={(e) =>
+                          view === "grid" ? setClusterSearch(e.target.value) : setSearch(e.target.value)
+                        }
+                        className="pl-8 h-9 text-sm"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
-                      <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                    {view === "grid" && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Sortera:</span>
+                        {([
+                          ["value", "Värde"],
+                          ["volume", "Volym"],
+                          ["gap", "Gaps"],
+                          ["kd", "Lättast"],
+                        ] as const).map(([key, label]) => (
+                          <Button
+                            key={key}
+                            variant={clusterSort === key ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-7 text-xs px-2"
+                            onClick={() => setClusterSort(key)}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+                      <Button
+                        variant={view === "grid" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 px-2 gap-1.5"
+                        onClick={() => setView("grid")}
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                        <span className="text-xs">Kluster</span>
+                      </Button>
+                      <Button
+                        variant={view === "table" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 px-2 gap-1.5"
+                        onClick={() => setView("table")}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                        <span className="text-xs">Tabell</span>
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
-                      <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                  </div>
+
+                  {goals?.brand_terms && goals.brand_terms.length > 0 && view === "grid" && (
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      <span>Strategi:</span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-teal-500/70 inline-block" />
+                        Nykund
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-500/70 inline-block" />
+                        Brand
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-purple-500/70 inline-block" />
+                        Retention
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
-                      <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
+                  )}
+                </div>
+
+                {view === "grid" ? (
+                  sortedClusters.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground text-sm">
+                      <Network className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      <p>Inga kluster hittades i universumet.</p>
+                      <p className="text-xs mt-1">
+                        Generera om universumet eller justera din sökning.
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-                <KeywordTable items={filtered} />
+                  ) : (
+                    <ClusterGrid
+                      clusters={sortedClusters}
+                      onClusterClick={(c) => {
+                        setSelectedCluster(c);
+                        setSheetOpen(true);
+                      }}
+                    />
+                  )
+                ) : (
+                  <>
+                    <Card className="border-border bg-card">
+                      <CardContent className="p-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                        <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[
+                          ["all","Alla"],["informational","Info"],["commercial","Kommersiell"],
+                          ["transactional","Transaktionell"],["navigational","Navigations"],
+                        ]} />
+                        <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[
+                          ["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"],
+                        ]} />
+                        <FilterSelect label="Dimension" value={dimension} onChange={setDimension}
+                          options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
+                        <FilterSelect label="Kanal" value={channel} onChange={setChannel}
+                          options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
+                        <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[
+                          ["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"],
+                        ]} />
+                        <div>
+                          <Label className="text-xs">KD max</Label>
+                          <Input
+                            type="number" min={0} max={100} value={maxKd}
+                            onChange={(e) => setMaxKd(e.target.value)} className="h-9"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
+                          <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
+                          <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                          <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <KeywordTable items={filtered} />
+                  </>
+                )}
               </TabsContent>
 
               <TabsContent value="priority" className="mt-4"><KeywordTable items={priorityKeywords} /></TabsContent>
@@ -625,6 +806,13 @@ export default function KeywordsHub() {
           analysisId={analysisId}
         />
       )}
+
+      <ClusterSheet
+        cluster={selectedCluster}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        projectId={id!}
+      />
     </div>
   );
 }
