@@ -95,14 +95,20 @@ Deno.serve(async (req) => {
     const since = new Date(); since.setDate(since.getDate() - 28);
     const sinceIso = since.toISOString();
 
-    const [gsc, ga4, alerts, outcomes, audit, adsDiag] = await Promise.all([
+    const [gsc, ga4, alerts, outcomes, audit, adsDiag, seoDiag] = await Promise.all([
       supabase.from("gsc_snapshots").select("rows,totals,start_date,end_date").eq("project_id", project_id).order("created_at", { ascending: false }).limit(2),
       supabase.from("ga4_snapshots").select("rows,totals,start_date,end_date").eq("project_id", project_id).order("created_at", { ascending: false }).limit(2),
       supabase.from("alerts").select("*").eq("project_id", project_id).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(50),
       supabase.from("action_outcomes").select("metric_name,delta_pct,delta,measured_at,action_id,baseline_value,current_value").gte("measured_at", sinceIso).limit(50),
       supabase.from("audit_findings").select("title,severity,category,recommendation,affected_url").eq("project_id", project_id).eq("status", "open").order("created_at", { ascending: false }).limit(20),
       supabase.from("ads_diagnostics_runs").select("report, created_at").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("seo_diagnostics_runs").select("report, created_at").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
+
+    const seoReport: any = (seoDiag as any)?.data?.report ?? null;
+    const topSeoDiagnoses = ((seoReport?.diagnoses ?? []) as any[])
+      .filter((d) => d.severity === "critical" || d.severity === "warn")
+      .slice(0, 3);
 
     // 3. Räkna värde
     const wins: any[] = [];
