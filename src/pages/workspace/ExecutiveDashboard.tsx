@@ -188,6 +188,22 @@ export default function ExecutiveDashboard() {
   const hasGA4Data = !!data.ga4;
   const noChannelData = !hasGSCData && !hasAdsData && !hasGA4Data;
 
+  if (loading) {
+    return (
+      <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+        </div>
+        <Skeleton className="h-64 w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-4">
+          <Skeleton className="h-40 rounded-lg" />
+          <Skeleton className="h-40 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
