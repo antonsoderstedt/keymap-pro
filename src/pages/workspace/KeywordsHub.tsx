@@ -37,6 +37,7 @@ import { TechSeoTab } from "@/components/universe/TechSeoTab";
 import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
+import { SeoDiagnosisPanel } from "@/components/keywords/SeoDiagnosisPanel";
 import type { UniverseKeyword, UniverseScale } from "@/lib/types";
 
 type ExportFormat = "pptx" | "pdf";
