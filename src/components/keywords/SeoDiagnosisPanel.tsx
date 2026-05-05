@@ -69,7 +69,7 @@ export function SeoDiagnosisPanel({ projectId }: Props) {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data as { report: Report; created_at: string } | null;
+      return (data as unknown) as { report: Report; created_at: string } | null;
     },
     staleTime: 60 * 60 * 1000,
   });
