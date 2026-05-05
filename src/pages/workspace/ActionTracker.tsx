@@ -1,14 +1,18 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useActionItems, type ActionItem } from "@/hooks/useActionItems";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, CheckCircle2, ListChecks, BarChart3, ChevronDown, ChevronRight, MessageSquare, Send, Loader2 } from "lucide-react";
+import {
+  Plus, Trash2, CheckCircle2, ListChecks, BarChart3, ChevronDown, ChevronRight,
+  MessageSquare, Send, Loader2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ActionImpact } from "@/components/workspace/ActionImpact";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +39,20 @@ const STATUSES: { value: ActionItem["status"]; label: string }[] = [
   { value: "archived", label: "Arkiverad" },
 ];
 
+const SOURCE_LABELS: Record<string, string> = {
+  manual: "Manuell",
+  seo_diagnosis: "SEO-diagnos",
+  ads_audit: "Ads Audit",
+  ads_wasted: "Wasted Spend",
+  ads_negatives: "Negativa sökord",
+  ads_pacing: "Ads Pacing",
+  ads_rsa: "RSA",
+  briefing: "Veckobriefing",
+  cluster_action: "Kluster",
+  keyword_cluster: "Kluster",
+  seo_audit: "SEO Audit",
+};
+
 function priorityBadge(p: string) {
   const map: Record<string, string> = {
     critical: "bg-destructive/15 text-destructive border-destructive/30",
@@ -47,6 +65,7 @@ function priorityBadge(p: string) {
 
 export default function ActionTracker() {
   const { id: projectId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { items, loading, create, update, remove, markImplemented, reload } = useActionItems(projectId);
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("open");
@@ -58,6 +77,36 @@ export default function ActionTracker() {
 
   const isPushable = (item: ActionItem) =>
     ["ads_wasted", "ads_negatives", "ads_pacing", "ads_rsa"].includes(item.source_type || "");
+
+  const sourceTypes = useMemo(() => {
+    const types = new Set(items.map((i) => i.source_type).filter(Boolean) as string[]);
+    return Array.from(types);
+  }, [items]);
+
+  const openCount = items.filter((i) => i.status !== "done" && i.status !== "archived").length;
+  const doneCount = items.filter((i) => i.status === "done").length;
+
+  const implementedWithValue = items.filter(
+    (i) => i.status === "done" && i.expected_impact_sek && i.expected_impact_sek > 0
+  );
+  const totalImplementedValue = implementedWithValue.reduce((s, i) => s + (i.expected_impact_sek ?? 0), 0);
+  const openValue = items
+    .filter((i) => i.status !== "done" && i.status !== "archived" && i.expected_impact_sek)
+    .reduce((s, i) => s + (i.expected_impact_sek ?? 0), 0);
+
+  const filtered = items
+    .filter((i) => {
+      if (filter === "open") return i.status === "todo" || i.status === "in_progress";
+      if (filter === "done") return i.status === "done";
+      if (filter === "all") return true;
+      return i.source_type === filter;
+    })
+    .sort((a, b) => {
+      if (a.status !== "done" && b.status !== "done") {
+        return (b.expected_impact_sek ?? 0) - (a.expected_impact_sek ?? 0);
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   const addNote = async (item: ActionItem) => {
     const text = (noteDraft[item.id] || "").trim();
@@ -89,14 +138,6 @@ export default function ActionTracker() {
     }
   };
 
-
-  const filtered = items.filter((i) => {
-    if (filter === "open") return i.status === "todo" || i.status === "in_progress";
-    if (filter === "done") return i.status === "done";
-    if (filter === "all") return true;
-    return i.category === filter;
-  });
-
   const handleCreate = async () => {
     if (!draft.title.trim()) {
       toast({ title: "Titel saknas", variant: "destructive" });
@@ -109,15 +150,15 @@ export default function ActionTracker() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-serif text-3xl flex items-center gap-2">
             <ListChecks className="h-7 w-7 text-primary" />
-            Action Tracker
+            Åtgärder
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Allt vi rekommenderat — och hur det går när det implementerats.
+            Allt vi rekommenderat — sorterat på kronvärde. Effekt mäts efter implementation.
           </p>
         </div>
         <div className="flex gap-2">
@@ -129,7 +170,7 @@ export default function ActionTracker() {
                 body: { project_id: projectId },
               });
               if (error) toast({ title: "Mätning misslyckades", description: error.message, variant: "destructive" });
-              else toast({ title: "Klart", description: `${data?.measured ?? 0} mätpunkter sparade.` });
+              else toast({ title: "Klart", description: `${(data as any)?.measured ?? 0} mätpunkter sparade.` });
             }}
             className="gap-2"
           >
@@ -143,13 +184,44 @@ export default function ActionTracker() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* ROI summary */}
+      {(implementedWithValue.length > 0 || openValue > 0 || items.length > 0) && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-xs text-muted-foreground uppercase tracking-wider">Öppna åtgärder</div>
+            <div className="font-mono text-xl mt-1">{openCount}</div>
+          </div>
+          {openValue > 0 && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">Värde att hämta</div>
+              <div className="font-mono text-xl mt-1 text-emerald-600 dark:text-emerald-400">
+                {openValue.toLocaleString("sv-SE")} kr/mån
+              </div>
+            </div>
+          )}
+          {implementedWithValue.length > 0 && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">Implementerat</div>
+              <div className="font-mono text-xl mt-1">
+                {implementedWithValue.length} åtgärder
+                {totalImplementedValue > 0 && (
+                  <span className="text-sm text-muted-foreground ml-2">
+                    ({totalImplementedValue.toLocaleString("sv-SE")} kr/mån)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filter pills — source-based */}
       <div className="flex flex-wrap gap-2">
         {[
-          { v: "open", l: `Öppna (${items.filter((i) => i.status !== "done" && i.status !== "archived").length})` },
-          { v: "done", l: `Klara (${items.filter((i) => i.status === "done").length})` },
+          { v: "open", l: `Öppna (${openCount})` },
+          { v: "done", l: `Klara (${doneCount})` },
           { v: "all", l: "Alla" },
-          ...CATEGORIES.map((c) => ({ v: c.value, l: c.label })),
+          ...sourceTypes.map((s) => ({ v: s, l: SOURCE_LABELS[s] ?? s })),
         ].map((f) => (
           <Button
             key={f.v}
@@ -205,16 +277,36 @@ export default function ActionTracker() {
       {/* Items */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => <Card key={i} className="h-20 animate-pulse" />)}
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-lg border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-64" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <Skeleton className="h-3 w-48" />
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <Card className="border-dashed">
-          <CardContent className="py-16 flex flex-col items-center text-center">
-            <ListChecks className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">Inga åtgärder här ännu.</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Åtgärder skapas automatiskt från analyser och audits, eller manuellt.
-            </p>
+          <CardContent className="py-12 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <ListChecks className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium">Inga åtgärder ännu</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                Åtgärder skapas automatiskt från SEO-diagnos, Ads-audit och veckobriefing — eller lägg till manuellt.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center pt-1">
+              <Button size="sm" variant="outline" onClick={() => navigate(`/clients/${projectId}/keywords`)}>
+                Kör SEO-diagnos
+              </Button>
+              <Button size="sm" onClick={() => setShowNew(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till manuellt
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -240,15 +332,19 @@ export default function ActionTracker() {
                       <h3 className={`font-medium ${item.status === "done" ? "line-through text-muted-foreground" : ""}`}>
                         {item.title}
                       </h3>
-                      <div className="flex gap-1.5 flex-wrap">
+                      <div className="flex gap-1.5 flex-wrap items-center">
+                        {item.expected_impact_sek != null && item.expected_impact_sek > 0 && (
+                          <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                            +{item.expected_impact_sek.toLocaleString("sv-SE")} kr/mån
+                          </span>
+                        )}
                         <Badge variant="outline" className={priorityBadge(item.priority)}>
                           {PRIORITIES.find((p) => p.value === item.priority)?.label || item.priority}
                         </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {CATEGORIES.find((c) => c.value === item.category)?.label || item.category}
-                        </Badge>
                         {item.source_type && item.source_type !== "manual" && (
-                          <Badge variant="secondary" className="text-xs">{item.source_type}</Badge>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                            {SOURCE_LABELS[item.source_type] ?? item.source_type}
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -267,8 +363,7 @@ export default function ActionTracker() {
                         <ActionImpact actionId={item.id} />
                       </>
                     )}
-                    {/* Drilldown toggle */}
-                    {(item.source_payload || isPushable(item)) && (
+                    {(item.source_payload || isPushable(item) || Array.isArray((item as any).metadata?.steps)) && (
                       <button
                         onClick={() => setExpanded({ ...expanded, [item.id]: !expanded[item.id] })}
                         className="text-xs text-primary mt-2 inline-flex items-center gap-1 hover:underline"
@@ -280,6 +375,22 @@ export default function ActionTracker() {
 
                     {expanded[item.id] && (
                       <div className="mt-3 space-y-3 border-t border-border pt-3">
+                        {Array.isArray((item as any).metadata?.steps) && (item as any).metadata.steps.length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Steg att följa</div>
+                            <ol className="space-y-1">
+                              {((item as any).metadata.steps as string[]).map((step, i) => (
+                                <li key={i} className="flex gap-2 text-sm">
+                                  <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center font-medium">
+                                    {i + 1}
+                                  </span>
+                                  <span className="text-muted-foreground">{step}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+
                         {item.source_payload && (
                           <div>
                             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Källdata</div>
