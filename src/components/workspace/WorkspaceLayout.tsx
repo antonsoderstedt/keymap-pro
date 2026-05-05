@@ -55,7 +55,9 @@ export function WorkspaceLayout() {
           </div>
         </header>
         <main className="flex-1 overflow-x-hidden">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
