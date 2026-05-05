@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity, MousePointerClick, Target, Users, ListChecks, ArrowRight,
   Sparkles, TrendingUp, TrendingDown, Search, Megaphone, Layers, Rocket,
