@@ -122,6 +122,89 @@ export default function KeywordsHub() {
     .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0)), [universe]);
   const negatives = useMemo(() => (universe?.keywords || []).filter((k) => k.isNegative), [universe]);
 
+  // ── Klusteraggregering ─────────────────────────────────────────────
+  const clusters = useMemo<ClusterData[]>(() => {
+    if (!universe) return [];
+    const map = new Map<string, UniverseKeyword[]>();
+    for (const kw of universe.keywords) {
+      if (kw.isNegative) continue;
+      const c = kw.cluster || "Övrigt";
+      if (!map.has(c)) map.set(c, []);
+      map.get(c)!.push(kw);
+    }
+    const brandTerms = goals?.brand_terms ?? [];
+
+    return Array.from(map.entries()).map(([name, kws]) => {
+      const realKws = kws.filter((k) => k.dataSource === "real");
+      const totalVolume = realKws.reduce((s, k) => s + (k.searchVolume ?? 0), 0);
+      const kds = kws.filter((k) => k.kd != null).map((k) => k.kd!);
+      const avgKd = kds.length ? kds.reduce((a, b) => a + b, 0) / kds.length : null;
+      const cpcs = kws.filter((k) => k.cpc != null).map((k) => k.cpc!);
+      const avgCpc = cpcs.length ? cpcs.reduce((a, b) => a + b, 0) / cpcs.length : null;
+      const competitorGapCount = kws.filter((k) => k.competitorGap).length;
+
+      const intentCounts: Record<string, number> = {};
+      const channelCounts: Record<string, number> = {};
+      for (const k of kws) {
+        intentCounts[k.intent] = (intentCounts[k.intent] || 0) + 1;
+        channelCounts[k.channel] = (channelCounts[k.channel] || 0) + 1;
+      }
+      const dominantIntent =
+        Object.entries(intentCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "informational";
+      const dominantChannel =
+        Object.entries(channelCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "SEO";
+
+      const strategyBreakdown = {
+        acquire_nonbrand: 0,
+        acquire_brand: 0,
+        retain_nonbrand: 0,
+        retain_brand: 0,
+      };
+      for (const k of kws) {
+        const q = classifyKeyword(k.keyword, brandTerms, k.intent);
+        strategyBreakdown[q]++;
+      }
+
+      const estimatedValueSek = goals
+        ? kws.reduce((s, k) => s + monthlyKeywordValue(k.searchVolume ?? 0, 20, goals), 0)
+        : 0;
+
+      return {
+        name,
+        keywords: kws,
+        totalVolume,
+        avgKd,
+        avgCpc,
+        competitorGapCount,
+        dominantIntent,
+        dominantChannel,
+        strategyBreakdown,
+        estimatedValueSek,
+        enrichedCount: realKws.length,
+        totalCount: kws.length,
+      };
+    });
+  }, [universe, goals]);
+
+  const sortedClusters = useMemo(() => {
+    let result = clusters;
+    if (clusterSearch.trim()) {
+      const q = clusterSearch.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.keywords.some((k) => k.keyword.toLowerCase().includes(q)),
+      );
+    }
+    return [...result].sort((a, b) => {
+      if (clusterSort === "value") return b.estimatedValueSek - a.estimatedValueSek;
+      if (clusterSort === "volume") return b.totalVolume - a.totalVolume;
+      if (clusterSort === "gap") return b.competitorGapCount - a.competitorGapCount;
+      if (clusterSort === "kd") return (a.avgKd ?? 100) - (b.avgKd ?? 100);
+      return 0;
+    });
+  }, [clusters, clusterSort, clusterSearch]);
+
   // ── Aggregate stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
     if (!universe) return { total: 0, totalVolume: 0, avgCpc: 0, highPriority: 0 };
