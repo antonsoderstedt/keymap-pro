@@ -35,6 +35,7 @@ export function useActionItems(projectId: string | undefined) {
       .from("action_items")
       .select("*")
       .eq("project_id", projectId)
+      .order("expected_impact_sek", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     setItems((data as ActionItem[]) ?? []);
     setLoading(false);
