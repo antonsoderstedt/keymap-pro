@@ -806,6 +806,13 @@ export default function KeywordsHub() {
           analysisId={analysisId}
         />
       )}
+
+      <ClusterSheet
+        cluster={selectedCluster}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        projectId={id!}
+      />
     </div>
   );
 }
