@@ -46,9 +46,15 @@ export default function ReportsLibrary() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [viewing, setViewing] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
+
+  const generateReportById = async (reportTypeId: string) => {
+    const r = REPORTS.find((x) => x.id === reportTypeId);
+    if (r) await generateReport(r);
+  };
 
   const downloadPptx = async (artifact: any) => {
     if (!artifact?.id && !artifact?.payload?.template) return;
