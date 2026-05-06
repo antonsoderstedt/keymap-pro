@@ -77,6 +77,13 @@ Deno.serve(async (req) => {
     const tpl = artifact.payload.template;
     const reportType = artifact.payload.report_type || "report";
 
+    // Validate template before rendering (catches missing data keys early)
+    const validation = validateTemplate(tpl);
+    if (!validation.ok) console.warn("render-pptx validation issues", validation);
+    if (dryRun) {
+      return j({ mode: "validate_only", report_type: reportType, validation, ok: validation.ok }, validation.ok ? 200 : 422);
+    }
+
     // Brand kit override
     const colors: Colors = { ...BASE_COLORS };
     let logoBase64: string | null = null;
