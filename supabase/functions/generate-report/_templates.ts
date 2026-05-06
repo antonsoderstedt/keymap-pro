@@ -61,6 +61,7 @@ export interface SlideSpec {
   total_value?: number;
   missing_source?: string;
   missing_resolution?: string;
+  missing_fix_url?: string;
   data_source?: string;
   period?: string;
 }
@@ -73,7 +74,7 @@ export interface TemplateOutput {
   tables?: any[];
 }
 
-type Section = { status: string; reason?: string; data?: any };
+type Section = { status: string; reason?: string; fix?: string; fix_url?: string; data?: any };
 type Payload = {
   report_type: string;
   sections?: Record<string, Section>;
