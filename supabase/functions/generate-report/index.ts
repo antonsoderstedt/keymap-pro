@@ -173,12 +173,21 @@ Deno.serve(async (req) => {
             .filter(Boolean).forEach((s) => sources.add(s as string));
 
           const sub = (k: "ga4" | "ads" | "gsc", connected: boolean) => {
+            const labels = { ga4: "Google Analytics 4", ads: "Google Ads", gsc: "Search Console" } as const;
             if (!connected) {
-              mark(`yoy_${k}`, "missing", `${k.toUpperCase()}-koppling saknas`);
+              mark(`yoy_${k}`, "missing", {
+                message: `${labels[k]}-koppling saknas`,
+                fix: `Anslut ${labels[k]} under Inställningar → Kopplingar för att se trend för denna kanal.`,
+                fix_url: FIX_URLS.connections,
+              });
               return;
             }
             if (!periodHas(k)) {
-              mark(`yoy_${k}`, "error", `Hämtning från ${k.toUpperCase()} misslyckades — kolla scopes/behörighet`);
+              mark(`yoy_${k}`, "error", {
+                message: `Hämtning från ${labels[k]} misslyckades`,
+                fix: "Kontrollera att Google-kontot har behörighet (scope) och att property-ID är korrekt. Återanslut vid behov.",
+                fix_url: FIX_URLS.connections,
+              });
               return;
             }
             mark(`yoy_${k}`, "ok", undefined, {
@@ -193,7 +202,10 @@ Deno.serve(async (req) => {
           sub("gsc", has.gsc);
           (payload as any).trend = trend;
         } catch (e: any) {
-          mark("yoy_compute", "error", e.message || String(e));
+          mark("yoy_compute", "error", {
+            message: `Trend-beräkning misslyckades: ${e.message || String(e)}`,
+            fix: "Kör en ny snapshot från Inställningar → Snapshots eller försök igen om en stund.",
+          });
         }
         break;
       }
