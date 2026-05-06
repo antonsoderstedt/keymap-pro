@@ -320,7 +320,7 @@ function renderKpiSummarySlide(pres: any, s: any, colors: Colors) {
       x: 0.5, y: 4.2, w: 12.3, h: 2.7, fontFace: FONT_BODY, fontSize: 14, color: colors.text, paraSpaceAfter: 8,
     });
   }
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 
 // ---------- Chart ----------
@@ -342,7 +342,7 @@ function renderChartSlide(pres: any, s: any, colors: Colors) {
   slide.background = { color: colors.bg };
   addSlideHeader(pres, slide, s.title || chart?.title || "Diagram", colors);
   drawChart(pres, slide, chart, colors, { x: 0.5, y: 1.2, w: 12.3, h: 5.7 });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 function renderChartSplitSlide(pres: any, s: any, colors: Colors) {
   const slide = pres.addSlide();
@@ -353,7 +353,7 @@ function renderChartSplitSlide(pres: any, s: any, colors: Colors) {
   slide.addShape(pres.ShapeType.roundRect, { x: 7.3, y: 1.2, w: 5.5, h: 5.7, fill: { color: colors.panel }, line: { color: colors.border, width: 1 }, rectRadius: 0.08 });
   slide.addText("INSIKT", { x: 7.6, y: 1.4, w: 5, h: 0.3, fontFace: FONT_MONO, fontSize: 9, color: colors.primary, bold: true, charSpacing: 3 });
   slide.addText(s.insight_text || "—", { x: 7.6, y: 1.8, w: 5, h: 5, fontFace: FONT_BODY, fontSize: 14, color: colors.text, valign: "top" });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 function drawChart(pres: any, slide: any, chart: any, colors: Colors, pos: any) {
   if (!chart || !(chart.data || []).length) {
@@ -387,7 +387,7 @@ function renderTableSlide(pres: any, s: any, colors: Colors) {
   addSlideHeader(pres, slide, s.title || t.title || "Tabell", colors);
   drawTable(pres, slide, t, colors, { x: 0.5, y: 1.2, w: 12.3, h: 5.7 });
   if (t.subtitle) slide.addText(t.subtitle, { x: 0.5, y: 0.95, w: 12.3, h: 0.25, fontFace: FONT_BODY, fontSize: 11, color: colors.textMuted, italic: true });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 function drawTable(pres: any, slide: any, table: any, colors: Colors, pos: any) {
   const cols = table.columns;
@@ -439,7 +439,7 @@ function renderInsightSlide(pres: any, s: any, colors: Colors) {
       if (k.sub) slide.addText(String(k.sub), { x: cardX + 0.2, y: y + cardH - 0.6, w: cardW - 0.4, h: 0.5, fontFace: FONT_BODY, fontSize: 10, color: colors.textMuted });
     });
   }
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 
 // ---------- Two col ----------
@@ -457,7 +457,7 @@ function renderTwoColSlide(pres: any, s: any, colors: Colors) {
     slide.addText(s.insight_text, { x: 0.5, y: 1.3, w: 5.5, h: 5.5, fontFace: FONT_BODY, fontSize: 14, color: colors.text, valign: "top" });
   }
   if (s.table) drawTable(pres, slide, s.table, colors, { x: 6.3, y: 1.3, w: 6.5, h: 5.5 });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 
 // ---------- Next steps ----------
