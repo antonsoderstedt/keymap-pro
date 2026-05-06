@@ -571,3 +571,77 @@ function j(b: unknown, status = 200) {
     status, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+function humanReportTypeLocal(t: string): string {
+  const labels: Record<string, string> = {
+    executive: "Executive Månadsrapport", seo_performance: "SEO Performance",
+    ga4_traffic: "GA4 Trafikrapport", keyword_universe: "Sökordsanalys",
+    segments: "Segmentrapport", share_of_voice: "Share of Voice",
+    auction_insights: "Auction Insights", competitor: "Konkurrentrapport",
+    content_gap: "Content Gap", cannibalization: "Kannibaliseringsanalys",
+    paid_vs_organic: "Paid vs Organic", yoy: "YoY / MoM Trend", roi: "ROI & Attribution",
+  };
+  return labels[t] || t;
+}
+
+async function generateAiInsights(
+  reportType: string,
+  sections: Record<string, { status: string; reason?: string; data?: unknown }>,
+): Promise<Record<string, any>> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) return {};
+
+  // Komprimera sektionsdata
+  const compact: Record<string, any> = {};
+  for (const [k, v] of Object.entries(sections)) {
+    if (v.status === "ok" || v.status === "partial") {
+      const json = JSON.stringify(v.data);
+      compact[k] = json.length > 2000 ? json.slice(0, 2000) + "...[truncated]" : v.data;
+    }
+  }
+  if (!Object.keys(compact).length) return {};
+
+  const systemPrompt = `Du är en erfaren digital marknadsanalytiker som skriver insikter på svenska för en månads-/kvartalsrapport. Var konkret, datadriven och affärsfokuserad. Belopp i SEK. Svara ENDAST med valid JSON.`;
+  const schema = {
+    [reportType]: {
+      report_headline: "string (kort, max 80 tecken)",
+      key_insight: "string (en meningar, max 140 tecken)",
+      opportunity_text: "string (möjlighetsbeskrivning)",
+      opportunity_value: "number (estimerat månadsvärde i SEK)",
+      opportunity_short: "string (max 50 tecken)",
+      risk_text: "string", risk_level: "låg|medel|hög", risk_short: "string (max 50 tecken)",
+      insight_text: "string (2-3 meningar djupare analys)",
+      total_value: "number (totalt potentiellt månadsvärde SEK)",
+      next_steps: [{ action: "string", estimated_value_sek: "number", effort: "låg|medel|hög", timeline: "string" }],
+    },
+  };
+  const userPrompt = `Rapporttyp: ${reportType}\n\nDatasektioner:\n${JSON.stringify(compact, null, 2)}\n\nGenerera insikter enligt detta JSON-schema:\n${JSON.stringify(schema, null, 2)}`;
+
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 1200,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!resp.ok) {
+      console.warn("AI gateway", resp.status, await resp.text().catch(() => ""));
+      return {};
+    }
+    const j = await resp.json();
+    const content = j?.choices?.[0]?.message?.content;
+    if (!content) return {};
+    const parsed = typeof content === "string" ? JSON.parse(content) : content;
+    return parsed || {};
+  } catch (e) {
+    console.warn("generateAiInsights failed", e);
+    return {};
+  }
+}
