@@ -180,7 +180,7 @@ function renderCoverSlide(pres: any, s: any, colors: Colors, logo: string | null
   });
   if (logo) {
     try {
-      slide.addImage({ data: `data:${logoMime};base64,${logo}`, x: SLIDE_W - 1.8, y: SLIDE_H - 1.4, w: 1.4, h: 0.9, sizing: { type: "contain", w: 1.4, h: 0.9 } });
+      slide.addImage({ data: `data:${logoMime};base64,${logo}`, x: SLIDE_W - 1.8, y: SLIDE_H - 1.4, w: 1.4, h: 0.9 });
     } catch (e) { console.warn("addImage logo", e); }
   }
 }
