@@ -145,13 +145,25 @@ function coverSlide(p: Payload): SlideSpec {
   };
 }
 
-function missingSlide(title: string, source: string, resolution: string): SlideSpec {
+function missingSlide(title: string, source: string, resolution: string, fixUrl?: string): SlideSpec {
   return {
     type: "missing_data",
     title,
     missing_source: source,
     missing_resolution: resolution,
+    missing_fix_url: fixUrl,
   };
+}
+
+// Bygg en missing_data-slide från en sektion (läser reason + fix + fix_url)
+function missingFromSection(p: Payload, key: string, title: string, fallbackSource: string, fallbackFix: string): SlideSpec {
+  const sec = p.sections?.[key];
+  return missingSlide(
+    title,
+    fallbackSource,
+    sec?.fix || sec?.reason || fallbackFix,
+    sec?.fix_url,
+  );
 }
 
 function nextStepsSlide(steps: NextStep[], totalValue?: number): SlideSpec {
