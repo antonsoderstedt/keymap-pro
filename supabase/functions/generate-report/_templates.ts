@@ -63,6 +63,7 @@ export interface SlideSpec {
   missing_resolution?: string;
   missing_fix_url?: string;
   data_source?: string;
+  sources?: string[]; // Strukturerad lista, t.ex. ["gsc","ga4","semrush","ai","analyses"]
   period?: string;
 }
 
