@@ -567,7 +567,9 @@ Deno.serve(async (req) => {
 
     payload.sources = Array.from(sources);
     payload.sections = sections;
-    payload.missing_fields = missingFields;
+    payload.issues = issues;
+    // Bakåtkompatibel: enkel sträng-lista för äldre UI
+    payload.missing_fields = issues.map((x) => `${x.section}: ${x.message}${x.fix ? ` — ${x.fix}` : ""}`);
     const statuses = Object.values(sections).map((s) => s.status);
     payload.overall_status = statuses.includes("ok") || statuses.includes("partial")
       ? (statuses.every((s) => s === "ok") ? "complete" : "partial")
