@@ -214,8 +214,34 @@ export function buildTemplate(payload: Payload): TemplateOutput {
   if (result.slides[0]?.type !== "cover") {
     result.slides.unshift(coverSlide(payload));
   }
+  // Härled strukturerade source-koder per slide om de saknas (från data_source-strängen)
+  for (const s of result.slides) {
+    if (!s.sources || !s.sources.length) {
+      s.sources = inferSourceCodes(s.data_source);
+    }
+  }
   const legacy = deriveLegacyShape(result.slides);
   return { ...result, ...legacy };
+}
+
+// Härled strukturerade källkoder från fri-text data_source
+// (gsc, ga4, ads, semrush, dataforseo, ai, analyses, scb, kpi_targets)
+function inferSourceCodes(text?: string): string[] {
+  if (!text) return [];
+  const t = text.toLowerCase();
+  const codes: string[] = [];
+  const push = (c: string) => { if (!codes.includes(c)) codes.push(c); };
+  if (/(search console|gsc)/.test(t)) push("gsc");
+  if (/(analytics 4|ga4)/.test(t)) push("ga4");
+  if (/(google ads|\bads\b)/.test(t)) push("ads");
+  if (/semrush/.test(t)) push("semrush");
+  if (/dataforseo/.test(t)) push("dataforseo");
+  if (/(ai-syntes|lovable ai|ai-poäng|ai-analys)/.test(t)) push("ai");
+  if (/(sökordsanalys|analys)/.test(t) && !codes.includes("ai")) push("analyses");
+  if (/scb/.test(t)) push("scb");
+  if (/kpi-mål|kpi targets/.test(t)) push("kpi_targets");
+  if (/(seo diagnostics|ads diagnostics|diagnostics)/.test(t)) push("diagnostics");
+  return codes;
 }
 
 // ---------- Executive ----------
