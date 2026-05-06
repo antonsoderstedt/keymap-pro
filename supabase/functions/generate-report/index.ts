@@ -330,7 +330,15 @@ Deno.serve(async (req) => {
           period_label: gscCur.data ? `${gscCur.data.start_date} → ${gscCur.data.end_date}` : "",
         };
         const status = (gscCur.data || ga4Cur.data) ? (gscCur.data && ga4Cur.data ? "ok" : "partial") : "missing";
-        mark("executive", status, status === "missing" ? "Behöver minst GSC eller GA4-snapshot" : undefined, data);
+        mark("executive", status, status === "missing" ? {
+          message: "Saknar både GSC- och GA4-snapshot",
+          fix: "Anslut Google Search Console och Google Analytics 4 under Inställningar → Kopplingar och kör en första snapshot.",
+          fix_url: FIX_URLS.connections,
+        } : status === "partial" ? {
+          message: gscCur.data ? "GA4-data saknas" : "GSC-data saknas",
+          fix: `Anslut ${gscCur.data ? "Google Analytics 4" : "Google Search Console"} för komplett executive-rapport.`,
+          fix_url: FIX_URLS.connections,
+        } : undefined, data);
         break;
       }
 
@@ -344,7 +352,15 @@ Deno.serve(async (req) => {
             .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         ]);
         if (!snap.data) {
-          mark("seo_performance", "missing", !has.gsc ? "GSC-koppling saknas" : "Ingen GSC-snapshot ännu");
+          mark("seo_performance", "missing", !has.gsc ? {
+            message: "Search Console-koppling saknas",
+            fix: "Anslut Google Search Console under Inställningar → Kopplingar och välj rätt sajt.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen GSC-snapshot finns ännu",
+            fix: "Gå till Inställningar → Snapshots och kör en första hämtning från Search Console.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           sources.add("gsc");
           const rows = (snap.data.rows as any[]) || [];
@@ -371,7 +387,15 @@ Deno.serve(async (req) => {
         const { data: snap } = await supabase.from("ga4_snapshots").select("*")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!snap) {
-          mark("ga4_traffic", "missing", !has.ga4 ? "GA4-koppling saknas" : "Ingen GA4-snapshot ännu");
+          mark("ga4_traffic", "missing", !has.ga4 ? {
+            message: "Google Analytics 4-koppling saknas",
+            fix: "Anslut GA4 under Inställningar → Kopplingar och välj rätt property.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen GA4-snapshot finns ännu",
+            fix: "Kör en första GA4-snapshot från Inställningar → Snapshots.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           sources.add("ga4");
           const rows = (snap.rows as any[]) || [];
@@ -390,7 +414,11 @@ Deno.serve(async (req) => {
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         const u = (analysis?.keyword_universe_json as any) || null;
         if (!u) {
-          mark("keyword_universe", "missing", "Ingen sökordsanalys hittad — kör analys-wizarden");
+          mark("keyword_universe", "missing", {
+            message: "Ingen sökordsanalys hittad",
+            fix: "Kör analys-wizarden (Analys → Ny analys) för att bygga sökordsuniversum med kluster.",
+            fix_url: FIX_URLS.analyses,
+          });
         } else {
           sources.add("analyses");
           const clusters = (u.clusters || []) as any[];
@@ -415,7 +443,11 @@ Deno.serve(async (req) => {
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         const segs = ((analysis?.result_json as any)?.segments || []) as any[];
         if (!segs.length) {
-          mark("segments", "missing", "Ingen segmentanalys hittad");
+          mark("segments", "missing", {
+            message: "Ingen segmentanalys hittad",
+            fix: "Kör en analys i Analys-wizarden — segment genereras automatiskt baserat på trafik och sökord.",
+            fix_url: FIX_URLS.analyses,
+          });
         } else {
           sources.add("analyses");
           mark("segments", "ok", undefined, { segments: segs.sort((a, b) => (b.opportunityScore || b.score || 0) - (a.opportunityScore || a.score || 0)) });
@@ -427,7 +459,11 @@ Deno.serve(async (req) => {
         const { data: analysis } = await supabase.from("analyses").select("id,keyword_universe_json,result_json")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!analysis) {
-          mark("competitor", "missing", "Ingen analys hittad");
+          mark("competitor", "missing", {
+            message: "Ingen analys hittad",
+            fix: "Kör en SEO-analys (Analys → Ny analys) med minst 2 konkurrenter angivna.",
+            fix_url: FIX_URLS.analyses,
+          });
           break;
         }
         const { data: gaps } = await supabase.from("backlink_gaps").select("payload").eq("analysis_id", analysis.id).maybeSingle();
@@ -435,7 +471,11 @@ Deno.serve(async (req) => {
         const universe = (analysis.keyword_universe_json as any) || {};
         const gapKws = (universe.gap_keywords || universe.competitor_gaps || []) as any[];
         if (!gapPayload.gap_domains?.length && !gapKws.length) {
-          mark("competitor", "missing", "Ingen konkurrentdata — kör Teknisk SEO-analys med konkurrenter");
+          mark("competitor", "missing", {
+            message: "Ingen konkurrentdata hittad",
+            fix: "Lägg till konkurrenter under Inställningar → Konkurrenter och kör Teknisk SEO-analys på nytt.",
+            fix_url: FIX_URLS.competitors,
+          });
         } else {
           sources.add("semrush");
           mark("competitor", "ok", undefined, {
@@ -453,7 +493,11 @@ Deno.serve(async (req) => {
         const u = (analysis?.keyword_universe_json as any) || {};
         const gaps = (u.content_gaps || u.gap_keywords || []) as any[];
         if (!gaps.length) {
-          mark("content_gap", "missing", "Inga content gaps identifierade");
+          mark("content_gap", "missing", {
+            message: "Inga content gaps identifierade",
+            fix: "Kör en sökordsanalys med konkurrenter aktiverade så identifieras gaps automatiskt.",
+            fix_url: FIX_URLS.analyses,
+          });
         } else {
           sources.add("analyses");
           mark("content_gap", "ok", undefined, { gaps });
@@ -465,7 +509,15 @@ Deno.serve(async (req) => {
         const { data: snap } = await supabase.from("gsc_snapshots").select("rows")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!snap) {
-          mark("cannibalization", "missing", !has.gsc ? "GSC-koppling saknas" : "Ingen GSC-snapshot ännu");
+          mark("cannibalization", "missing", !has.gsc ? {
+            message: "Search Console-koppling saknas",
+            fix: "Kannibalisering kräver GSC-data. Anslut Search Console under Inställningar → Kopplingar.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen GSC-snapshot finns ännu",
+            fix: "Kör en första GSC-snapshot från Inställningar → Snapshots.",
+            fix_url: FIX_URLS.connections,
+          });
           break;
         }
         sources.add("gsc");
@@ -491,7 +543,11 @@ Deno.serve(async (req) => {
           supabase.from("ads_audits").select("summary").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         ]);
         if (!gsc.data && !ads.data) {
-          mark("paid_vs_organic", "missing", "Behöver både GSC och Google Ads-data");
+          mark("paid_vs_organic", "missing", {
+            message: "Saknar både GSC och Google Ads-data",
+            fix: "Anslut Search Console OCH Google Ads under Inställningar → Kopplingar för att jämföra paid vs organic.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           if (gsc.data) sources.add("gsc");
           if (ads.data) sources.add("google_ads");
