@@ -39,7 +39,26 @@ const SLIDE_H = 7.5;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const body = await req.json();
+    const url = new URL(req.url);
+    const isSelfTest = url.searchParams.get("self_test") === "1" || url.searchParams.get("test") === "1";
+    const body = req.method === "GET" ? {} : await req.json().catch(() => ({}));
+    const dryRun = isSelfTest || body.dry_run === true || body.validate_only === true;
+
+    // ---- Self-test mode: build synthetic payload covering all 13 slide types ----
+    if (isSelfTest) {
+      const tpl = buildSelfTestTemplate();
+      const validation = validateTemplate(tpl);
+      const renderResults = dryRun ? null : await tryRenderTemplate(tpl);
+      return j({
+        mode: "self_test",
+        slide_types_covered: Array.from(new Set(tpl.slides.map((s: any) => s.type))),
+        slide_count: tpl.slides.length,
+        validation,
+        render: renderResults,
+        ok: validation.ok && (!renderResults || renderResults.ok),
+      }, validation.ok ? 200 : 422);
+    }
+
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let artifact: any = null;
