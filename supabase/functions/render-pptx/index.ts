@@ -678,7 +678,7 @@ function buildSelfTestTemplate(): { slides: any[] } {
         { action: "Bygg internlänkning kring kluster X", effort: "medel", estimated_value_sek: 120000, timeline: "1 mån" },
         { action: "Lansera ny landningssida", effort: "hög", estimated_value_sek: 280000, timeline: "2 mån" },
       ], total_value: 445000 },
-      { type: "missing_data", title: "Data saknas", missing_source: "DataForSEO", missing_resolution: "Aktivera kopplingen i Inställningar." },
+      { type: "missing_data", title: "Data saknas", missing_source: "DataForSEO", missing_resolution: "Aktivera kopplingen i Inställningar.", missing_fix_url: "/settings/connections" },
     ],
   };
 }
