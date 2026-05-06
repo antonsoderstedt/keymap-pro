@@ -228,16 +228,26 @@ Deno.serve(async (req) => {
         } catch (e) { console.warn("attribution", e); }
 
         if (!attrSnap) {
-          mark("attribution", "missing",
-            (!has.ga4 && !has.ads) ? "Behöver minst en av GA4 eller Google Ads-koppling"
-              : "Kunde inte hämta kanal-attribution — kolla Google-token-scope");
+          mark("attribution", "missing", (!has.ga4 && !has.ads) ? {
+            message: "Saknar både GA4 och Google Ads",
+            fix: "Anslut minst en av Google Analytics 4 eller Google Ads under Inställningar → Kopplingar.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Kunde inte hämta kanal-attribution",
+            fix: "Kontrollera Google-token-scope och återanslut kontot. Token kan ha gått ut.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           (attrSnap.sources as string[] || []).forEach((s) => sources.add(s));
           const hasGa4 = (attrSnap.sources || []).includes("ga4");
           const hasAds = (attrSnap.sources || []).includes("google_ads");
           const partial = !hasGa4 || !hasAds;
           mark("attribution", partial ? "partial" : "ok",
-            partial ? `Endast ${hasGa4 ? "GA4" : "Google Ads"}-data — ${hasGa4 ? "Ads" : "GA4"} saknas så ROAS är ofullständig` : undefined,
+            partial ? {
+              message: `Endast ${hasGa4 ? "GA4" : "Google Ads"}-data — ${hasGa4 ? "Google Ads" : "GA4"} saknas så ROAS är ofullständig`,
+              fix: `Anslut även ${hasGa4 ? "Google Ads" : "GA4"} under Inställningar → Kopplingar.`,
+              fix_url: FIX_URLS.connections,
+            } : undefined,
             {
               period: { start: attrSnap.start_date, end: attrSnap.end_date },
               currency: attrSnap.currency,
