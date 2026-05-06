@@ -94,13 +94,24 @@ Deno.serve(async (req) => {
         }
 
         if (!snap) {
-          mark("share_of_voice", "missing",
-            !has.gsc ? "GSC-koppling saknas — anslut Search Console i Inställningar" : "Ingen SoV-snapshot kunde beräknas (saknar konkurrentlista eller Semrush-data)");
+          mark("share_of_voice", "missing", !has.gsc ? {
+            message: "Search Console-koppling saknas",
+            fix: "Anslut Google Search Console under Inställningar → Kopplingar och välj rätt sajt.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen Share of Voice-snapshot kunde beräknas",
+            fix: "Lägg till minst 3 konkurrenter under Inställningar → Konkurrenter, och se till att Semrush eller DataForSEO är aktiverat.",
+            fix_url: FIX_URLS.competitors,
+          });
         } else {
           (snap.sources as string[] || []).forEach((s) => sources.add(s));
           const partial = !(snap.sources || []).includes("semrush");
           mark("share_of_voice", partial ? "partial" : "ok",
-            partial ? "Saknar Semrush — marknadsstorlek är uppskattad från GSC + Auction Insights" : undefined,
+            partial ? {
+              message: "Saknar Semrush-data — marknadsstorlek är uppskattad från GSC + Auction Insights",
+              fix: "Aktivera Semrush-koppling i Inställningar för exakt SoV.",
+              fix_url: FIX_URLS.connections,
+            } : undefined,
             {
               your_domain: snap.your_domain,
               your_impressions: snap.your_impressions,
