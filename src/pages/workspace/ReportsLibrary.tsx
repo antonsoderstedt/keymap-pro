@@ -119,10 +119,13 @@ export default function ReportsLibrary() {
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       const status = (data as any)?.artifact?.payload?.overall_status;
+      const issues = ((data as any)?.artifact?.payload?.issues || []) as Array<{ section: string; status: string; message: string; fix?: string; fix_url?: string }>;
       const missing = ((data as any)?.artifact?.payload?.missing_fields || []) as string[];
+      const blockers = issues.filter((x) => x.status === "missing" || x.status === "error");
+      const describe = (xs: typeof issues) => xs.slice(0, 3).map((x) => `${x.message}${x.fix ? ` → ${x.fix}` : ""}`).join("\n");
       if (status === "complete") toast.success(`${report.name} genererad med live-data`);
-      else if (status === "partial") toast.warning(`${report.name} delvis genererad — ${missing.length} fält saknas`, { description: missing.slice(0, 3).join(" · ") });
-      else if (status === "empty") toast.error(`${report.name}: inga datakällor tillgängliga`, { description: missing.slice(0, 3).join(" · ") });
+      else if (status === "partial") toast.warning(`${report.name} delvis genererad — ${blockers.length || missing.length} sektion(er) ofullständiga`, { description: describe(issues) || missing.slice(0, 3).join(" · ") });
+      else if (status === "empty") toast.error(`${report.name}: inga datakällor tillgängliga`, { description: describe(blockers) || missing.slice(0, 3).join(" · ") });
       else toast.success(`${report.name} sparad`);
       const artifact = (data as any)?.artifact;
       if (artifact?.payload?.template) setViewing(artifact);
