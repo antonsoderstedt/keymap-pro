@@ -240,7 +240,30 @@ Deno.serve(async (req) => {
       ? (statuses.every((s) => s === "ok") ? "complete" : "partial")
       : "empty";
 
-    // Standardiserad presentationsmall (summary + tables + charts)
+    // Berika payload för cover-slides och AI-prompt
+    try {
+      const { data: project } = await supabase
+        .from("projects").select("name, domain, workspace_type")
+        .eq("id", project_id).maybeSingle();
+      payload.project_id = project_id;
+      payload.project_domain = (project as any)?.domain || "";
+      payload.report_name = name || `${humanReportTypeLocal(report_type)} · ${(project as any)?.name || ""}`.trim();
+      payload.period_label = new Date().toLocaleDateString("sv-SE", { year: "numeric", month: "long" });
+    } catch (e) {
+      console.warn("project enrich failed", e);
+    }
+
+    // AI-insikter via Lovable AI Gateway (best-effort, blockerar aldrig)
+    if (Deno.env.get("LOVABLE_API_KEY")) {
+      try {
+        payload.ai_insights = await generateAiInsights(report_type, sections);
+      } catch (e) {
+        console.warn("AI insights failed:", e);
+        payload.ai_insights = {};
+      }
+    }
+
+    // Standardiserad presentationsmall (slides + bakåtkompatibel summary/charts/tables)
     try {
       payload.template = buildTemplate(payload as any);
     } catch (e) {
