@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const isSelfTest = url.searchParams.get("self_test") === "1" || url.searchParams.get("test") === "1";
     const body = req.method === "GET" ? {} : await req.json().catch(() => ({}));
-    const dryRun = isSelfTest || body.dry_run === true || body.validate_only === true;
+    const dryRun = body.dry_run === true || body.validate_only === true || (isSelfTest && body.dry_run !== false);
 
     // ---- Self-test mode: build synthetic payload covering all 13 slide types ----
     if (isSelfTest) {
