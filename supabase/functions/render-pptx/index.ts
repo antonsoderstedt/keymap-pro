@@ -178,12 +178,90 @@ function addSlideHeader(pres: any, slide: any, title: string, colors: Colors, pe
     fontFace: FONT_MONO, fontSize: 10, color: colors.textMuted, align: "right", charSpacing: 2,
   });
 }
-function addDataSourceFooter(slide: any, source: string | undefined, colors: Colors) {
-  if (!source) return;
-  slide.addText(`Källa: ${source}`, {
-    x: 0.5, y: SLIDE_H - 0.35, w: SLIDE_W - 1, h: 0.25,
-    fontFace: FONT_MONO, fontSize: 9, color: colors.textMuted, align: "right", charSpacing: 2,
+// Källa-metadata per kanal: label + accentfärg-nyckel i Colors
+const SOURCE_META: Record<string, { label: string; colorKey: keyof Colors }> = {
+  gsc:          { label: "GSC",         colorKey: "primary" },
+  ga4:          { label: "GA4",         colorKey: "accent2" },
+  ads:          { label: "GOOGLE ADS",  colorKey: "accent5" },
+  google_ads:   { label: "GOOGLE ADS",  colorKey: "accent5" },
+  semrush:      { label: "SEMRUSH",     colorKey: "accent3" },
+  dataforseo:   { label: "DATAFORSEO",  colorKey: "accent4" },
+  ai:           { label: "AI",          colorKey: "accent4" },
+  analyses:     { label: "ANALYS",      colorKey: "success" },
+  scb:          { label: "SCB",         colorKey: "textMuted" },
+  kpi_targets:  { label: "KPI-MÅL",     colorKey: "textMuted" },
+  diagnostics:  { label: "DIAGNOSTIK",  colorKey: "danger" },
+};
+
+function inferSourceCodesFromText(text?: string): string[] {
+  if (!text) return [];
+  const t = text.toLowerCase();
+  const codes: string[] = [];
+  const push = (c: string) => { if (!codes.includes(c)) codes.push(c); };
+  if (/(search console|gsc)/.test(t)) push("gsc");
+  if (/(analytics 4|ga4)/.test(t)) push("ga4");
+  if (/(google ads|\bads\b)/.test(t)) push("ads");
+  if (/semrush/.test(t)) push("semrush");
+  if (/dataforseo/.test(t)) push("dataforseo");
+  if (/(lovable ai|ai-syntes|ai-poäng|ai-analys)/.test(t)) push("ai");
+  if (/(sökordsanalys|analys)/.test(t) && !codes.includes("ai")) push("analyses");
+  if (/scb/.test(t)) push("scb");
+  if (/kpi-mål/.test(t)) push("kpi_targets");
+  if (/diagnostics|diagnostik/.test(t)) push("diagnostics");
+  return codes;
+}
+
+// Sammanfattar exakt vilka datakällor en slide bygger på.
+// Visar färgade pill-badges + ev. period (t.ex. "28D") till höger.
+function addDataSourceFooter(pres: any, slide: any, s: any, colors: Colors) {
+  // Strukturerad lista har företräde, annars härleds från fri-text data_source
+  const codes: string[] = (Array.isArray(s.sources) && s.sources.length)
+    ? s.sources : inferSourceCodesFromText(s.data_source);
+  // Period kan komma från s.period eller härledas från data_source ("· 28D")
+  const periodMatch = typeof s.data_source === "string" ? s.data_source.match(/·\s*([\d]{1,3}\s*[DWMd])/i) : null;
+  const period: string | undefined = s.period || (periodMatch ? periodMatch[1].toUpperCase() : undefined);
+
+  if (!codes.length && !period) return;
+
+  // Footer-bar: tunn rad högst 0.5" från botten
+  const footerY = SLIDE_H - 0.42;
+  // Vänster: "DATAKÄLLOR"-etikett
+  slide.addText("DATAKÄLLOR", {
+    x: 0.5, y: footerY, w: 1.4, h: 0.28,
+    fontFace: FONT_MONO, fontSize: 8, color: colors.textMuted, bold: true, charSpacing: 3, valign: "middle",
   });
+
+  // Pills
+  let cursorX = 1.95;
+  const pillH = 0.28;
+  for (const code of codes.slice(0, 6)) {
+    const meta = SOURCE_META[code] || { label: code.toUpperCase(), colorKey: "textMuted" as keyof Colors };
+    const accent = colors[meta.colorKey];
+    const pillW = Math.max(0.55, 0.18 + meta.label.length * 0.085);
+    if (cursorX + pillW > SLIDE_W - 1.5) break; // håll plats för period
+    slide.addShape(pres.ShapeType.roundRect, {
+      x: cursorX, y: footerY, w: pillW, h: pillH,
+      fill: { color: colors.panel }, line: { color: accent, width: 0.75 }, rectRadius: 0.04,
+    });
+    // Liten färg-prick
+    slide.addShape(pres.ShapeType.ellipse, {
+      x: cursorX + 0.08, y: footerY + 0.09, w: 0.1, h: 0.1,
+      fill: { color: accent }, line: { color: accent },
+    });
+    slide.addText(meta.label, {
+      x: cursorX + 0.22, y: footerY, w: pillW - 0.28, h: pillH,
+      fontFace: FONT_MONO, fontSize: 8, color: colors.text, bold: true, charSpacing: 1, valign: "middle",
+    });
+    cursorX += pillW + 0.1;
+  }
+
+  // Höger: period
+  if (period) {
+    slide.addText(`PERIOD · ${period}`, {
+      x: SLIDE_W - 2.2, y: footerY, w: 1.7, h: pillH,
+      fontFace: FONT_MONO, fontSize: 8, color: colors.textMuted, align: "right", charSpacing: 2, valign: "middle",
+    });
+  }
 }
 
 // ---------- Cover ----------
@@ -242,7 +320,7 @@ function renderKpiSummarySlide(pres: any, s: any, colors: Colors) {
       x: 0.5, y: 4.2, w: 12.3, h: 2.7, fontFace: FONT_BODY, fontSize: 14, color: colors.text, paraSpaceAfter: 8,
     });
   }
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 
 // ---------- Chart ----------
@@ -264,7 +342,7 @@ function renderChartSlide(pres: any, s: any, colors: Colors) {
   slide.background = { color: colors.bg };
   addSlideHeader(pres, slide, s.title || chart?.title || "Diagram", colors);
   drawChart(pres, slide, chart, colors, { x: 0.5, y: 1.2, w: 12.3, h: 5.7 });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 function renderChartSplitSlide(pres: any, s: any, colors: Colors) {
   const slide = pres.addSlide();
@@ -275,7 +353,7 @@ function renderChartSplitSlide(pres: any, s: any, colors: Colors) {
   slide.addShape(pres.ShapeType.roundRect, { x: 7.3, y: 1.2, w: 5.5, h: 5.7, fill: { color: colors.panel }, line: { color: colors.border, width: 1 }, rectRadius: 0.08 });
   slide.addText("INSIKT", { x: 7.6, y: 1.4, w: 5, h: 0.3, fontFace: FONT_MONO, fontSize: 9, color: colors.primary, bold: true, charSpacing: 3 });
   slide.addText(s.insight_text || "—", { x: 7.6, y: 1.8, w: 5, h: 5, fontFace: FONT_BODY, fontSize: 14, color: colors.text, valign: "top" });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 function drawChart(pres: any, slide: any, chart: any, colors: Colors, pos: any) {
   if (!chart || !(chart.data || []).length) {
@@ -309,7 +387,7 @@ function renderTableSlide(pres: any, s: any, colors: Colors) {
   addSlideHeader(pres, slide, s.title || t.title || "Tabell", colors);
   drawTable(pres, slide, t, colors, { x: 0.5, y: 1.2, w: 12.3, h: 5.7 });
   if (t.subtitle) slide.addText(t.subtitle, { x: 0.5, y: 0.95, w: 12.3, h: 0.25, fontFace: FONT_BODY, fontSize: 11, color: colors.textMuted, italic: true });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 function drawTable(pres: any, slide: any, table: any, colors: Colors, pos: any) {
   const cols = table.columns;
@@ -361,7 +439,7 @@ function renderInsightSlide(pres: any, s: any, colors: Colors) {
       if (k.sub) slide.addText(String(k.sub), { x: cardX + 0.2, y: y + cardH - 0.6, w: cardW - 0.4, h: 0.5, fontFace: FONT_BODY, fontSize: 10, color: colors.textMuted });
     });
   }
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 
 // ---------- Two col ----------
@@ -379,7 +457,7 @@ function renderTwoColSlide(pres: any, s: any, colors: Colors) {
     slide.addText(s.insight_text, { x: 0.5, y: 1.3, w: 5.5, h: 5.5, fontFace: FONT_BODY, fontSize: 14, color: colors.text, valign: "top" });
   }
   if (s.table) drawTable(pres, slide, s.table, colors, { x: 6.3, y: 1.3, w: 6.5, h: 5.5 });
-  addDataSourceFooter(slide, s.data_source, colors);
+  addDataSourceFooter(pres, slide, s, colors);
 }
 
 // ---------- Next steps ----------
@@ -664,10 +742,10 @@ function buildSelfTestTemplate(): { slides: any[] } {
         { label: "CTR", value: "4,2%", sub: "−0,3pp", trend: "down" },
         { label: "Pos", value: "12,4", sub: "stabil", trend: "flat" },
         { label: "ROI", value: "3,8x", sub: "+0,4x", trend: "up" },
-      ], bullets: ["Bullet ett", "Bullet två", "Bullet tre"], data_source: "GSC + GA4" },
-      { type: "chart", title: "Trafik över tid", chart: sampleChart, data_source: "GSC" },
-      { type: "chart_split", title: "Trafik + insikt", chart: sampleChart, insight_text: "Klicken växer snabbare än visningar — CTR förbättras.", data_source: "GSC" },
-      { type: "table", title: "Topp sökord", table: sampleTable, data_source: "GSC" },
+      ], bullets: ["Bullet ett", "Bullet två", "Bullet tre"], data_source: "GSC + GA4", sources: ["gsc","ga4"], period: "28D" },
+      { type: "chart", title: "Trafik över tid", chart: sampleChart, sources: ["gsc"], period: "28D" },
+      { type: "chart_split", title: "Trafik + insikt", chart: sampleChart, insight_text: "Klicken växer snabbare än visningar — CTR förbättras.", sources: ["gsc","ai"], period: "28D" },
+      { type: "table", title: "Topp sökord", table: sampleTable, sources: ["gsc","semrush"], period: "28D" },
       { type: "insight", title: "Analys", headline: "Vad vi ser", insight_text: "Lorem ipsum analys-text som beskriver insikt och kontext.", kpis: [
         { label: "Möjlighet", value: "+25%", sub: "klick" },
         { label: "Risk", value: "−5%", sub: "pos" },
