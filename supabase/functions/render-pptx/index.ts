@@ -178,12 +178,90 @@ function addSlideHeader(pres: any, slide: any, title: string, colors: Colors, pe
     fontFace: FONT_MONO, fontSize: 10, color: colors.textMuted, align: "right", charSpacing: 2,
   });
 }
-function addDataSourceFooter(slide: any, source: string | undefined, colors: Colors) {
-  if (!source) return;
-  slide.addText(`Källa: ${source}`, {
-    x: 0.5, y: SLIDE_H - 0.35, w: SLIDE_W - 1, h: 0.25,
-    fontFace: FONT_MONO, fontSize: 9, color: colors.textMuted, align: "right", charSpacing: 2,
+// Källa-metadata per kanal: label + accentfärg-nyckel i Colors
+const SOURCE_META: Record<string, { label: string; colorKey: keyof Colors }> = {
+  gsc:          { label: "GSC",         colorKey: "primary" },
+  ga4:          { label: "GA4",         colorKey: "accent2" },
+  ads:          { label: "GOOGLE ADS",  colorKey: "accent5" },
+  google_ads:   { label: "GOOGLE ADS",  colorKey: "accent5" },
+  semrush:      { label: "SEMRUSH",     colorKey: "accent3" },
+  dataforseo:   { label: "DATAFORSEO",  colorKey: "accent4" },
+  ai:           { label: "AI",          colorKey: "accent4" },
+  analyses:     { label: "ANALYS",      colorKey: "success" },
+  scb:          { label: "SCB",         colorKey: "textMuted" },
+  kpi_targets:  { label: "KPI-MÅL",     colorKey: "textMuted" },
+  diagnostics:  { label: "DIAGNOSTIK",  colorKey: "danger" },
+};
+
+function inferSourceCodesFromText(text?: string): string[] {
+  if (!text) return [];
+  const t = text.toLowerCase();
+  const codes: string[] = [];
+  const push = (c: string) => { if (!codes.includes(c)) codes.push(c); };
+  if (/(search console|gsc)/.test(t)) push("gsc");
+  if (/(analytics 4|ga4)/.test(t)) push("ga4");
+  if (/(google ads|\bads\b)/.test(t)) push("ads");
+  if (/semrush/.test(t)) push("semrush");
+  if (/dataforseo/.test(t)) push("dataforseo");
+  if (/(lovable ai|ai-syntes|ai-poäng|ai-analys)/.test(t)) push("ai");
+  if (/(sökordsanalys|analys)/.test(t) && !codes.includes("ai")) push("analyses");
+  if (/scb/.test(t)) push("scb");
+  if (/kpi-mål/.test(t)) push("kpi_targets");
+  if (/diagnostics|diagnostik/.test(t)) push("diagnostics");
+  return codes;
+}
+
+// Sammanfattar exakt vilka datakällor en slide bygger på.
+// Visar färgade pill-badges + ev. period (t.ex. "28D") till höger.
+function addDataSourceFooter(pres: any, slide: any, s: any, colors: Colors) {
+  // Strukturerad lista har företräde, annars härleds från fri-text data_source
+  const codes: string[] = (Array.isArray(s.sources) && s.sources.length)
+    ? s.sources : inferSourceCodesFromText(s.data_source);
+  // Period kan komma från s.period eller härledas från data_source ("· 28D")
+  const periodMatch = typeof s.data_source === "string" ? s.data_source.match(/·\s*([\d]{1,3}\s*[DWMd])/i) : null;
+  const period: string | undefined = s.period || (periodMatch ? periodMatch[1].toUpperCase() : undefined);
+
+  if (!codes.length && !period) return;
+
+  // Footer-bar: tunn rad högst 0.5" från botten
+  const footerY = SLIDE_H - 0.42;
+  // Vänster: "DATAKÄLLOR"-etikett
+  slide.addText("DATAKÄLLOR", {
+    x: 0.5, y: footerY, w: 1.4, h: 0.28,
+    fontFace: FONT_MONO, fontSize: 8, color: colors.textMuted, bold: true, charSpacing: 3, valign: "middle",
   });
+
+  // Pills
+  let cursorX = 1.95;
+  const pillH = 0.28;
+  for (const code of codes.slice(0, 6)) {
+    const meta = SOURCE_META[code] || { label: code.toUpperCase(), colorKey: "textMuted" as keyof Colors };
+    const accent = colors[meta.colorKey];
+    const pillW = Math.max(0.55, 0.18 + meta.label.length * 0.085);
+    if (cursorX + pillW > SLIDE_W - 1.5) break; // håll plats för period
+    slide.addShape(pres.ShapeType.roundRect, {
+      x: cursorX, y: footerY, w: pillW, h: pillH,
+      fill: { color: colors.panel }, line: { color: accent, width: 0.75 }, rectRadius: 0.04,
+    });
+    // Liten färg-prick
+    slide.addShape(pres.ShapeType.ellipse, {
+      x: cursorX + 0.08, y: footerY + 0.09, w: 0.1, h: 0.1,
+      fill: { color: accent }, line: { color: accent },
+    });
+    slide.addText(meta.label, {
+      x: cursorX + 0.22, y: footerY, w: pillW - 0.28, h: pillH,
+      fontFace: FONT_MONO, fontSize: 8, color: colors.text, bold: true, charSpacing: 1, valign: "middle",
+    });
+    cursorX += pillW + 0.1;
+  }
+
+  // Höger: period
+  if (period) {
+    slide.addText(`PERIOD · ${period}`, {
+      x: SLIDE_W - 2.2, y: footerY, w: 1.7, h: pillH,
+      fontFace: FONT_MONO, fontSize: 8, color: colors.textMuted, align: "right", charSpacing: 2, valign: "middle",
+    });
+  }
 }
 
 // ---------- Cover ----------
