@@ -271,7 +271,11 @@ Deno.serve(async (req) => {
           ]);
           const clusters = (analysisRes.data?.keyword_universe_json as any)?.clusters || [];
           if (!clusters.length) {
-            mark("cluster_roi", "missing", "Ingen sökordsanalys hittad — kör analys-wizarden för att låsa upp kluster-värdering");
+            mark("cluster_roi", "missing", {
+              message: "Ingen sökordsanalys hittad",
+              fix: "Kör analys-wizarden (Analys → Ny analys) för att bygga sökordsuniversum med kluster.",
+              fix_url: FIX_URLS.analyses,
+            });
           } else {
             const ga4Snapshots = ga4Res.data || [];
             const revenueSnap = ga4Snapshots.find((s: any) => s.totals?.kind === "revenue_by_page");
@@ -281,11 +285,15 @@ Deno.serve(async (req) => {
             sources.add("analyses");
             const partial = !revenueSnap;
             mark("cluster_roi", partial ? "partial" : "ok",
-              partial ? "Saknar GA4-intäkt per sida — värden är estimat baserade på revenue settings" : undefined,
+              partial ? {
+                message: "Saknar GA4-intäkt per sida — värden är estimat",
+                fix: "Aktivera revenue-tracking i GA4 (purchase event) och uppdatera intäktsantaganden under Inställningar → Intäkter.",
+                fix_url: FIX_URLS.revenue,
+              } : undefined,
               { ...overview, has_ga4_revenue: !!revenueSnap, settings: settingsRes.data });
           }
         } catch (e: any) {
-          mark("cluster_roi", "error", e.message || String(e));
+          mark("cluster_roi", "error", { message: e.message || String(e), fix: "Försök igen eller kontakta support om felet kvarstår." });
         }
         break;
       }
