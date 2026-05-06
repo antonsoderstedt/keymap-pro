@@ -28,13 +28,37 @@ Deno.serve(async (req) => {
       gsc: !!gset?.gsc_site_url,
     };
 
-    const sections: Record<string, { status: "ok" | "missing" | "partial" | "error"; reason?: string; data?: unknown }> = {};
-    const missingFields: string[] = [];
+    type IssueReason = string | { message: string; fix?: string; fix_url?: string; severity?: "warning" | "error" };
+    const sections: Record<string, { status: "ok" | "missing" | "partial" | "error"; reason?: string; fix?: string; fix_url?: string; data?: unknown }> = {};
+    const issues: Array<{ section: string; status: "missing" | "partial" | "error"; message: string; fix?: string; fix_url?: string }> = [];
     const sources = new Set<string>();
 
-    const mark = (key: string, status: "ok" | "missing" | "partial" | "error", reason?: string, data?: unknown) => {
-      sections[key] = { status, ...(reason ? { reason } : {}), ...(data !== undefined ? { data } : {}) };
-      if (status === "missing" || status === "error") missingFields.push(`${key}: ${reason || status}`);
+    const FIX_URLS = {
+      connections: "/settings/connections",
+      revenue: "/settings/revenue",
+      analyses: "/analyses/new",
+      auctionInsights: "/insights/auction-insights",
+      competitors: "/settings/competitors",
+    };
+
+    const mark = (key: string, status: "ok" | "missing" | "partial" | "error", reason?: IssueReason, data?: unknown) => {
+      const r = typeof reason === "string" ? { message: reason } : (reason || {});
+      sections[key] = {
+        status,
+        ...(r.message ? { reason: r.message } : {}),
+        ...(r.fix ? { fix: r.fix } : {}),
+        ...(r.fix_url ? { fix_url: r.fix_url } : {}),
+        ...(data !== undefined ? { data } : {}),
+      };
+      if (status === "missing" || status === "error" || status === "partial") {
+        issues.push({
+          section: key,
+          status,
+          message: r.message || (status === "missing" ? "Data saknas" : status === "error" ? "Fel vid hämtning" : "Ofullständig data"),
+          ...(r.fix ? { fix: r.fix } : {}),
+          ...(r.fix_url ? { fix_url: r.fix_url } : {}),
+        });
+      }
     };
 
     let payload: Record<string, unknown> = {
