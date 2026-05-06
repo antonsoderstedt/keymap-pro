@@ -39,7 +39,26 @@ const SLIDE_H = 7.5;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const body = await req.json();
+    const url = new URL(req.url);
+    const isSelfTest = url.searchParams.get("self_test") === "1" || url.searchParams.get("test") === "1";
+    const body = req.method === "GET" ? {} : await req.json().catch(() => ({}));
+    const dryRun = body.dry_run === true || body.validate_only === true || (isSelfTest && body.dry_run !== false);
+
+    // ---- Self-test mode: build synthetic payload covering all 13 slide types ----
+    if (isSelfTest) {
+      const tpl = buildSelfTestTemplate();
+      const validation = validateTemplate(tpl);
+      const renderResults = dryRun ? null : await tryRenderTemplate(tpl);
+      return j({
+        mode: "self_test",
+        slide_types_covered: Array.from(new Set(tpl.slides.map((s: any) => s.type))),
+        slide_count: tpl.slides.length,
+        validation,
+        render: renderResults,
+        ok: validation.ok && (!renderResults || renderResults.ok),
+      }, validation.ok ? 200 : 422);
+    }
+
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let artifact: any = null;
@@ -57,6 +76,13 @@ Deno.serve(async (req) => {
 
     const tpl = artifact.payload.template;
     const reportType = artifact.payload.report_type || "report";
+
+    // Validate template before rendering (catches missing data keys early)
+    const validation = validateTemplate(tpl);
+    if (!validation.ok) console.warn("render-pptx validation issues", validation);
+    if (dryRun) {
+      return j({ mode: "validate_only", report_type: reportType, validation, ok: validation.ok }, validation.ok ? 200 : 422);
+    }
 
     // Brand kit override
     const colors: Colors = { ...BASE_COLORS };
@@ -458,4 +484,190 @@ function humanReportType(t: string): string {
     paid_vs_organic: "Paid vs Organic", yoy: "YoY / MoM Trend", roi: "ROI & Attribution",
   };
   return labels[t] || t;
+}
+
+// ============================================================
+// Validation & Self-Test
+// ============================================================
+
+const KNOWN_SLIDE_TYPES = new Set([
+  "cover","kpi_summary","chart","chart_split","table","insight",
+  "two_col","next_steps","divider","missing_data",
+]);
+
+type ValidationIssue = { slide: number; type: string; severity: "error" | "warning"; message: string };
+type ValidationResult = { ok: boolean; slide_count: number; issues: ValidationIssue[]; types_seen: string[] };
+
+function validateTemplate(tpl: any): ValidationResult {
+  const issues: ValidationIssue[] = [];
+  const slides: any[] = Array.isArray(tpl?.slides) ? tpl.slides : [];
+  const seen = new Set<string>();
+
+  if (!slides.length) {
+    // Legacy shape — accept if summary or charts exist
+    if (!tpl?.summary && !(tpl?.charts || []).length && !(tpl?.tables || []).length) {
+      issues.push({ slide: -1, type: "root", severity: "error", message: "Template saknar slides[], summary, charts och tables" });
+    }
+    return { ok: issues.length === 0, slide_count: 0, issues, types_seen: [] };
+  }
+
+  slides.forEach((s: any, i: number) => {
+    const idx = i + 1;
+    const t = String(s?.type || "");
+    seen.add(t);
+    if (!KNOWN_SLIDE_TYPES.has(t)) {
+      issues.push({ slide: idx, type: t, severity: "warning", message: `Okänd slide-typ '${t}' (faller tillbaka till insight)` });
+    }
+    switch (t) {
+      case "cover":
+        if (!s.title) issues.push({ slide: idx, type: t, severity: "warning", message: "cover saknar title" });
+        break;
+      case "kpi_summary":
+        if (!Array.isArray(s.kpis) || s.kpis.length === 0) issues.push({ slide: idx, type: t, severity: "warning", message: "kpi_summary saknar kpis[]" });
+        else s.kpis.forEach((k: any, ki: number) => {
+          if (k?.label == null) issues.push({ slide: idx, type: t, severity: "error", message: `kpi[${ki}] saknar label` });
+          if (k?.value === undefined) issues.push({ slide: idx, type: t, severity: "warning", message: `kpi[${ki}] saknar value` });
+        });
+        break;
+      case "chart":
+      case "chart_split":
+        if (!s.chart) { issues.push({ slide: idx, type: t, severity: "error", message: "saknar chart-objekt" }); break; }
+        validateChart(s.chart, idx, t, issues);
+        if (t === "chart_split" && !s.insight_text) issues.push({ slide: idx, type: t, severity: "warning", message: "chart_split saknar insight_text" });
+        break;
+      case "table":
+        if (!s.table) { issues.push({ slide: idx, type: t, severity: "error", message: "saknar table-objekt" }); break; }
+        validateTable(s.table, idx, t, issues);
+        break;
+      case "insight":
+        if (!s.insight_text && !s.headline) issues.push({ slide: idx, type: t, severity: "warning", message: "insight saknar både headline och insight_text" });
+        break;
+      case "two_col":
+        if (!s.left_bullets && !s.bullets && !s.insight_text && !s.table) issues.push({ slide: idx, type: t, severity: "warning", message: "two_col saknar innehåll (bullets/insight_text/table)" });
+        break;
+      case "next_steps":
+        if (!Array.isArray(s.next_steps) || s.next_steps.length === 0) issues.push({ slide: idx, type: t, severity: "warning", message: "next_steps saknar steg" });
+        else s.next_steps.forEach((st: any, si: number) => {
+          if (!st?.action) issues.push({ slide: idx, type: t, severity: "error", message: `next_steps[${si}] saknar action` });
+        });
+        break;
+      case "divider":
+        if (!s.title) issues.push({ slide: idx, type: t, severity: "warning", message: "divider saknar title" });
+        break;
+      case "missing_data":
+        if (!s.missing_source) issues.push({ slide: idx, type: t, severity: "warning", message: "missing_data saknar missing_source" });
+        break;
+    }
+  });
+
+  const hasError = issues.some((x) => x.severity === "error");
+  return { ok: !hasError, slide_count: slides.length, issues, types_seen: Array.from(seen) };
+}
+
+function validateChart(chart: any, idx: number, t: string, issues: ValidationIssue[]) {
+  if (!chart.type) issues.push({ slide: idx, type: t, severity: "error", message: "chart saknar type" });
+  if (!chart.xKey && chart.type !== "pie") issues.push({ slide: idx, type: t, severity: "warning", message: "chart saknar xKey" });
+  if (!Array.isArray(chart.series) || chart.series.length === 0) {
+    issues.push({ slide: idx, type: t, severity: "error", message: "chart saknar series[]" });
+  } else {
+    chart.series.forEach((sr: any, si: number) => {
+      if (!sr?.key) issues.push({ slide: idx, type: t, severity: "error", message: `chart.series[${si}] saknar key` });
+      if (!sr?.label) issues.push({ slide: idx, type: t, severity: "warning", message: `chart.series[${si}] saknar label` });
+    });
+  }
+  if (!Array.isArray(chart.data) || chart.data.length === 0) {
+    issues.push({ slide: idx, type: t, severity: "warning", message: "chart.data tomt — slide visar 'Ingen data tillgänglig'" });
+  } else if (Array.isArray(chart.series)) {
+    // Stickprov: kontrollera att första raden har alla seriernas keys
+    const sample = chart.data[0] || {};
+    const missing = chart.series.filter((sr: any) => sr?.key && !(sr.key in sample)).map((sr: any) => sr.key);
+    if (missing.length) issues.push({ slide: idx, type: t, severity: "warning", message: `chart.data saknar nycklar: ${missing.join(", ")}` });
+    if (chart.xKey && !(chart.xKey in sample)) issues.push({ slide: idx, type: t, severity: "warning", message: `chart.data saknar xKey '${chart.xKey}'` });
+  }
+}
+
+function validateTable(table: any, idx: number, t: string, issues: ValidationIssue[]) {
+  if (!Array.isArray(table.columns) || table.columns.length === 0) {
+    issues.push({ slide: idx, type: t, severity: "error", message: "table saknar columns[]" });
+    return;
+  }
+  table.columns.forEach((c: any, ci: number) => {
+    if (!c?.key) issues.push({ slide: idx, type: t, severity: "error", message: `table.columns[${ci}] saknar key` });
+    if (!c?.label) issues.push({ slide: idx, type: t, severity: "warning", message: `table.columns[${ci}] saknar label` });
+  });
+  if (!Array.isArray(table.rows)) {
+    issues.push({ slide: idx, type: t, severity: "warning", message: "table saknar rows[]" });
+  } else if (table.rows.length > 0) {
+    const sample = table.rows[0] || {};
+    const missing = table.columns.filter((c: any) => c?.key && !(c.key in sample)).map((c: any) => c.key);
+    if (missing.length) issues.push({ slide: idx, type: t, severity: "warning", message: `table.rows saknar nycklar: ${missing.join(", ")}` });
+  }
+}
+
+async function tryRenderTemplate(tpl: any): Promise<{ ok: boolean; bytes?: number; error?: string; per_slide: Array<{ index: number; type: string; ok: boolean; error?: string }> }> {
+  const perSlide: Array<{ index: number; type: string; ok: boolean; error?: string }> = [];
+  const colors: Colors = { ...BASE_COLORS };
+  const pres = new pptxgen();
+  pres.layout = "LAYOUT_WIDE";
+  pres.title = "Self Test";
+  for (let i = 0; i < tpl.slides.length; i++) {
+    const s = tpl.slides[i];
+    try {
+      renderSlide(pres, s, colors, null, "image/png", { name: "Self Test" });
+      perSlide.push({ index: i + 1, type: s.type, ok: true });
+    } catch (e: any) {
+      perSlide.push({ index: i + 1, type: s.type, ok: false, error: e?.message || String(e) });
+    }
+  }
+  try {
+    const buf = await pres.write({ outputType: "uint8array", compression: true }) as Uint8Array;
+    return { ok: perSlide.every((x) => x.ok), bytes: buf.length, per_slide: perSlide };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e), per_slide: perSlide };
+  }
+}
+
+function buildSelfTestTemplate(): { slides: any[] } {
+  const sampleChart = {
+    type: "line", title: "Klick över tid", xKey: "date",
+    data: [{ date: "v1", clicks: 120, impr: 1200 }, { date: "v2", clicks: 180, impr: 1800 }, { date: "v3", clicks: 150, impr: 1500 }],
+    series: [{ key: "clicks", label: "Klick" }, { key: "impr", label: "Visningar" }],
+  };
+  const sampleTable = {
+    title: "Toppsökord", columns: [
+      { key: "kw", label: "Sökord", format: "text" },
+      { key: "clicks", label: "Klick", format: "num" },
+      { key: "ctr", label: "CTR", format: "pct1" },
+    ],
+    rows: [
+      { kw: "exempel sökord", clicks: 320, ctr: 4.2 },
+      { kw: "annat sökord", clicks: 210, ctr: 3.1 },
+    ],
+  };
+  return {
+    slides: [
+      { type: "cover", title: "Self Test Rapport", subtitle: "Validering av alla slide-typer", period: "Okt 2025", data_source: "Syntetiskt" },
+      { type: "divider", title: "Sektion 1", subtitle: "Översikt" },
+      { type: "kpi_summary", title: "KPI-sammanfattning", headline: "Stark månad", kpis: [
+        { label: "Klick", value: "12,3k", sub: "+18% MoM", trend: "up" },
+        { label: "CTR", value: "4,2%", sub: "−0,3pp", trend: "down" },
+        { label: "Pos", value: "12,4", sub: "stabil", trend: "flat" },
+        { label: "ROI", value: "3,8x", sub: "+0,4x", trend: "up" },
+      ], bullets: ["Bullet ett", "Bullet två", "Bullet tre"], data_source: "GSC + GA4" },
+      { type: "chart", title: "Trafik över tid", chart: sampleChart, data_source: "GSC" },
+      { type: "chart_split", title: "Trafik + insikt", chart: sampleChart, insight_text: "Klicken växer snabbare än visningar — CTR förbättras.", data_source: "GSC" },
+      { type: "table", title: "Topp sökord", table: sampleTable, data_source: "GSC" },
+      { type: "insight", title: "Analys", headline: "Vad vi ser", insight_text: "Lorem ipsum analys-text som beskriver insikt och kontext.", kpis: [
+        { label: "Möjlighet", value: "+25%", sub: "klick" },
+        { label: "Risk", value: "−5%", sub: "pos" },
+      ], data_source: "AI" },
+      { type: "two_col", title: "Översikt", subtitle: "Två kolumner", left_bullets: ["Punkt A", "Punkt B", "Punkt C"], table: sampleTable, data_source: "Mix" },
+      { type: "next_steps", title: "Nästa steg", next_steps: [
+        { action: "Optimera title-tags på topp 20 sidor", effort: "låg", estimated_value_sek: 45000, timeline: "2 veckor" },
+        { action: "Bygg internlänkning kring kluster X", effort: "medel", estimated_value_sek: 120000, timeline: "1 mån" },
+        { action: "Lansera ny landningssida", effort: "hög", estimated_value_sek: 280000, timeline: "2 mån" },
+      ], total_value: 445000 },
+      { type: "missing_data", title: "Data saknas", missing_source: "DataForSEO", missing_resolution: "Aktivera kopplingen i Inställningar." },
+    ],
+  };
 }
