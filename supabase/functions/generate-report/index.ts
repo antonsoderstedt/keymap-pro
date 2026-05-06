@@ -130,9 +130,15 @@ Deno.serve(async (req) => {
           .from("auction_insights_snapshots").select("*")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!snap) {
-          mark("auction_insights", "missing",
-            !has.ads ? "Google Ads-koppling saknas — välj kund i Inställningar → Kopplingar"
-                     : "Ingen Auction Insights-data hämtad ännu — gå till Auction Insights och tryck 'Uppdatera nu'");
+          mark("auction_insights", "missing", !has.ads ? {
+            message: "Google Ads-koppling saknas",
+            fix: "Gå till Inställningar → Kopplingar och välj ditt Google Ads-konto.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen Auction Insights-data hämtad ännu",
+            fix: "Öppna Auction Insights-vyn och tryck 'Uppdatera nu' för att hämta senaste data från Google Ads.",
+            fix_url: FIX_URLS.auctionInsights,
+          });
         } else {
           sources.add("google_ads");
           const rows = (snap.rows as any) || {};
