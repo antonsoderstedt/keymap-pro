@@ -61,6 +61,7 @@ export interface SlideSpec {
   total_value?: number;
   missing_source?: string;
   missing_resolution?: string;
+  missing_fix_url?: string;
   data_source?: string;
   period?: string;
 }
@@ -73,7 +74,7 @@ export interface TemplateOutput {
   tables?: any[];
 }
 
-type Section = { status: string; reason?: string; data?: any };
+type Section = { status: string; reason?: string; fix?: string; fix_url?: string; data?: any };
 type Payload = {
   report_type: string;
   sections?: Record<string, Section>;
@@ -144,13 +145,25 @@ function coverSlide(p: Payload): SlideSpec {
   };
 }
 
-function missingSlide(title: string, source: string, resolution: string): SlideSpec {
+function missingSlide(title: string, source: string, resolution: string, fixUrl?: string): SlideSpec {
   return {
     type: "missing_data",
     title,
     missing_source: source,
     missing_resolution: resolution,
+    missing_fix_url: fixUrl,
   };
+}
+
+// Bygg en missing_data-slide från en sektion (läser reason + fix + fix_url)
+function missingFromSection(p: Payload, key: string, title: string, fallbackSource: string, fallbackFix: string): SlideSpec {
+  const sec = p.sections?.[key];
+  return missingSlide(
+    title,
+    fallbackSource,
+    sec?.fix || sec?.reason || fallbackFix,
+    sec?.fix_url,
+  );
 }
 
 function nextStepsSlide(steps: NextStep[], totalValue?: number): SlideSpec {
@@ -212,7 +225,7 @@ function tplExecutive(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Executive Månadsrapport", "GSC + GA4", "Koppla Google Search Console och Google Analytics 4 under Inställningar → Kopplingar"),
+      missingFromSection(p, "executive", "Executive Månadsrapport", "GSC + GA4", "Koppla Google Search Console och Google Analytics 4 under Inställningar → Kopplingar"),
     ]
   };
 
@@ -363,7 +376,7 @@ function tplSeoPerformance(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("SEO Performance", "Google Search Console", "Koppla Search Console under Inställningar → Kopplingar"),
+      missingFromSection(p, "seo_performance", "SEO Performance", "Google Search Console", "Koppla Search Console under Inställningar → Kopplingar"),
     ]
   };
 
@@ -504,7 +517,7 @@ function tplGa4Traffic(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("GA4 Trafikrapport", "Google Analytics 4", "Koppla GA4 under Inställningar → Kopplingar"),
+      missingFromSection(p, "ga4_traffic", "GA4 Trafikrapport", "Google Analytics 4", "Koppla GA4 under Inställningar → Kopplingar"),
     ]
   };
 
@@ -586,7 +599,7 @@ function tplKeywordUniverse(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Sökordsanalys", "Sökordsuniversum", "Kör sökordsanalys-wizarden för att generera ditt sökordsuniversum"),
+      missingFromSection(p, "keyword_universe", "Sökordsanalys", "Sökordsuniversum", "Kör sökordsanalys-wizarden för att generera ditt sökordsuniversum"),
     ]
   };
 
@@ -688,7 +701,7 @@ function tplSegments(p: Payload): TemplateOutput {
   if (!d?.segments?.length) return {
     slides: [
       coverSlide(p),
-      missingSlide("Segmentrapport", "Sökordsanalys med segment", "Kör sökordsanalys-wizarden för att generera kundssegment"),
+      missingFromSection(p, "segments", "Segmentrapport", "Sökordsanalys med segment", "Kör sökordsanalys-wizarden för att generera kundssegment"),
     ]
   };
 
@@ -762,7 +775,7 @@ function tplCompetitor(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Konkurrentrapport", "Backlink-analys + Semrush", "Kör Teknisk SEO-analys med konkurrentlista i Sökord & innehåll → Teknisk SEO"),
+      missingFromSection(p, "competitor", "Konkurrentrapport", "Backlink-analys + Semrush", "Kör Teknisk SEO-analys med konkurrentlista i Sökord & innehåll → Teknisk SEO"),
     ]
   };
 
@@ -875,7 +888,7 @@ function tplContentGap(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Content Gap-rapport", "Sökordsanalys + GSC", "Kör sökordsanalys och koppla GSC för att identifiera content gaps"),
+      missingFromSection(p, "content_gap", "Content Gap-rapport", "Sökordsanalys + GSC", "Kör sökordsanalys och koppla GSC för att identifiera content gaps"),
     ]
   };
 
@@ -941,7 +954,7 @@ function tplCannibalization(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Kannibaliseringsanalys", "Google Search Console", "Koppla GSC under Inställningar → Kopplingar"),
+      missingFromSection(p, "cannibalization", "Kannibaliseringsanalys", "Google Search Console", "Koppla GSC under Inställningar → Kopplingar"),
     ]
   };
 
@@ -1026,7 +1039,7 @@ function tplPaidVsOrganic(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Paid vs Organic", "GSC + Google Ads", "Koppla både Search Console och Google Ads under Inställningar → Kopplingar"),
+      missingFromSection(p, "paid_vs_organic", "Paid vs Organic", "GSC + Google Ads", "Koppla både Search Console och Google Ads under Inställningar → Kopplingar"),
     ]
   };
 
@@ -1091,7 +1104,7 @@ function tplSov(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Share of Voice", "GSC + Konkurrentlista", p.sections?.share_of_voice?.reason || "Anslut Search Console och konfigurera konkurrenter"),
+      missingFromSection(p, "share_of_voice", "Share of Voice", "GSC + Konkurrentlista", "Anslut Search Console och konfigurera konkurrenter"),
     ]
   };
 
@@ -1193,7 +1206,7 @@ function tplAuction(p: Payload): TemplateOutput {
   if (!d) return {
     slides: [
       coverSlide(p),
-      missingSlide("Auction Insights", "Google Ads", p.sections?.auction_insights?.reason || "Anslut Google Ads och vänta på auktionsdata"),
+      missingFromSection(p, "auction_insights", "Auction Insights", "Google Ads", "Anslut Google Ads och vänta på auktionsdata"),
     ]
   };
 
@@ -1308,7 +1321,7 @@ function tplYoy(p: Payload): TemplateOutput {
   if (!t) return {
     slides: [
       coverSlide(p),
-      missingSlide("YoY/MoM Trend", "GA4 + Ads + GSC", p.sections?.yoy_compute?.reason || "Anslut datakällor och se till att historik finns"),
+      missingFromSection(p, "yoy_compute", "YoY/MoM Trend", "GA4 + Ads + GSC", "Anslut datakällor och se till att historik finns"),
     ]
   };
 
@@ -1414,7 +1427,7 @@ function tplRoi(p: Payload): TemplateOutput {
   if (!attr && !cr) return {
     slides: [
       coverSlide(p),
-      missingSlide("ROI & Attribution", "GA4 + Google Ads + Sökordsanalys", "Anslut datakällor och kör sökordsanalys"),
+      missingFromSection(p, "attribution", "ROI & Attribution", "GA4 + Google Ads + Sökordsanalys", "Anslut datakällor och kör sökordsanalys"),
     ]
   };
 

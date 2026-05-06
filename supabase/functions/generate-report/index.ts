@@ -28,13 +28,37 @@ Deno.serve(async (req) => {
       gsc: !!gset?.gsc_site_url,
     };
 
-    const sections: Record<string, { status: "ok" | "missing" | "partial" | "error"; reason?: string; data?: unknown }> = {};
-    const missingFields: string[] = [];
+    type IssueReason = string | { message: string; fix?: string; fix_url?: string; severity?: "warning" | "error" };
+    const sections: Record<string, { status: "ok" | "missing" | "partial" | "error"; reason?: string; fix?: string; fix_url?: string; data?: unknown }> = {};
+    const issues: Array<{ section: string; status: "missing" | "partial" | "error"; message: string; fix?: string; fix_url?: string }> = [];
     const sources = new Set<string>();
 
-    const mark = (key: string, status: "ok" | "missing" | "partial" | "error", reason?: string, data?: unknown) => {
-      sections[key] = { status, ...(reason ? { reason } : {}), ...(data !== undefined ? { data } : {}) };
-      if (status === "missing" || status === "error") missingFields.push(`${key}: ${reason || status}`);
+    const FIX_URLS = {
+      connections: "/settings/connections",
+      revenue: "/settings/revenue",
+      analyses: "/analyses/new",
+      auctionInsights: "/insights/auction-insights",
+      competitors: "/settings/competitors",
+    };
+
+    const mark = (key: string, status: "ok" | "missing" | "partial" | "error", reason?: IssueReason, data?: unknown) => {
+      const r = typeof reason === "string" ? { message: reason } : (reason || {});
+      sections[key] = {
+        status,
+        ...(r.message ? { reason: r.message } : {}),
+        ...(r.fix ? { fix: r.fix } : {}),
+        ...(r.fix_url ? { fix_url: r.fix_url } : {}),
+        ...(data !== undefined ? { data } : {}),
+      };
+      if (status === "missing" || status === "error" || status === "partial") {
+        issues.push({
+          section: key,
+          status,
+          message: r.message || (status === "missing" ? "Data saknas" : status === "error" ? "Fel vid hämtning" : "Ofullständig data"),
+          ...(r.fix ? { fix: r.fix } : {}),
+          ...(r.fix_url ? { fix_url: r.fix_url } : {}),
+        });
+      }
     };
 
     let payload: Record<string, unknown> = {
@@ -70,13 +94,24 @@ Deno.serve(async (req) => {
         }
 
         if (!snap) {
-          mark("share_of_voice", "missing",
-            !has.gsc ? "GSC-koppling saknas — anslut Search Console i Inställningar" : "Ingen SoV-snapshot kunde beräknas (saknar konkurrentlista eller Semrush-data)");
+          mark("share_of_voice", "missing", !has.gsc ? {
+            message: "Search Console-koppling saknas",
+            fix: "Anslut Google Search Console under Inställningar → Kopplingar och välj rätt sajt.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen Share of Voice-snapshot kunde beräknas",
+            fix: "Lägg till minst 3 konkurrenter under Inställningar → Konkurrenter, och se till att Semrush eller DataForSEO är aktiverat.",
+            fix_url: FIX_URLS.competitors,
+          });
         } else {
           (snap.sources as string[] || []).forEach((s) => sources.add(s));
           const partial = !(snap.sources || []).includes("semrush");
           mark("share_of_voice", partial ? "partial" : "ok",
-            partial ? "Saknar Semrush — marknadsstorlek är uppskattad från GSC + Auction Insights" : undefined,
+            partial ? {
+              message: "Saknar Semrush-data — marknadsstorlek är uppskattad från GSC + Auction Insights",
+              fix: "Aktivera Semrush-koppling i Inställningar för exakt SoV.",
+              fix_url: FIX_URLS.connections,
+            } : undefined,
             {
               your_domain: snap.your_domain,
               your_impressions: snap.your_impressions,
@@ -95,9 +130,15 @@ Deno.serve(async (req) => {
           .from("auction_insights_snapshots").select("*")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!snap) {
-          mark("auction_insights", "missing",
-            !has.ads ? "Google Ads-koppling saknas — välj kund i Inställningar → Kopplingar"
-                     : "Ingen Auction Insights-data hämtad ännu — gå till Auction Insights och tryck 'Uppdatera nu'");
+          mark("auction_insights", "missing", !has.ads ? {
+            message: "Google Ads-koppling saknas",
+            fix: "Gå till Inställningar → Kopplingar och välj ditt Google Ads-konto.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen Auction Insights-data hämtad ännu",
+            fix: "Öppna Auction Insights-vyn och tryck 'Uppdatera nu' för att hämta senaste data från Google Ads.",
+            fix_url: FIX_URLS.auctionInsights,
+          });
         } else {
           sources.add("google_ads");
           const rows = (snap.rows as any) || {};
@@ -132,12 +173,21 @@ Deno.serve(async (req) => {
             .filter(Boolean).forEach((s) => sources.add(s as string));
 
           const sub = (k: "ga4" | "ads" | "gsc", connected: boolean) => {
+            const labels = { ga4: "Google Analytics 4", ads: "Google Ads", gsc: "Search Console" } as const;
             if (!connected) {
-              mark(`yoy_${k}`, "missing", `${k.toUpperCase()}-koppling saknas`);
+              mark(`yoy_${k}`, "missing", {
+                message: `${labels[k]}-koppling saknas`,
+                fix: `Anslut ${labels[k]} under Inställningar → Kopplingar för att se trend för denna kanal.`,
+                fix_url: FIX_URLS.connections,
+              });
               return;
             }
             if (!periodHas(k)) {
-              mark(`yoy_${k}`, "error", `Hämtning från ${k.toUpperCase()} misslyckades — kolla scopes/behörighet`);
+              mark(`yoy_${k}`, "error", {
+                message: `Hämtning från ${labels[k]} misslyckades`,
+                fix: "Kontrollera att Google-kontot har behörighet (scope) och att property-ID är korrekt. Återanslut vid behov.",
+                fix_url: FIX_URLS.connections,
+              });
               return;
             }
             mark(`yoy_${k}`, "ok", undefined, {
@@ -152,7 +202,10 @@ Deno.serve(async (req) => {
           sub("gsc", has.gsc);
           (payload as any).trend = trend;
         } catch (e: any) {
-          mark("yoy_compute", "error", e.message || String(e));
+          mark("yoy_compute", "error", {
+            message: `Trend-beräkning misslyckades: ${e.message || String(e)}`,
+            fix: "Kör en ny snapshot från Inställningar → Snapshots eller försök igen om en stund.",
+          });
         }
         break;
       }
@@ -175,16 +228,26 @@ Deno.serve(async (req) => {
         } catch (e) { console.warn("attribution", e); }
 
         if (!attrSnap) {
-          mark("attribution", "missing",
-            (!has.ga4 && !has.ads) ? "Behöver minst en av GA4 eller Google Ads-koppling"
-              : "Kunde inte hämta kanal-attribution — kolla Google-token-scope");
+          mark("attribution", "missing", (!has.ga4 && !has.ads) ? {
+            message: "Saknar både GA4 och Google Ads",
+            fix: "Anslut minst en av Google Analytics 4 eller Google Ads under Inställningar → Kopplingar.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Kunde inte hämta kanal-attribution",
+            fix: "Kontrollera Google-token-scope och återanslut kontot. Token kan ha gått ut.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           (attrSnap.sources as string[] || []).forEach((s) => sources.add(s));
           const hasGa4 = (attrSnap.sources || []).includes("ga4");
           const hasAds = (attrSnap.sources || []).includes("google_ads");
           const partial = !hasGa4 || !hasAds;
           mark("attribution", partial ? "partial" : "ok",
-            partial ? `Endast ${hasGa4 ? "GA4" : "Google Ads"}-data — ${hasGa4 ? "Ads" : "GA4"} saknas så ROAS är ofullständig` : undefined,
+            partial ? {
+              message: `Endast ${hasGa4 ? "GA4" : "Google Ads"}-data — ${hasGa4 ? "Google Ads" : "GA4"} saknas så ROAS är ofullständig`,
+              fix: `Anslut även ${hasGa4 ? "Google Ads" : "GA4"} under Inställningar → Kopplingar.`,
+              fix_url: FIX_URLS.connections,
+            } : undefined,
             {
               period: { start: attrSnap.start_date, end: attrSnap.end_date },
               currency: attrSnap.currency,
@@ -208,7 +271,11 @@ Deno.serve(async (req) => {
           ]);
           const clusters = (analysisRes.data?.keyword_universe_json as any)?.clusters || [];
           if (!clusters.length) {
-            mark("cluster_roi", "missing", "Ingen sökordsanalys hittad — kör analys-wizarden för att låsa upp kluster-värdering");
+            mark("cluster_roi", "missing", {
+              message: "Ingen sökordsanalys hittad",
+              fix: "Kör analys-wizarden (Analys → Ny analys) för att bygga sökordsuniversum med kluster.",
+              fix_url: FIX_URLS.analyses,
+            });
           } else {
             const ga4Snapshots = ga4Res.data || [];
             const revenueSnap = ga4Snapshots.find((s: any) => s.totals?.kind === "revenue_by_page");
@@ -218,11 +285,15 @@ Deno.serve(async (req) => {
             sources.add("analyses");
             const partial = !revenueSnap;
             mark("cluster_roi", partial ? "partial" : "ok",
-              partial ? "Saknar GA4-intäkt per sida — värden är estimat baserade på revenue settings" : undefined,
+              partial ? {
+                message: "Saknar GA4-intäkt per sida — värden är estimat",
+                fix: "Aktivera revenue-tracking i GA4 (purchase event) och uppdatera intäktsantaganden under Inställningar → Intäkter.",
+                fix_url: FIX_URLS.revenue,
+              } : undefined,
               { ...overview, has_ga4_revenue: !!revenueSnap, settings: settingsRes.data });
           }
         } catch (e: any) {
-          mark("cluster_roi", "error", e.message || String(e));
+          mark("cluster_roi", "error", { message: e.message || String(e), fix: "Försök igen eller kontakta support om felet kvarstår." });
         }
         break;
       }
@@ -259,7 +330,15 @@ Deno.serve(async (req) => {
           period_label: gscCur.data ? `${gscCur.data.start_date} → ${gscCur.data.end_date}` : "",
         };
         const status = (gscCur.data || ga4Cur.data) ? (gscCur.data && ga4Cur.data ? "ok" : "partial") : "missing";
-        mark("executive", status, status === "missing" ? "Behöver minst GSC eller GA4-snapshot" : undefined, data);
+        mark("executive", status, status === "missing" ? {
+          message: "Saknar både GSC- och GA4-snapshot",
+          fix: "Anslut Google Search Console och Google Analytics 4 under Inställningar → Kopplingar och kör en första snapshot.",
+          fix_url: FIX_URLS.connections,
+        } : status === "partial" ? {
+          message: gscCur.data ? "GA4-data saknas" : "GSC-data saknas",
+          fix: `Anslut ${gscCur.data ? "Google Analytics 4" : "Google Search Console"} för komplett executive-rapport.`,
+          fix_url: FIX_URLS.connections,
+        } : undefined, data);
         break;
       }
 
@@ -273,7 +352,15 @@ Deno.serve(async (req) => {
             .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         ]);
         if (!snap.data) {
-          mark("seo_performance", "missing", !has.gsc ? "GSC-koppling saknas" : "Ingen GSC-snapshot ännu");
+          mark("seo_performance", "missing", !has.gsc ? {
+            message: "Search Console-koppling saknas",
+            fix: "Anslut Google Search Console under Inställningar → Kopplingar och välj rätt sajt.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen GSC-snapshot finns ännu",
+            fix: "Gå till Inställningar → Snapshots och kör en första hämtning från Search Console.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           sources.add("gsc");
           const rows = (snap.data.rows as any[]) || [];
@@ -300,7 +387,15 @@ Deno.serve(async (req) => {
         const { data: snap } = await supabase.from("ga4_snapshots").select("*")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!snap) {
-          mark("ga4_traffic", "missing", !has.ga4 ? "GA4-koppling saknas" : "Ingen GA4-snapshot ännu");
+          mark("ga4_traffic", "missing", !has.ga4 ? {
+            message: "Google Analytics 4-koppling saknas",
+            fix: "Anslut GA4 under Inställningar → Kopplingar och välj rätt property.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen GA4-snapshot finns ännu",
+            fix: "Kör en första GA4-snapshot från Inställningar → Snapshots.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           sources.add("ga4");
           const rows = (snap.rows as any[]) || [];
@@ -319,7 +414,11 @@ Deno.serve(async (req) => {
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         const u = (analysis?.keyword_universe_json as any) || null;
         if (!u) {
-          mark("keyword_universe", "missing", "Ingen sökordsanalys hittad — kör analys-wizarden");
+          mark("keyword_universe", "missing", {
+            message: "Ingen sökordsanalys hittad",
+            fix: "Kör analys-wizarden (Analys → Ny analys) för att bygga sökordsuniversum med kluster.",
+            fix_url: FIX_URLS.analyses,
+          });
         } else {
           sources.add("analyses");
           const clusters = (u.clusters || []) as any[];
@@ -344,7 +443,11 @@ Deno.serve(async (req) => {
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         const segs = ((analysis?.result_json as any)?.segments || []) as any[];
         if (!segs.length) {
-          mark("segments", "missing", "Ingen segmentanalys hittad");
+          mark("segments", "missing", {
+            message: "Ingen segmentanalys hittad",
+            fix: "Kör en analys i Analys-wizarden — segment genereras automatiskt baserat på trafik och sökord.",
+            fix_url: FIX_URLS.analyses,
+          });
         } else {
           sources.add("analyses");
           mark("segments", "ok", undefined, { segments: segs.sort((a, b) => (b.opportunityScore || b.score || 0) - (a.opportunityScore || a.score || 0)) });
@@ -356,7 +459,11 @@ Deno.serve(async (req) => {
         const { data: analysis } = await supabase.from("analyses").select("id,keyword_universe_json,result_json")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!analysis) {
-          mark("competitor", "missing", "Ingen analys hittad");
+          mark("competitor", "missing", {
+            message: "Ingen analys hittad",
+            fix: "Kör en SEO-analys (Analys → Ny analys) med minst 2 konkurrenter angivna.",
+            fix_url: FIX_URLS.analyses,
+          });
           break;
         }
         const { data: gaps } = await supabase.from("backlink_gaps").select("payload").eq("analysis_id", analysis.id).maybeSingle();
@@ -364,7 +471,11 @@ Deno.serve(async (req) => {
         const universe = (analysis.keyword_universe_json as any) || {};
         const gapKws = (universe.gap_keywords || universe.competitor_gaps || []) as any[];
         if (!gapPayload.gap_domains?.length && !gapKws.length) {
-          mark("competitor", "missing", "Ingen konkurrentdata — kör Teknisk SEO-analys med konkurrenter");
+          mark("competitor", "missing", {
+            message: "Ingen konkurrentdata hittad",
+            fix: "Lägg till konkurrenter under Inställningar → Konkurrenter och kör Teknisk SEO-analys på nytt.",
+            fix_url: FIX_URLS.competitors,
+          });
         } else {
           sources.add("semrush");
           mark("competitor", "ok", undefined, {
@@ -382,7 +493,11 @@ Deno.serve(async (req) => {
         const u = (analysis?.keyword_universe_json as any) || {};
         const gaps = (u.content_gaps || u.gap_keywords || []) as any[];
         if (!gaps.length) {
-          mark("content_gap", "missing", "Inga content gaps identifierade");
+          mark("content_gap", "missing", {
+            message: "Inga content gaps identifierade",
+            fix: "Kör en sökordsanalys med konkurrenter aktiverade så identifieras gaps automatiskt.",
+            fix_url: FIX_URLS.analyses,
+          });
         } else {
           sources.add("analyses");
           mark("content_gap", "ok", undefined, { gaps });
@@ -394,7 +509,15 @@ Deno.serve(async (req) => {
         const { data: snap } = await supabase.from("gsc_snapshots").select("rows")
           .eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (!snap) {
-          mark("cannibalization", "missing", !has.gsc ? "GSC-koppling saknas" : "Ingen GSC-snapshot ännu");
+          mark("cannibalization", "missing", !has.gsc ? {
+            message: "Search Console-koppling saknas",
+            fix: "Kannibalisering kräver GSC-data. Anslut Search Console under Inställningar → Kopplingar.",
+            fix_url: FIX_URLS.connections,
+          } : {
+            message: "Ingen GSC-snapshot finns ännu",
+            fix: "Kör en första GSC-snapshot från Inställningar → Snapshots.",
+            fix_url: FIX_URLS.connections,
+          });
           break;
         }
         sources.add("gsc");
@@ -420,7 +543,11 @@ Deno.serve(async (req) => {
           supabase.from("ads_audits").select("summary").eq("project_id", project_id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         ]);
         if (!gsc.data && !ads.data) {
-          mark("paid_vs_organic", "missing", "Behöver både GSC och Google Ads-data");
+          mark("paid_vs_organic", "missing", {
+            message: "Saknar både GSC och Google Ads-data",
+            fix: "Anslut Search Console OCH Google Ads under Inställningar → Kopplingar för att jämföra paid vs organic.",
+            fix_url: FIX_URLS.connections,
+          });
         } else {
           if (gsc.data) sources.add("gsc");
           if (ads.data) sources.add("google_ads");
@@ -440,7 +567,9 @@ Deno.serve(async (req) => {
 
     payload.sources = Array.from(sources);
     payload.sections = sections;
-    payload.missing_fields = missingFields;
+    payload.issues = issues;
+    // Bakåtkompatibel: enkel sträng-lista för äldre UI
+    payload.missing_fields = issues.map((x) => `${x.section}: ${x.message}${x.fix ? ` — ${x.fix}` : ""}`);
     const statuses = Object.values(sections).map((s) => s.status);
     payload.overall_status = statuses.includes("ok") || statuses.includes("partial")
       ? (statuses.every((s) => s === "ok") ? "complete" : "partial")

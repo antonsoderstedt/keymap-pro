@@ -429,10 +429,21 @@ function renderMissingDataSlide(pres: any, s: any, colors: Colors) {
   const slide = pres.addSlide();
   slide.background = { color: colors.bg };
   addSlideHeader(pres, slide, s.title || "Data saknas", colors);
-  slide.addShape(pres.ShapeType.roundRect, { x: 2, y: 2.3, w: 9.3, h: 3.5, fill: { color: colors.panel }, line: { color: colors.border, width: 1 }, rectRadius: 0.1 });
-  slide.addText("DATA SAKNAS", { x: 2.3, y: 2.6, w: 8.7, h: 0.4, fontFace: FONT_MONO, fontSize: 11, color: colors.accent5, bold: true, charSpacing: 3, align: "center" });
-  slide.addText(`Källa: ${s.missing_source || "—"}`, { x: 2.3, y: 3.2, w: 8.7, h: 0.5, fontFace: FONT_HEAD, fontSize: 22, color: colors.text, bold: true, align: "center" });
-  slide.addText(s.missing_resolution || "Kontrollera kopplingar i Inställningar", { x: 2.3, y: 3.9, w: 8.7, h: 1.5, fontFace: FONT_BODY, fontSize: 14, color: colors.textMuted, align: "center", valign: "top" });
+  slide.addShape(pres.ShapeType.roundRect, { x: 1.5, y: 2.0, w: 10.3, h: 4.3, fill: { color: colors.panel }, line: { color: colors.border, width: 1 }, rectRadius: 0.1 });
+  slide.addText("⚠  DATA SAKNAS", { x: 1.8, y: 2.25, w: 9.7, h: 0.4, fontFace: FONT_MONO, fontSize: 11, color: colors.accent5, bold: true, charSpacing: 3, align: "center" });
+  slide.addText(`Källa: ${s.missing_source || "—"}`, { x: 1.8, y: 2.8, w: 9.7, h: 0.5, fontFace: FONT_HEAD, fontSize: 22, color: colors.text, bold: true, align: "center" });
+
+  // "Så åtgärdar du" — etikett + förklaring
+  slide.addText("SÅ ÅTGÄRDAR DU", { x: 1.8, y: 3.7, w: 9.7, h: 0.3, fontFace: FONT_MONO, fontSize: 9, color: colors.primary, bold: true, charSpacing: 3, align: "center" });
+  slide.addText(s.missing_resolution || "Kontrollera kopplingar i Inställningar", {
+    x: 1.8, y: 4.05, w: 9.7, h: 1.4, fontFace: FONT_BODY, fontSize: 14, color: colors.text, align: "center", valign: "top",
+  });
+
+  if (s.missing_fix_url) {
+    slide.addText(`→  Öppna: ${s.missing_fix_url}`, {
+      x: 1.8, y: 5.6, w: 9.7, h: 0.4, fontFace: FONT_MONO, fontSize: 11, color: colors.primary, bold: true, align: "center", charSpacing: 1,
+    });
+  }
 }
 
 // ---------- Legacy renderers (bakåtkompatibilitet) ----------
@@ -667,7 +678,7 @@ function buildSelfTestTemplate(): { slides: any[] } {
         { action: "Bygg internlänkning kring kluster X", effort: "medel", estimated_value_sek: 120000, timeline: "1 mån" },
         { action: "Lansera ny landningssida", effort: "hög", estimated_value_sek: 280000, timeline: "2 mån" },
       ], total_value: 445000 },
-      { type: "missing_data", title: "Data saknas", missing_source: "DataForSEO", missing_resolution: "Aktivera kopplingen i Inställningar." },
+      { type: "missing_data", title: "Data saknas", missing_source: "DataForSEO", missing_resolution: "Aktivera kopplingen i Inställningar.", missing_fix_url: "/settings/connections" },
     ],
   };
 }
