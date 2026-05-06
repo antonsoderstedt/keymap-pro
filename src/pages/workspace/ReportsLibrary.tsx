@@ -243,7 +243,9 @@ export default function ReportsLibrary() {
                 const p = h.payload as any;
                 const summary = summarizePayload(p);
                 const overall = p?.overall_status as string | undefined;
+                const issues = ((p?.issues as any[]) || []) as Array<{ section: string; status: string; message: string; fix?: string; fix_url?: string }>;
                 const missing = (p?.missing_fields as string[] | undefined) || [];
+                const blockers = issues.filter((x) => x.status === "missing" || x.status === "error");
                 return (
                   <div key={h.id} className="flex items-start justify-between gap-3 p-3 rounded-md border border-border">
                     <div className="min-w-0 flex-1">
@@ -254,11 +256,23 @@ export default function ReportsLibrary() {
                         {overall === "complete" && <Badge variant="default" className="text-[9px]">komplett</Badge>}
                       </div>
                       <div className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("sv-SE")}{summary && ` · ${summary}`}</div>
-                      {missing.length > 0 && (
+                      {blockers.length > 0 ? (
+                        <div className="mt-1.5 space-y-0.5">
+                          {blockers.slice(0, 2).map((iss, i) => (
+                            <div key={i} className="text-[10px] text-muted-foreground leading-snug">
+                              <span className="text-destructive">●</span> <span className="font-medium">{iss.message}</span>
+                              {iss.fix && <span className="block pl-3 text-muted-foreground/80">→ {iss.fix}{iss.fix_url && (
+                                <button type="button" onClick={(e) => { e.stopPropagation(); navigate(iss.fix_url!); }} className="ml-1 text-primary underline-offset-2 hover:underline">Öppna</button>
+                              )}</span>}
+                            </div>
+                          ))}
+                          {blockers.length > 2 && <div className="text-[10px] text-muted-foreground/70">+{blockers.length - 2} fler</div>}
+                        </div>
+                      ) : missing.length > 0 ? (
                         <div className="text-[10px] text-muted-foreground mt-1">
                           Saknas: {missing.slice(0, 2).join(" · ")}{missing.length > 2 && ` (+${missing.length - 2})`}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {p?.template && (
