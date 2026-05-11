@@ -1,6 +1,7 @@
 // GA4: list properties + run a basic report. Applies project ga4_filters when projectId given.
 import { getGoogleAccessToken } from "../_shared/google-token.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { classifyGoogleError, markSourceStatus } from "../_shared/source-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
