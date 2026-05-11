@@ -93,11 +93,14 @@ export default function DiagnosisPanel({ projectId }: Props) {
       setReport(data as DiagnosisReport);
       toast({ title: "Diagnos klar", description: `${data.meta?.rules_fired ?? 0} regler triggade.` });
     } catch (e: any) {
-      toast({
-        title: "Kunde inte köra diagnos",
-        description: e.message ?? "Okänt fel",
-        variant: "destructive",
-      });
+      const msg = e?.context?.error || e?.message || "Okänt fel";
+      if (!handleGoogleReauthError(msg) && !handleGoogleReauthError(e)) {
+        toast({
+          title: "Kunde inte köra diagnos",
+          description: msg,
+          variant: "destructive",
+        });
+      }
     } finally {
       setRunning(false);
     }
