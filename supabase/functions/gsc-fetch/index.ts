@@ -19,6 +19,8 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      const reauth = detectScopeError(res.status, data);
+      if (reauth) return json(reauth, 200);
       return json(data, res.status);
     }
 
@@ -37,6 +39,8 @@ Deno.serve(async (req) => {
         },
       );
       const data = await res.json();
+      const reauth = detectScopeError(res.status, data);
+      if (reauth) return json(reauth, 200);
       return json(data, res.status);
     }
 
