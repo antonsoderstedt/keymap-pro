@@ -4,7 +4,7 @@ export const GOOGLE_REAUTH_EVENT = "google-reauth-required";
 
 export function isGoogleReauthError(err: unknown): boolean {
   const msg = extractMessage(err);
-  return /GOOGLE_REAUTH_REQUIRED|invalid_grant|Token has been expired or revoked|Google not connected/i.test(msg);
+  return /GOOGLE_REAUTH_REQUIRED|MISSING_ADS_SCOPE|GOOGLE_NOT_CONNECTED|OAUTH_INVALID|invalid_grant|Token has been expired or revoked|Google not connected|ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficient authentication scopes|insufficientPermissions|PERMISSION_DENIED/i.test(msg);
 }
 
 export function extractMessage(err: unknown): string {
