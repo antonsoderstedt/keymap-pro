@@ -46,7 +46,10 @@ Deno.serve(async (req) => {
       });
       const text = await res.text();
       try {
-        return json(JSON.parse(text), res.status);
+        const parsed = JSON.parse(text);
+        const reauth = detectScopeError(res.status, parsed);
+        if (reauth) return json(reauth, 200);
+        return json(parsed, res.status);
       } catch {
         console.error("ga4-fetch properties: non-JSON", res.status, text.slice(0, 500));
         return json({ error: "GA4 API non-JSON", status: res.status, details: text.slice(0, 500) }, 502);
