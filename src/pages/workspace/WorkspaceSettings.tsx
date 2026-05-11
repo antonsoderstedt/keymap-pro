@@ -255,6 +255,15 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         body: JSON.stringify({}),
       });
       const data = await response.json();
+      if (data?.reauthRequired) {
+        notifyGoogleReauthRequired({
+          message:
+            data.code === "MISSING_ADS_SCOPE"
+              ? "Google Ads-behörighet saknas. Koppla om Google för att ge åtkomst till Ads."
+              : "Google är inte ansluten. Koppla Google igen för att hämta Ads-konton.",
+        });
+        return;
+      }
       if (!response.ok) {
         const err: any = new Error(data?.error || "Kunde inte hämta Ads-konton");
         err.code = data?.code;
