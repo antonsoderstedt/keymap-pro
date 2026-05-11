@@ -254,3 +254,21 @@ function json(b: unknown, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+function detectScopeError(status: number, data: any): { error: string; code: string; reauthRequired: true } | null {
+  if (status !== 403) return null;
+  const reason = data?.error?.details?.[0]?.reason || data?.error?.errors?.[0]?.reason || "";
+  const msg = data?.error?.message || "";
+  if (
+    reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" ||
+    reason === "insufficientPermissions" ||
+    /insufficient authentication scopes/i.test(msg)
+  ) {
+    return {
+      error: "MISSING_GA4_SCOPE: GA4-scope saknas i sparad token. Anslut Google igen.",
+      code: "MISSING_GA4_SCOPE",
+      reauthRequired: true,
+    };
+  }
+  return null;
+}
