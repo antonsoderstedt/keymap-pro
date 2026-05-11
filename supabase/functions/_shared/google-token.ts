@@ -45,7 +45,14 @@ export async function getGoogleAccessToken(authHeader: string | null): Promise<{
     }),
   });
   const tok = await res.json();
-  if (!res.ok) throw new Error(`Refresh failed: ${JSON.stringify(tok)}`);
+  if (!res.ok) {
+    // If refresh token is revoked/expired, remove stale row so user can reconnect cleanly
+    if (tok?.error === "invalid_grant") {
+      await admin.from("google_tokens").delete().eq("user_id", userId);
+      throw new Error("GOOGLE_REAUTH_REQUIRED: Din Google-anslutning har gått ut eller återkallats. Gå till Översikt och anslut Google igen.");
+    }
+    throw new Error(`Refresh failed: ${JSON.stringify(tok)}`);
+  }
 
   const newAccess = tok.access_token as string;
   const expiresAt = new Date(Date.now() + (tok.expires_in ?? 3600) * 1000).toISOString();
