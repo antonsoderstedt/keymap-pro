@@ -259,7 +259,9 @@ Deno.serve(async (req) => {
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     console.error("ga4-fetch error", e);
-    return json({ error: String(e instanceof Error ? e.message : e) }, 500);
+    const msg = String(e instanceof Error ? e.message : e);
+    if (projectIdForStatus) await markSourceStatus({ projectId: projectIdForStatus, source: "ga4", status: classifyGoogleError(msg), lastError: msg, bumpSynced: false });
+    return json({ error: msg }, 500);
   }
 });
 
