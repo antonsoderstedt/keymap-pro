@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { handleGoogleReauthError } from "@/lib/googleReauth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -26,7 +27,9 @@ export async function invokeGoogleOauth<T = unknown>(path: GoogleOauthPath): Pro
   const payload = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(payload?.error || `Google OAuth misslyckades (${response.status})`);
+    const err = new Error(payload?.error || `Google OAuth misslyckades (${response.status})`);
+    handleGoogleReauthError(err);
+    throw err;
   }
 
   return payload as T;

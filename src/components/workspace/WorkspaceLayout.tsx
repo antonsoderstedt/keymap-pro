@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
 
 export function WorkspaceLayout() {
   const { workspace, loading } = useWorkspace();
@@ -54,6 +55,7 @@ export function WorkspaceLayout() {
             </Button>
           </div>
         </header>
+        <GoogleReauthBanner />
         <main className="flex-1 overflow-x-hidden">
           <ErrorBoundary>
             <Outlet />
