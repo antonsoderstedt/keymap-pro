@@ -404,7 +404,16 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("ads-diagnose error", e);
-    return jsonError((e as Error).message ?? "internal error", 500);
+    const msg = (e as Error).message ?? "internal error";
+    const reauthCodes = ["GOOGLE_NOT_CONNECTED", "GOOGLE_REAUTH_REQUIRED", "OAUTH_INVALID", "MISSING_ADS_SCOPE"];
+    const matched = reauthCodes.find((c) => msg.includes(c)) ?? (msg === "Google not connected" ? "GOOGLE_NOT_CONNECTED" : null);
+    if (matched) {
+      return new Response(
+        JSON.stringify({ error: msg, code: matched, reauthRequired: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    return jsonError(msg, 500);
   }
 });
 
