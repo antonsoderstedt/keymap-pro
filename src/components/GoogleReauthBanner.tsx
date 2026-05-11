@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { AlertTriangle, X, ExternalLink } from "lucide-react";
+import { AlertTriangle, X, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   GOOGLE_REAUTH_EVENT,
   isGoogleReauthError,
   extractMessage,
 } from "@/lib/googleReauth";
+import { reconnectGoogle } from "@/lib/googleOAuth";
 
 const DISMISS_KEY = "google-reauth-banner-dismissed-at";
 const DISMISS_TTL_MS = 1000 * 60 * 30; // 30 min
 
 export function GoogleReauthBanner() {
-  const params = useParams();
-  const workspaceId = (params as any).workspaceId || (params as any).id;
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState<string>("");
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     const show = (msg?: string) => {
@@ -47,7 +47,19 @@ export function GoogleReauthBanner() {
 
   if (!visible) return null;
 
-  const overviewHref = workspaceId ? `/clients/${workspaceId}` : "/clients";
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    try {
+      toast.info("Rensar gammal Google-token och startar OAuth …");
+      await reconnectGoogle();
+      // reconnectGoogle redirects to Google; nothing to do on success.
+    } catch (e) {
+      setReconnecting(false);
+      toast.error("Kunde inte starta Google-anslutning", {
+        description: extractMessage(e),
+      });
+    }
+  };
 
   return (
     <div className="border-b border-destructive/40 bg-destructive/10 text-destructive-foreground">
@@ -59,11 +71,14 @@ export function GoogleReauthBanner() {
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">{message}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button asChild size="sm" variant="default">
-              <Link to={overviewHref}>
-                Koppla om Google
-                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleReconnect}
+              disabled={reconnecting}
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${reconnecting ? "animate-spin" : ""}`} />
+              {reconnecting ? "Startar …" : "Anslut Google igen"}
             </Button>
             <Button
               size="sm"
