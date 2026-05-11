@@ -17,7 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { handleGoogleReauthError } from "@/lib/googleReauth";
+import { handleGoogleReauthError, notifyGoogleReauthRequired } from "@/lib/googleReauth";
 
 interface Diagnosis {
   id: string;
@@ -103,6 +103,15 @@ export default function DiagnosisPanel({ projectId }: Props) {
         const combined = bodyMsg || (error as any).message || "";
         if (handleGoogleReauthError(combined)) return;
         throw new Error(combined || "Okänt fel");
+      }
+      if ((data as any)?.reauthRequired) {
+        notifyGoogleReauthRequired({
+          message:
+            (data as any).code === "MISSING_ADS_SCOPE"
+              ? "Google Ads-scope saknas. Anslut Google igen för att ge åtkomst."
+              : "Din Google-anslutning behöver förnyas. Anslut Google igen.",
+        });
+        return;
       }
       setReport(data as DiagnosisReport);
       toast({ title: "Diagnos klar", description: `${data.meta?.rules_fired ?? 0} regler triggade.` });
