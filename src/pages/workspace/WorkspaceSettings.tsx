@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw, Palette } from "lucide-react";
 import { toast } from "sonner";
+import { handleGoogleReauthError } from "@/lib/googleReauth";
 import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
 import Ga4Filters from "@/components/workspace/Ga4Filters";
