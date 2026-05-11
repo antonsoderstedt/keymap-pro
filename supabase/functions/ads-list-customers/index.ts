@@ -38,6 +38,16 @@ Deno.serve(async (req) => {
     const message = e.message || "Unknown error";
     const codeMatch = message.match(/^([A-Z_]+):/);
     const code = codeMatch ? codeMatch[1] : (message === "Google not connected" ? "GOOGLE_NOT_CONNECTED" : message === "Not authenticated" ? "NOT_AUTHENTICATED" : "UNKNOWN");
+
+    if (["GOOGLE_NOT_CONNECTED", "GOOGLE_REAUTH_REQUIRED", "OAUTH_INVALID", "MISSING_ADS_SCOPE"].includes(code)) {
+      return json({
+        accounts: [],
+        reauthRequired: true,
+        code,
+        error: message,
+      });
+    }
+
     const statusMap: Record<string, number> = {
       NOT_AUTHENTICATED: 401,
       GOOGLE_NOT_CONNECTED: 400,
