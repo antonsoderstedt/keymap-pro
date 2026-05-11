@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw, Palette } from "lucide-react";
 import { toast } from "sonner";
-import { handleGoogleReauthError } from "@/lib/googleReauth";
+import { handleGoogleReauthError, notifyGoogleReauthRequired } from "@/lib/googleReauth";
 import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
 import Ga4Filters from "@/components/workspace/Ga4Filters";
@@ -265,9 +265,16 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
     } catch (e: any) {
       const code = e.code || "";
       const message = e.message || "Kunde inte hämta Ads-konton";
-      if (code === "GOOGLE_NOT_CONNECTED" || code === "OAUTH_INVALID" || handleGoogleReauthError(message)) {
+      if (code === "GOOGLE_NOT_CONNECTED" || code === "OAUTH_INVALID" || code === "MISSING_ADS_SCOPE") {
+        notifyGoogleReauthRequired({
+          message:
+            code === "MISSING_ADS_SCOPE"
+              ? "Google Ads-behörighet saknas. Koppla om Google för att ge åtkomst till Ads."
+              : "Google är inte ansluten. Koppla Google för att hämta Ads-konton.",
+        });
         return;
       }
+      if (handleGoogleReauthError(message)) return;
       const messages: Record<string, string> = {
         NOT_AUTHENTICATED: "Du behöver logga in igen.",
         MISSING_ADS_SCOPE: "Google Ads-scope saknas i token. Koppla från Google på Översikt och anslut igen.",
