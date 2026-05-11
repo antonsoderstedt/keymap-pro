@@ -984,6 +984,45 @@ export type Database = {
           },
         ]
       }
+      data_source_status: {
+        Row: {
+          created_at: string
+          id: string
+          last_error: string | null
+          last_synced_at: string | null
+          meta: Json
+          project_id: string
+          source: string
+          status: string
+          ttl_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          meta?: Json
+          project_id: string
+          source: string
+          status?: string
+          ttl_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          meta?: Json
+          project_id?: string
+          source?: string
+          status?: string
+          ttl_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ga4_conversion_filters: {
         Row: {
           created_at: string
@@ -1948,6 +1987,17 @@ export type Database = {
       is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
+      }
+      mark_source_status: {
+        Args: {
+          _bump_synced?: boolean
+          _last_error?: string
+          _meta?: Json
+          _project_id: string
+          _source: string
+          _status: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

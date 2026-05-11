@@ -1,6 +1,7 @@
 // GA4: list properties + run a basic report. Applies project ga4_filters when projectId given.
 import { getGoogleAccessToken } from "../_shared/google-token.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { classifyGoogleError, markSourceStatus } from "../_shared/source-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,11 +35,13 @@ async function buildDimensionFilter(projectId?: string, auth?: string | null) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  let projectIdForStatus: string | undefined;
   try {
     const auth = req.headers.get("Authorization");
     const { token } = await getGoogleAccessToken(auth);
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const action = body.action || "properties";
+    projectIdForStatus = body.projectId || body.project_id;
 
     if (action === "properties") {
       const res = await fetch("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", {
@@ -48,7 +51,10 @@ Deno.serve(async (req) => {
       try {
         const parsed = JSON.parse(text);
         const reauth = detectScopeError(res.status, parsed);
-        if (reauth) return json(reauth, 200);
+        if (reauth) {
+          if (projectIdForStatus) await markSourceStatus({ projectId: projectIdForStatus, source: "ga4", status: "reauth_required", lastError: reauth.error, bumpSynced: false });
+          return json(reauth, 200);
+        }
         return json(parsed, res.status);
       } catch {
         console.error("ga4-fetch properties: non-JSON", res.status, text.slice(0, 500));
@@ -114,7 +120,16 @@ Deno.serve(async (req) => {
           res.status >= 400 ? res.status : 502,
         );
       }
-      if (!res.ok) return json(data, res.status);
+      if (!res.ok) {
+        const reauth = detectScopeError(res.status, data);
+        if (reauth) {
+          if (projectId) await markSourceStatus({ projectId, source: "ga4", status: "reauth_required", lastError: reauth.error, bumpSynced: false });
+          return json(reauth, 200);
+        }
+        if (projectId) await markSourceStatus({ projectId, source: "ga4", status: "error", lastError: data?.error?.message || `HTTP ${res.status}`, bumpSynced: false });
+        return json(data, res.status);
+      }
+      if (projectId) await markSourceStatus({ projectId, source: "ga4", status: "ok", meta: { propertyId: String(propertyId) } });
 
       // Optionally persist as snapshot
       if (persist && projectId) {
@@ -244,7 +259,9 @@ Deno.serve(async (req) => {
     return json({ error: "unknown action" }, 400);
   } catch (e) {
     console.error("ga4-fetch error", e);
-    return json({ error: String(e instanceof Error ? e.message : e) }, 500);
+    const msg = String(e instanceof Error ? e.message : e);
+    if (projectIdForStatus) await markSourceStatus({ projectId: projectIdForStatus, source: "ga4", status: classifyGoogleError(msg), lastError: msg, bumpSynced: false });
+    return json({ error: msg }, 500);
   }
 });
 

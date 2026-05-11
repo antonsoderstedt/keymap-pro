@@ -5,6 +5,7 @@ import { getAdsContext, searchGaql } from "../_shared/google-ads.ts";
 import { evaluateGates } from "../_shared/diagnostics/gates.ts";
 import { applyRootCauseTree, detectBrand, estimateValue } from "../_shared/diagnostics/tree.ts";
 import { runAllRules } from "../_shared/diagnostics/runner.ts";
+import { classifyGoogleError, markSourceStatus } from "../_shared/source-status.ts";
 import type {
   AccountSnapshot,
   AdGroupSnapshot,
@@ -399,6 +400,8 @@ Deno.serve(async (req) => {
       report,
     });
 
+    await markSourceStatus({ projectId: project_id, source: "ads", status: "ok", meta: { customerId } });
+
     return new Response(JSON.stringify(report), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -407,6 +410,18 @@ Deno.serve(async (req) => {
     const msg = (e as Error).message ?? "internal error";
     const reauthCodes = ["GOOGLE_NOT_CONNECTED", "GOOGLE_REAUTH_REQUIRED", "OAUTH_INVALID", "MISSING_ADS_SCOPE"];
     const matched = reauthCodes.find((c) => msg.includes(c)) ?? (msg === "Google not connected" ? "GOOGLE_NOT_CONNECTED" : null);
+    try {
+      const { project_id } = await req.clone().json().catch(() => ({}));
+      if (project_id) {
+        await markSourceStatus({
+          projectId: project_id,
+          source: "ads",
+          status: matched ? (matched === "GOOGLE_NOT_CONNECTED" ? "not_connected" : "reauth_required") : classifyGoogleError(msg),
+          lastError: msg,
+          bumpSynced: false,
+        });
+      }
+    } catch {}
     if (matched) {
       return new Response(
         JSON.stringify({ error: msg, code: matched, reauthRequired: true }),
