@@ -17,7 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { handleGoogleReauthError } from "@/lib/googleReauth";
+import { handleGoogleReauthError, notifyGoogleReauthRequired } from "@/lib/googleReauth";
 
 interface Diagnosis {
   id: string;
