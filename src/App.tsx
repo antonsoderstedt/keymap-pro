@@ -22,6 +22,7 @@ import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+import DataSources from "./pages/workspace/DataSources";
 import { useParams } from "react-router-dom";
 
 // Wrapper: läser :id och redirectar till motsvarande nya route.
