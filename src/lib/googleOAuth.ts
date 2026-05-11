@@ -34,3 +34,20 @@ export async function invokeGoogleOauth<T = unknown>(path: GoogleOauthPath): Pro
 
   return payload as T;
 }
+
+/**
+ * Full reconnect flow: tear down existing google_tokens row and immediately
+ * start a fresh OAuth consent flow. Redirects the browser to Google.
+ */
+export async function reconnectGoogle(): Promise<void> {
+  // Best-effort cleanup of stale token row (ignore "already gone" errors)
+  try {
+    await invokeGoogleOauth("disconnect");
+  } catch (e) {
+    console.warn("[reconnectGoogle] disconnect failed (continuing):", e);
+  }
+  const { url } = await invokeGoogleOauth<{ url?: string }>("start");
+  if (!url) throw new Error("Kunde inte starta Google OAuth — ingen URL returnerades.");
+  window.location.assign(url);
+}
+
