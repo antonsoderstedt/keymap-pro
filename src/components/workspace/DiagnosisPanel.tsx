@@ -105,11 +105,12 @@ export default function DiagnosisPanel({ projectId }: Props) {
         throw new Error(combined || "Okänt fel");
       }
       if ((data as any)?.reauthRequired) {
-        notifyGoogleReauthRequired(
-          (data as any).code === "MISSING_ADS_SCOPE"
-            ? "Google Ads-scope saknas. Anslut Google igen för att ge åtkomst."
-            : "Din Google-anslutning behöver förnyas. Anslut Google igen.",
-        );
+        notifyGoogleReauthRequired({
+          message:
+            (data as any).code === "MISSING_ADS_SCOPE"
+              ? "Google Ads-scope saknas. Anslut Google igen för att ge åtkomst."
+              : "Din Google-anslutning behöver förnyas. Anslut Google igen.",
+        });
         return;
       }
       setReport(data as DiagnosisReport);
