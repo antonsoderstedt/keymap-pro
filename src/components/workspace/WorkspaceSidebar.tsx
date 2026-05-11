@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Lock,
   Megaphone,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
@@ -54,6 +55,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
     { to: `${base}/keywords`, label: "Sökord & innehåll", icon: Search },
     { to: `${base}/actions`, label: "Åtgärder", icon: ListChecks },
     { to: `${base}/reports`, label: "Rapporter", icon: FileText },
+    { to: `${base}/data-sources`, label: "Datakällor", icon: Plug },
     { to: settingsTo, label: "Inställningar", icon: Settings },
   ];
 

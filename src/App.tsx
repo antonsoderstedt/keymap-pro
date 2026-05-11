@@ -22,6 +22,7 @@ import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+import DataSources from "./pages/workspace/DataSources";
 import { useParams } from "react-router-dom";
 
 // Wrapper: läser :id och redirectar till motsvarande nya route.
@@ -76,6 +77,7 @@ const App = () => (
             <Route path="actions" element={<ActionHub />} />
             <Route path="reports" element={<ReportsLibrary />} />
             <Route path="settings" element={<WorkspaceSettings />} />
+            <Route path="data-sources" element={<DataSources />} />
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
 
             {/* Bakåtkompatibilitet — gamla rutter redirectar */}
