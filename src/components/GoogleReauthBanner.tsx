@@ -47,7 +47,19 @@ export function GoogleReauthBanner() {
 
   if (!visible) return null;
 
-  const overviewHref = workspaceId ? `/clients/${workspaceId}` : "/clients";
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    try {
+      toast.info("Rensar gammal Google-token och startar OAuth …");
+      await reconnectGoogle();
+      // reconnectGoogle redirects to Google; nothing to do on success.
+    } catch (e) {
+      setReconnecting(false);
+      toast.error("Kunde inte starta Google-anslutning", {
+        description: extractMessage(e),
+      });
+    }
+  };
 
   return (
     <div className="border-b border-destructive/40 bg-destructive/10 text-destructive-foreground">
@@ -59,11 +71,14 @@ export function GoogleReauthBanner() {
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">{message}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button asChild size="sm" variant="default">
-              <Link to={overviewHref}>
-                Koppla om Google
-                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleReconnect}
+              disabled={reconnecting}
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${reconnecting ? "animate-spin" : ""}`} />
+              {reconnecting ? "Startar …" : "Anslut Google igen"}
             </Button>
             <Button
               size="sm"
