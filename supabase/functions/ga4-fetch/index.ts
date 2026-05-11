@@ -46,7 +46,10 @@ Deno.serve(async (req) => {
       });
       const text = await res.text();
       try {
-        return json(JSON.parse(text), res.status);
+        const parsed = JSON.parse(text);
+        const reauth = detectScopeError(res.status, parsed);
+        if (reauth) return json(reauth, 200);
+        return json(parsed, res.status);
       } catch {
         console.error("ga4-fetch properties: non-JSON", res.status, text.slice(0, 500));
         return json({ error: "GA4 API non-JSON", status: res.status, details: text.slice(0, 500) }, 502);
@@ -250,4 +253,22 @@ function json(b: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function detectScopeError(status: number, data: any): { error: string; code: string; reauthRequired: true } | null {
+  if (status !== 403) return null;
+  const reason = data?.error?.details?.[0]?.reason || data?.error?.errors?.[0]?.reason || "";
+  const msg = data?.error?.message || "";
+  if (
+    reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" ||
+    reason === "insufficientPermissions" ||
+    /insufficient authentication scopes/i.test(msg)
+  ) {
+    return {
+      error: "MISSING_GA4_SCOPE: GA4-scope saknas i sparad token. Anslut Google igen.",
+      code: "MISSING_GA4_SCOPE",
+      reauthRequired: true,
+    };
+  }
+  return null;
 }

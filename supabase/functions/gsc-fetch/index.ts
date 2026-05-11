@@ -19,6 +19,8 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      const reauth = detectScopeError(res.status, data);
+      if (reauth) return json(reauth, 200);
       return json(data, res.status);
     }
 
@@ -37,6 +39,8 @@ Deno.serve(async (req) => {
         },
       );
       const data = await res.json();
+      const reauth = detectScopeError(res.status, data);
+      if (reauth) return json(reauth, 200);
       return json(data, res.status);
     }
 
@@ -52,4 +56,22 @@ function json(b: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function detectScopeError(status: number, data: any): { error: string; code: string; reauthRequired: true } | null {
+  if (status !== 403) return null;
+  const reason = data?.error?.details?.[0]?.reason || data?.error?.errors?.[0]?.reason || "";
+  const msg = data?.error?.message || "";
+  if (
+    reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" ||
+    reason === "insufficientPermissions" ||
+    /insufficient authentication scopes/i.test(msg)
+  ) {
+    return {
+      error: "MISSING_GSC_SCOPE: Search Console-scope saknas i sparad token. Anslut Google igen.",
+      code: "MISSING_GSC_SCOPE",
+      reauthRequired: true,
+    };
+  }
+  return null;
 }
