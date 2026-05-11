@@ -5,6 +5,7 @@ import { getAdsContext, searchGaql } from "../_shared/google-ads.ts";
 import { evaluateGates } from "../_shared/diagnostics/gates.ts";
 import { applyRootCauseTree, detectBrand, estimateValue } from "../_shared/diagnostics/tree.ts";
 import { runAllRules } from "../_shared/diagnostics/runner.ts";
+import { classifyGoogleError, markSourceStatus } from "../_shared/source-status.ts";
 import type {
   AccountSnapshot,
   AdGroupSnapshot,
