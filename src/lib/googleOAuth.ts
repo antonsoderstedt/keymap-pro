@@ -27,7 +27,9 @@ export async function invokeGoogleOauth<T = unknown>(path: GoogleOauthPath): Pro
   const payload = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(payload?.error || `Google OAuth misslyckades (${response.status})`);
+    const err = new Error(payload?.error || `Google OAuth misslyckades (${response.status})`);
+    handleGoogleReauthError(err);
+    throw err;
   }
 
   return payload as T;
