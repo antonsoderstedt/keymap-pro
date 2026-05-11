@@ -1,117 +1,114 @@
 
-# Kompletta rapporter — spec-driven slides
+# Datakällor & dataaktualitet
 
-Bygg om rapport-pipelinen från en rigid `{summary, charts, tables}`-modell till en `slides: SlideSpec[]`-arkitektur där varje slide har en typ och egen data. Lägg till AI-genererade insikter och Brand Kit-stöd i PPTX-renderaren.
+## Problem idag
 
-Ändringarna håller sig till tre filer + bakåtkompatibilitet för redan sparade artifacts.
+- Inställningar för GA4 / GSC / Ads ligger utspridda; ingen samlad bild av vad som är kopplat.
+- Ingen indikator visar om datan på en sida är färsk eller cachad.
+- När en scope saknas (t.ex. `MISSING_ADS_SCOPE`, `ACCESS_TOKEN_SCOPE_INSUFFICIENT`) ser sidor ofta tomma ut utan tydlig handling.
+- Reauth-bannern finns men det saknas en plats där man kan se status, byta konto och tvinga ny hämtning.
 
----
+## Mål
 
-## Anpassningar mot uppladdad spec
+1. Veta på 5 sekunder: är GA4, GSC, Google Ads (och övriga) anslutna och hämtar nytt?
+2. På varje sida se: "Uppdaterad för X min sedan" + knapp **Hämta nytt nu**.
+3. Ett klick → koppla om Google med rätt scopes, eller byt valt konto/property/site.
 
-Två avvikelser som följer projektets verklighet — resten är trogen specen:
+## Lösning
 
-1. **AI: Lovable AI Gateway istället för `GEMINI_API_KEY`.**  
-   Projektets standard är Lovable AI (`LOVABLE_API_KEY` finns redan som secret, ingen `GEMINI_API_KEY`). Vi anropar `https://ai.gateway.lovable.dev/v1/chat/completions` med modell `google/gemini-2.5-flash` och `response_format: { type: "json_object" }`. Samma prompt, samma JSON-schema, samma fallback-beteende.
+### 1. Ny sida: "Datakällor" (`/clients/:id/data-sources`)
 
-2. **Brand kit-kolumner ligger i JSONB.**  
-   Specen läser `primary_color`, `secondary_color`, `logo_url` som flata kolumner. I databasen finns istället `palette` (JSONB med `primary`, `secondary`, …) och `logo_url` som flat kolumn. Render-pptx hämtar `palette, logo_url` och plockar `palette.primary` / `palette.secondary`.
+Ersätter den nuvarande halvbyggda Anslutningar-sektionen i Inställningar och lyfts till sidomenyn (med grön/orange/röd prick).
 
----
+För varje datakälla (GA4, GSC, Google Ads, Lovable Cloud, Firecrawl, DataForSEO):
 
-## Del 1 — `_templates.ts` (största filen)
+```text
+┌────────────────────────────────────────────────────────────────┐
+│ ●  Google Analytics 4              Ansluten · GA4 scope OK     │
+│    Property: Slay Station (properties/123)         [Byt ▾]     │
+│    Senast hämtad: 4 min sedan       [Hämta nytt]  [Koppla om]  │
+│    Ev. felmeddelande från senaste anrop                         │
+└────────────────────────────────────────────────────────────────┘
+```
 
-Skriv om i sin helhet med:
+Status-prick:
+- **Grön** — token giltig, scope OK, valt konto svarar 200, senaste hämtning < TTL.
+- **Orange** — anslutet men data > TTL eller property/site ej vald.
+- **Röd** — token saknas/utgången, scope saknas, eller upstream 4xx.
 
-- Nya typer: `SlideType`, `SlideSpec`, `KpiItem`, `ChartSpec`, `TableSpec`, `NextStep`, `TemplateOutput` enligt specen.
-- `buildTemplate(payload)` switchar på `payload.report_type` till 13 mallfunktioner, lägger automatiskt till cover-slide om mallen inte gör det själv, och returnerar `{ slides }`. För bakåtkompatibilitet behåller vi även en härledd `summary`-shape (tom om slides används).
-- Hjälpare: `coverSlide`, `missingSlide`, `nextStepsSlide`, `formatPeriod`, `pct`, `fmtNum`, `fmtSek`, `humanReportType`, `PALETTE`.
-- 13 mallfunktioner enligt specen:
-  - `tplExecutive`, `tplSeoPerformance`, `tplGa4Traffic`, `tplKeywordUniverse`, `tplSegments`, `tplCompetitor`, `tplContentGap`, `tplCannibalization`, `tplPaidVsOrganic` — alla med `coverSlide → kpi_summary → 1-2 charts → 1-2 tables → insight → next_steps`.
-  - `tplSov`, `tplAuction`, `tplYoy`, `tplRoi` — migreras från nuvarande `{summary, charts, tables}`-shape till samma slides-mönster (kpi_summary + de befintliga chart/table-blocken + insight + next_steps).
-  - `tplGeneric` fallback för okända typer.
-- `tplCannibalization` returnerar "frisk"-slide om `d.cannibalized_keywords?.length === 0`.
-- Alla mallar returnerar `missingSlide` om datasektionen saknas.
+Knappar:
+- **Byt** öppnar dropdown med konton/properties/sajter (från `gsc-fetch sites`, `ga4-fetch properties`, `ads-list-customers`).
+- **Hämta nytt** triggar bakgrundshämtning + uppdaterar `last_synced_at`.
+- **Koppla om** kör befintlig `reconnectGoogle()`-flöde.
+- **Koppla om alla Google-tjänster** högst upp som master-knapp.
 
-## Del 2 — `generate-report/index.ts`
+### 2. Färskhetschip på varje sida
 
-- Lägg till 9 nya `case`-block för `executive`, `seo_performance`, `ga4_traffic`, `keyword_universe`, `segments`, `competitor`, `content_gap`, `cannibalization`, `paid_vs_organic` som hämtar data från befintliga snapshot-tabeller (`gsc_snapshots`, `ga4_snapshots`, `analyses` (för keyword universe / segments / content_gap), `backlink_gaps`, `auction_insights_snapshots`, `action_items` med `source_type` SEO/Ads-diagnos) och anropar `mark(key, status, reason?, data)` med samma struktur som befintliga case.
-- Efter `switch`: hämta projektet (`projects.name, domain`), berika `payload` med `project_domain`, `report_name`, `period_label`, `sources`.
-- Efter datainsamling, **innan** `buildTemplate`: kör `aiInsights = await generateAiInsights(report_type, sections, payload)` om `LOVABLE_API_KEY` finns. Sätt `payload.ai_insights = aiInsights`. Wrappa i try/catch — AI-fel ska aldrig stoppa rapporten.
-- Ny funktion `generateAiInsights(reportType, sections, payload)`:
-  - Komprimerar varje OK/partial-sektions data till max ~2000 tecken JSON.
-  - POSTar till Lovable AI Gateway med `model: "google/gemini-2.5-flash"`, `response_format: { type: "json_object" }`, max ~1000 tokens.
-  - System-prompt: "Du är en erfaren digital marknadsanalytiker… svara med JSON enligt schema".
-  - Schemat returnerar `{ [reportType]: { report_headline, key_insight, opportunity_text, opportunity_value, opportunity_short, risk_text, risk_level, risk_short, insight_text, total_value, next_steps:[{action,estimated_value_sek,effort,timeline}] } }`.
-  - Returnerar `{}` vid 429/402/fel — mallarna har redan fallback-text.
+Liten rad i toppen av Ga4Dashboard, SeoDashboard, GoogleAdsHub, AuctionInsights, AdsAudit m.fl.:
 
-## Del 3 — `render-pptx/index.ts`
+```text
+GA4 ● uppdaterad 4 min sedan · cache 30 min  [↻ Hämta nytt]
+```
 
-- Hämta brand kit efter att artifact lästs in:
-  ```ts
-  const pid = artifact.project_id || artifact.payload?.project_id;
-  const { data: bk } = await supabase
-    .from("brand_kits")
-    .select("palette, logo_url")
-    .eq("project_id", pid)
-    .maybeSingle();
-  ```
-  Bygg `brandColors` genom att override:a `COLORS.primary` och `COLORS.accent2` från `bk.palette?.primary` / `bk.palette?.secondary` (strippa `#`, uppercase). Hämta logo via `fetch(bk.logo_url)` med 5s timeout, base64-encoda. Misslyckas hämtningen — fortsätt utan logo.
-- Ny dispatcher `renderSlide(pres, spec, colors, logoBase64, logoMime)` som routar på `spec.type` till:
-  - `renderCoverSlide` — befintlig `addTitleSlide`-stil men tar emot `colors` + lägger logo nere till vänster om base64 finns.
-  - `renderKpiSummarySlide` — befintlig `addSummarySlide`-logik, parametriserad med `colors`.
-  - `chart` → befintlig `addChartSlide` med `colors` + `data_source`-footer.
-  - `renderChartSplitSlide` — vänster halvbreds chart, höger insight-text-panel.
-  - `table` → befintlig `addTableSlide` parametriserad.
-  - `renderInsightSlide` — headline + insight-text-panel + upp till 3 KPI-kort höger.
-  - `renderTwoColSlide` — vänster bullets/text, höger tabell.
-  - `renderNextStepsSlide` — 3 numrerade åtgärdskort med effort-badge och totalvärde-footer.
-  - `renderDividerSlide` — fullbredd sektionstitel.
-  - `renderMissingDataSlide` — centrerad CTA-panel med källa + resolution.
-- Ny hjälpare `addDataSourceFooter(slide, source, colors)` som alla slide-typer kallar om `spec.data_source` finns.
-- Huvudloopen i `Deno.serve`:
-  ```ts
-  if (Array.isArray(tpl.slides)) {
-    for (const s of tpl.slides) renderSlide(pres, s, brandColors, logoBase64, logoMime);
-  } else {
-    // Legacy: nuvarande linjära flow för gamla artifacts
-  }
-  ```
-- Utöka `humanReportType` med alla 13 etiketter.
+Klick på chip = samma "Hämta nytt"-flöde som datakälla-sidan. Klick på källans namn = navigera till Datakällor.
 
-## Del 4 — verifiering
+### 3. Single source of truth: `data_source_status`-tabell
 
-Efter implementation:
-1. Bygg-output (TypeScript-fel) ska vara rent.
-2. Anropa `generate-report` för minst två rapporttyper (en med data, en utan) via `supabase--curl_edge_functions` och bekräfta att `payload.template.slides` är en array med rätt slide-typer.
-3. Anropa `render-pptx` med `artifact_id` från (2) och bekräfta 200 + binär .pptx.
+Ny tabell som varje fetch-edge-funktion skriver till efter lyckat/misslyckat anrop:
 
----
+```text
+data_source_status
+├ project_id  uuid
+├ source      text   ('ga4' | 'gsc' | 'ads' | ...)
+├ status      text   ('ok' | 'stale' | 'error' | 'reauth_required')
+├ last_synced_at  timestamptz
+├ last_error  text
+├ ttl_seconds int     -- standard 1800
+└ meta        jsonb   -- valt property/site/customer
+```
+
+Frontend läser denna tabell + realtime-subscribe för live status.
+
+### 4. Edge-funktion: `data-sources-status`
+
+Engångsanrop som returnerar status för alla källor i ett svep:
+
+- Läser `google_tokens.scope` och jämför mot kraven (`webmasters.readonly`, `analytics.readonly`, `adwords`).
+- Pingar light endpoint per källa endast om `last_synced_at` är äldre än TTL.
+- Returnerar samlad status + `last_synced_at` + `connectedAccount`.
+
+### 5. Tvinga färsk data när TTL passerats
+
+Ändra `gsc-fetch`, `ga4-fetch`, `ads-diagnose`, `ads-list-customers`, `ga4-revenue-fetch` så att:
+
+- Skriver `data_source_status` efter varje anrop.
+- Stödjer `?force=true` i body som förbigår cache (där cache finns, t.ex. `ads_diagnostics_cache`).
+- Reauth-svar (befintligt `reauthRequired`) sätter status = `reauth_required` så bannern + datakälla-sidan synkas direkt.
+
+### 6. Sidomenyns visuella signal
+
+Lägg till liten prick bredvid sidor som beror av en källa när källan är röd/orange — så användaren slipper klicka in på en trasig sida.
 
 ## Tekniska detaljer
 
-**Filer som ändras:**
-- `supabase/functions/generate-report/_templates.ts` — full omskrivning till slides-arkitektur
-- `supabase/functions/generate-report/index.ts` — 9 nya case-block + AI-insikter + payload-berikning
-- `supabase/functions/render-pptx/index.ts` — slide-dispatcher + 6 nya renderare + brand kit + data-source-footer
+- **Tabell**: `data_source_status` med RLS via befintliga `is_project_member`. Unique på (`project_id`, `source`).
+- **Hook**: `useDataSourceStatus(projectId)` som listar alla källor + realtime subscribe på `postgres_changes`.
+- **Komponent**: `<DataFreshnessChip source="ga4" projectId={…} />` återanvänds på alla datasidor.
+- **Edge-funktion**: ny `data-sources-status` deno-funktion som batch-läser `google_tokens`, `project_google_settings`, `data_source_status` och returnerar normaliserad payload.
+- **Återanvänd**: existerande `googleReauth.ts` (banner + toast), `reconnectGoogle()`, `invokeGoogleOauth("disconnect"/"start")`.
+- **TTL-default**: 30 min för GA4/GSC, 60 min för Ads-diagnose. Konfigurerbart per projekt senare.
+- **Migration**: lägg in `data_source_status` + RLS-policies + en hjälp-RPC `mark_source_status(project_id, source, status, last_error, meta)`.
 
-**Filer som INTE ändras:**
-- Inga migrationer
-- Ingen frontend (`ReportTemplateView.tsx` läser fortfarande summary/charts/tables — frontend-preview blir tom-ish för nya rapporter, men det är acceptabelt enligt specen som fokuserar på .pptx)
-- Inga andra edge functions
+## Vad jag inte gör i detta steg
 
-**Bakåtkompatibilitet:**
-- `render-pptx` faller tillbaka till befintlig linjär rendering om `tpl.slides` saknas → gamla artifacts fungerar oförändrat.
-- `_templates.ts` exporterar fortfarande `buildTemplate` med samma signatur.
+- Ingen automatisk schemalagd refresh — bara on-demand + read-on-page-load om data > TTL.
+- Inga ändringar i icke-Google-källor (Firecrawl/DataForSEO) utöver att de visas i listan med status från senaste användning.
+- Ingen multi-account-koppling per projekt utöver Google Ads (som redan finns).
 
-**Secrets:**
-- Använder `LOVABLE_API_KEY` (redan satt). Ingen ny secret behövs.
+## Acceptanskriterier
 
-**Datakällor per rapport (sammanfattning):**
-- `executive` → `gsc_snapshots` (current+previous), `ga4_snapshots`, `action_items` (open + sorterade på `expected_impact_sek`), `kpi_targets`
-- `seo_performance` → `gsc_snapshots`, `analyses.keyword_universe_json`, `audit_findings` (kategori SEO)
-- `ga4_traffic` → `ga4_snapshots`, `channel_attribution_snapshots`
-- `keyword_universe`, `content_gap`, `segments` → senaste `analyses.keyword_universe_json` / `result_json`
-- `competitor` → `backlink_gaps`, gap-keywords från `analyses`
-- `cannibalization` → härled från `gsc_snapshots.rows` (samma keyword på flera URLs)
-- `paid_vs_organic` → `gsc_snapshots` + `ads_audits`
+1. På `/data-sources` ser jag alla källor med grön/orange/röd prick + senaste hämtningstid.
+2. På Ga4Dashboard, SeoDashboard, GoogleAdsHub, AuctionInsights, AdsAudit visas färskhetschip.
+3. "Hämta nytt"-knapp tvingar färsk hämtning och uppdaterar tiden inom 5 sek.
+4. När scope saknas → röd prick + reauth-banner triggas direkt utan att jag behöver klicka in på en datasida.
+5. "Koppla om alla Google-tjänster" rensar token, startar OAuth med samtliga scopes, redirectar tillbaka och visar grönt.
