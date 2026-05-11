@@ -120,7 +120,16 @@ Deno.serve(async (req) => {
           res.status >= 400 ? res.status : 502,
         );
       }
-      if (!res.ok) return json(data, res.status);
+      if (!res.ok) {
+        const reauth = detectScopeError(res.status, data);
+        if (reauth) {
+          if (projectId) await markSourceStatus({ projectId, source: "ga4", status: "reauth_required", lastError: reauth.error, bumpSynced: false });
+          return json(reauth, 200);
+        }
+        if (projectId) await markSourceStatus({ projectId, source: "ga4", status: "error", lastError: data?.error?.message || `HTTP ${res.status}`, bumpSynced: false });
+        return json(data, res.status);
+      }
+      if (projectId) await markSourceStatus({ projectId, source: "ga4", status: "ok", meta: { propertyId: String(propertyId) } });
 
       // Optionally persist as snapshot
       if (persist && projectId) {
