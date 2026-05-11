@@ -77,6 +77,7 @@ const App = () => (
             <Route path="actions" element={<ActionHub />} />
             <Route path="reports" element={<ReportsLibrary />} />
             <Route path="settings" element={<WorkspaceSettings />} />
+            <Route path="data-sources" element={<DataSources />} />
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
 
             {/* Bakåtkompatibilitet — gamla rutter redirectar */}
