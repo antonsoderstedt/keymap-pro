@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { AlertTriangle, X, ExternalLink } from "lucide-react";
+import { AlertTriangle, X, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   GOOGLE_REAUTH_EVENT,
   isGoogleReauthError,
   extractMessage,
 } from "@/lib/googleReauth";
+import { reconnectGoogle } from "@/lib/googleOAuth";
 
 const DISMISS_KEY = "google-reauth-banner-dismissed-at";
 const DISMISS_TTL_MS = 1000 * 60 * 30; // 30 min
 
 export function GoogleReauthBanner() {
-  const params = useParams();
-  const workspaceId = (params as any).workspaceId || (params as any).id;
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState<string>("");
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     const show = (msg?: string) => {
