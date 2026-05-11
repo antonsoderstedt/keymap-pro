@@ -35,11 +35,13 @@ async function buildDimensionFilter(projectId?: string, auth?: string | null) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  let projectIdForStatus: string | undefined;
   try {
     const auth = req.headers.get("Authorization");
     const { token } = await getGoogleAccessToken(auth);
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const action = body.action || "properties";
+    projectIdForStatus = body.projectId || body.project_id;
 
     if (action === "properties") {
       const res = await fetch("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", {
@@ -49,7 +51,10 @@ Deno.serve(async (req) => {
       try {
         const parsed = JSON.parse(text);
         const reauth = detectScopeError(res.status, parsed);
-        if (reauth) return json(reauth, 200);
+        if (reauth) {
+          if (projectIdForStatus) await markSourceStatus({ projectId: projectIdForStatus, source: "ga4", status: "reauth_required", lastError: reauth.error, bumpSynced: false });
+          return json(reauth, 200);
+        }
         return json(parsed, res.status);
       } catch {
         console.error("ga4-fetch properties: non-JSON", res.status, text.slice(0, 500));
