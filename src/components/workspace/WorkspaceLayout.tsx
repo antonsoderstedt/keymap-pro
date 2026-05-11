@@ -55,6 +55,7 @@ export function WorkspaceLayout() {
             </Button>
           </div>
         </header>
+        <GoogleReauthBanner />
         <main className="flex-1 overflow-x-hidden">
           <ErrorBoundary>
             <Outlet />
