@@ -48,6 +48,17 @@ export async function reconnectGoogle(): Promise<void> {
   }
   const { url } = await invokeGoogleOauth<{ url?: string }>("start");
   if (!url) throw new Error("Kunde inte starta Google OAuth — ingen URL returnerades.");
+  // Bryt ut ur ev. iframe (t.ex. Lovable preview) — annars blockerar Google med 403.
+  try {
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = url;
+      return;
+    }
+  } catch {
+    // Cross-origin iframe — öppna i ny flik istället
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
   window.location.assign(url);
 }
 
