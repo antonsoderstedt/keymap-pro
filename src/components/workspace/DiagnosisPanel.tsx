@@ -104,6 +104,14 @@ export default function DiagnosisPanel({ projectId }: Props) {
         if (handleGoogleReauthError(combined)) return;
         throw new Error(combined || "Okänt fel");
       }
+      if ((data as any)?.reauthRequired) {
+        notifyGoogleReauthRequired(
+          (data as any).code === "MISSING_ADS_SCOPE"
+            ? "Google Ads-scope saknas. Anslut Google igen för att ge åtkomst."
+            : "Din Google-anslutning behöver förnyas. Anslut Google igen.",
+        );
+        return;
+      }
       setReport(data as DiagnosisReport);
       toast({ title: "Diagnos klar", description: `${data.meta?.rules_fired ?? 0} regler triggade.` });
     } catch (e: any) {
