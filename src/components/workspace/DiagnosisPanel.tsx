@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { handleGoogleReauthError } from "@/lib/googleReauth";
 
 interface Diagnosis {
   id: string;
@@ -89,13 +90,28 @@ export default function DiagnosisPanel({ projectId }: Props) {
       const { data, error } = await supabase.functions.invoke("ads-diagnose", {
         body: { project_id: projectId },
       });
-      if (error) throw error;
+      if (error) {
+        // Try to extract the real error body from the Response
+        let bodyMsg = "";
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const parsed = await ctx.clone().json();
+            bodyMsg = parsed?.error || parsed?.message || "";
+          }
+        } catch {}
+        const combined = bodyMsg || (error as any).message || "";
+        if (handleGoogleReauthError(combined)) return;
+        throw new Error(combined || "Okänt fel");
+      }
       setReport(data as DiagnosisReport);
       toast({ title: "Diagnos klar", description: `${data.meta?.rules_fired ?? 0} regler triggade.` });
     } catch (e: any) {
+      const msg = e?.message || "Okänt fel";
+      if (handleGoogleReauthError(msg)) return;
       toast({
         title: "Kunde inte köra diagnos",
-        description: e.message ?? "Okänt fel",
+        description: msg,
         variant: "destructive",
       });
     } finally {
