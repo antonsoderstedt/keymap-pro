@@ -264,9 +264,11 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
     } catch (e: any) {
       const code = e.code || "";
       const message = e.message || "Kunde inte hämta Ads-konton";
+      if (code === "GOOGLE_NOT_CONNECTED" || code === "OAUTH_INVALID" || handleGoogleReauthError(message)) {
+        return;
+      }
       const messages: Record<string, string> = {
         NOT_AUTHENTICATED: "Du behöver logga in igen.",
-        GOOGLE_NOT_CONNECTED: "Google är inte ansluten. Gå till Översikt och klicka 'Anslut Google'.",
         MISSING_ADS_SCOPE: "Google Ads-scope saknas i token. Koppla från Google på Översikt och anslut igen.",
         DEVELOPER_TOKEN_NOT_APPROVED: "Google Ads developer token är inte godkänd ännu — kontakta admin.",
         DEVELOPER_TOKEN_INVALID: "Google Ads developer token är ogiltig — kontakta admin.",
@@ -276,7 +278,6 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         CONFIG_ERROR: "Serverkonfiguration saknas — kontakta admin.",
         PERMISSION_DENIED: "Behörighet nekad av Google Ads — verifiera MCC-länkning.",
         USER_PERMISSION_DENIED: "Din Google-användare saknar åtkomst i MCC-kontot.",
-        OAUTH_INVALID: "OAuth-token avvisad — koppla från och anslut Google igen.",
         FORBIDDEN: "Google Ads API nekade förfrågan.",
         ADS_API_ERROR: "Fel från Google Ads API.",
       };
