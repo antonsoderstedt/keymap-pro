@@ -565,7 +565,7 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       goals: undefined,
     };
 
-    // === PASS 4: Build final output med multi-signal scoring ===
+    // === PASS 4: Build final output med multi-signal scoring (Fix 2: negativa filtreras) ===
     const final = universe.map((u) => {
       const m = metricsMap[u.keyword];
       const sm = semrushMap[u.keyword];
@@ -575,23 +575,29 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       const kd = sm?.kd ?? null;
       const serpFeatures = sm?.serp_features ?? null;
       const topDomains: string[] | null = sm?.top_domains ?? null;
+      const trendJson = m?.trend_json ?? null;
 
       const competitorGap = projectDomain && topDomains && topDomains.length > 0
         ? !topDomains.some((d: string) => d.toLowerCase().includes(projectDomain))
         : false;
 
-      // Priority heuristic (improved with KD)
-      let priority: "high" | "medium" | "low" = "low";
-      if (vol != null) {
-        if (vol >= 200 && (kd == null || kd < 50)) priority = "high";
-        else if (vol >= 50 && (kd == null || kd < 70)) priority = "medium";
-        else if (vol >= 50) priority = "low";
-      } else if (u.intent === "transactional") {
-        priority = "medium";
-      }
-      // Boost: competitor ranks but you don't = big opportunity
-      if (competitorGap && vol != null && vol >= 100) {
-        priority = priority === "low" ? "medium" : "high";
+      // Fix 2: skippa scoring för negativa sökord ELLER kluster "Negativa kandidater"
+      const isNeg = !!u.isNegative ||
+        (u.dimension === "kommersiell" && u.channel === "Google Ads" && u.cluster === "Negativa kandidater");
+
+      const sc = isNeg
+        ? null
+        : scoreKeyword(u, { vol, cpc, comp, kd, serpFeatures, topDomains, trendJson }, scoringCtx);
+
+      // Fix 2: tvinga priority=skip för negativa
+      const effectivePriority: "high" | "medium" | "low" | "skip" =
+        isNeg ? "skip" : (sc?.priority || "low");
+
+      // Boost: competitor ranks but you don't = +1 priority-steg (på icke-negativa)
+      let finalPriority = effectivePriority;
+      if (!isNeg && competitorGap && vol != null && vol >= 100) {
+        if (finalPriority === "low") finalPriority = "medium";
+        else if (finalPriority === "medium") finalPriority = "high";
       }
 
       const slug = slugify(u.cluster);
@@ -601,12 +607,12 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         dimension: u.dimension,
         intent: u.intent,
         funnelStage: u.funnel,
-        priority,
+        priority: finalPriority,
         channel: u.channel,
-        recommendedLandingPage: u.isNegative ? undefined : `/${slug}`,
+        recommendedLandingPage: isNeg ? undefined : `/${slug}`,
         recommendedAdGroup: u.cluster,
         contentIdea: u.intent === "informational" ? `Guide: ${u.keyword}` : undefined,
-        isNegative: u.isNegative || false,
+        isNegative: isNeg,
         searchVolume: vol ?? undefined,
         cpc: cpc ?? undefined,
         competition: comp ?? undefined,
@@ -615,11 +621,22 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         serpFeatures: serpFeatures ?? undefined,
         topRankingDomains: topDomains ?? undefined,
         competitorGap: competitorGap || undefined,
+        score: sc
+          ? {
+              final: sc.final,
+              components: sc.components,
+              revenue: sc.revenue,
+            }
+          : undefined,
       };
     });
 
     const enrichedCount = final.filter((k) => k.dataSource === "real").length;
     console.log(`[universe] enriched ${enrichedCount}/${final.length}`);
+
+    // === PASS 5: Discover opportunities (filtrerar negativa internt) ===
+    const opportunities = discoverOpportunities(final as any);
+    console.log(`[universe] discovered ${opportunities.length} opportunities`);
 
     const result = {
       scale,
@@ -628,6 +645,8 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       totalEnriched: enrichedCount,
       cities,
       keywords: final,
+      opportunities,
+      engineVersion: "v2",
     };
 
     // If called with analysis_id, write the universe back to the analyses row
