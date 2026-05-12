@@ -263,7 +263,14 @@ export default function WorkspaceKeywordUniverse() {
                 {data.opportunities.map((op: any, i: number) => (
                   <div key={i} className="p-3 rounded-md border border-border bg-card">
                     <div className="flex items-start justify-between gap-3 mb-1">
-                      <div className="font-medium text-sm">{op.title}</div>
+                      <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+                        {op.title}
+                        {op.type && (
+                          <Badge variant="outline" className="text-[9px] font-mono uppercase">
+                            {String(op.type).replace(/_/g, " ")}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {op.estimated_revenue_p50 != null && op.estimated_revenue_p50 > 0 && (
                           <Badge variant="secondary" className="font-mono text-[10px]">

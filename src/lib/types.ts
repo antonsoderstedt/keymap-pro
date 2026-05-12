@@ -64,7 +64,7 @@ export interface UniverseKeyword {
 }
 
 export interface KeywordOpportunity {
-  type: "quick_dominance" | "service_gap" | "striking_distance_cluster" | "geo_opportunity" | "market_expansion";
+  type: "quick_dominance" | "service_gap" | "striking_distance_cluster" | "geo_opportunity" | "market_expansion" | "high_score_underserved" | "cluster_consolidation";
   title: string;
   description: string;
   keywords: string[];
