@@ -1190,5 +1190,3 @@ function BackgroundUniverseStatus({
     </Card>
   );
 }
-  );
-}
