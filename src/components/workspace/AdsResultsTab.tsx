@@ -193,18 +193,27 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
                       {m?.delta?.cpa_before != null && m?.delta?.cpa_after != null
                         ? `${m.delta.cpa_before}→${m.delta.cpa_after}` : "—"}
                     </div>
-                    <div className="col-span-2 flex justify-end">
+                    <div className="col-span-2 flex justify-end items-center gap-1">
                       <Badge variant="outline" className={v.tone}>
                         <Icon className="h-3 w-3 mr-1" /> {v.label}
                       </Badge>
+                      {clickable && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <OutcomeDrawer
+        open={!!drilldown}
+        onOpenChange={(v) => { if (!v) setDrilldown(null); }}
+        projectId={projectId}
+        outcome={drilldown}
+        ruleLabel={drilldown ? (RULE_LABEL[drilldown.rule_id] || drilldown.rule_id) : ""}
+      />
     </div>
   );
 }
