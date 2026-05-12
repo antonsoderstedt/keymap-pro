@@ -175,8 +175,16 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
                 const m = o.measured_14d;
                 const v = verdict(m);
                 const Icon = v.icon;
+                const clickable = !!o.campaign_id && !!o.applied_at;
                 return (
-                  <div key={o.id} className="grid grid-cols-12 gap-2 items-center px-2 py-1.5 text-xs hover:bg-muted/20 rounded">
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => clickable && setDrilldown(o)}
+                    disabled={!clickable}
+                    className={`w-full grid grid-cols-12 gap-2 items-center px-2 py-1.5 text-xs rounded text-left ${clickable ? "hover:bg-muted/30 cursor-pointer" : "opacity-70 cursor-default"}`}
+                    title={clickable ? "Visa drilldown-graf" : "Saknar kampanj/datum"}
+                  >
                     <div className="col-span-2 text-muted-foreground">{o.applied_at ? new Date(o.applied_at).toLocaleDateString("sv-SE") : "—"}</div>
                     <div className="col-span-3 truncate">{RULE_LABEL[o.rule_id] || o.rule_id}</div>
                     <div className="col-span-2 text-right font-mono tabular-nums">{fmtPct(m?.delta?.conversions_pct)}</div>
