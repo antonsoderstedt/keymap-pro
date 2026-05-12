@@ -80,11 +80,17 @@ export default function GoogleAdsHub() {
           <TabsTrigger value="overview" className="gap-1.5">
             <LayoutDashboard className="h-3.5 w-3.5" /> Översikt
           </TabsTrigger>
+          <TabsTrigger value="campaigns" className="gap-1.5">
+            <Network className="h-3.5 w-3.5" /> Kampanjer
+          </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5" /> Audit
           </TabsTrigger>
           <TabsTrigger value="proposals" className="gap-1.5">
             <GitPullRequest className="h-3.5 w-3.5" /> Förslag
+          </TabsTrigger>
+          <TabsTrigger value="results" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" /> Resultat
           </TabsTrigger>
           <TabsTrigger value="chat" className="gap-1.5">
             <MessageSquare className="h-3.5 w-3.5" /> Chat
@@ -93,8 +99,10 @@ export default function GoogleAdsHub() {
 
         <div className="mt-4">
           <TabsContent value="overview"><AuctionInsights /></TabsContent>
+          <TabsContent value="campaigns"><CampaignTree projectId={workspaceId} /></TabsContent>
           <TabsContent value="audit"><AdsAudit /></TabsContent>
           <TabsContent value="proposals"><ProposalsTab projectId={workspaceId} /></TabsContent>
+          <TabsContent value="results"><AdsResultsTab projectId={workspaceId} /></TabsContent>
           <TabsContent value="chat"><AdsChat /></TabsContent>
         </div>
       </Tabs>
