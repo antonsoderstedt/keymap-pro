@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, TrendingUp, TrendingDown, Minus, Target, Award, Activity } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus, Target, Award, Activity, ChevronRight } from "lucide-react";
+import { OutcomeDrawer } from "./OutcomeDrawer";
 
 interface Outcome {
   id: string;
@@ -46,6 +47,7 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
   const { toast } = useToast();
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [loading, setLoading] = useState(true);
+  const [drilldown, setDrilldown] = useState<Outcome | null>(null);
 
   const load = async () => {
     if (!projectId) return;
@@ -173,8 +175,16 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
                 const m = o.measured_14d;
                 const v = verdict(m);
                 const Icon = v.icon;
+                const clickable = !!o.campaign_id && !!o.applied_at;
                 return (
-                  <div key={o.id} className="grid grid-cols-12 gap-2 items-center px-2 py-1.5 text-xs hover:bg-muted/20 rounded">
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => clickable && setDrilldown(o)}
+                    disabled={!clickable}
+                    className={`w-full grid grid-cols-12 gap-2 items-center px-2 py-1.5 text-xs rounded text-left ${clickable ? "hover:bg-muted/30 cursor-pointer" : "opacity-70 cursor-default"}`}
+                    title={clickable ? "Visa drilldown-graf" : "Saknar kampanj/datum"}
+                  >
                     <div className="col-span-2 text-muted-foreground">{o.applied_at ? new Date(o.applied_at).toLocaleDateString("sv-SE") : "—"}</div>
                     <div className="col-span-3 truncate">{RULE_LABEL[o.rule_id] || o.rule_id}</div>
                     <div className="col-span-2 text-right font-mono tabular-nums">{fmtPct(m?.delta?.conversions_pct)}</div>
@@ -183,18 +193,27 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
                       {m?.delta?.cpa_before != null && m?.delta?.cpa_after != null
                         ? `${m.delta.cpa_before}→${m.delta.cpa_after}` : "—"}
                     </div>
-                    <div className="col-span-2 flex justify-end">
+                    <div className="col-span-2 flex justify-end items-center gap-1">
                       <Badge variant="outline" className={v.tone}>
                         <Icon className="h-3 w-3 mr-1" /> {v.label}
                       </Badge>
+                      {clickable && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <OutcomeDrawer
+        open={!!drilldown}
+        onOpenChange={(v) => { if (!v) setDrilldown(null); }}
+        projectId={projectId}
+        outcome={drilldown}
+        ruleLabel={drilldown ? (RULE_LABEL[drilldown.rule_id] || drilldown.rule_id) : ""}
+      />
     </div>
   );
 }
