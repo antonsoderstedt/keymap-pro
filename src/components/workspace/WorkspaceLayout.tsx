@@ -8,6 +8,7 @@ import { LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
+import { DataSourceAlerts } from "@/components/DataSourceAlerts";
 
 export function WorkspaceLayout() {
   const { workspace, loading } = useWorkspace();
