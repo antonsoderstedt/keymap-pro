@@ -281,21 +281,53 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
     console.log(`[universe] generated ${universe.length} unique keywords`);
     await setProgress("generated", universe.length);
 
-    // === PASS 3: Enrich via DataForSEO ===
+    // === PASS 3: Enrich via DataForSEO (batched, with retry) ===
+    await setProgress("enriching_dataforseo", universe.length);
     let metricsMap: Record<string, any> = {};
     try {
       const allKws = universe.map((u) => u.keyword);
-      const enrichRes = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ keywords: allKws }),
+      const ENRICH_BATCH = 700;
+      const batches: string[][] = [];
+      for (let i = 0; i < allKws.length; i += ENRICH_BATCH) batches.push(allKws.slice(i, i + ENRICH_BATCH));
+
+      const callBatch = async (batch: string[], attempt = 1): Promise<Record<string, any>> => {
+        try {
+          const r = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ keywords: batch }),
+          });
+          if (r.ok) {
+            const j = await r.json();
+            return j.metrics || {};
+          }
+          if ([429, 500, 502, 503, 504].includes(r.status) && attempt < 3) {
+            await new Promise(res => setTimeout(res, 2000 * attempt));
+            return callBatch(batch, attempt + 1);
+          }
+          console.error("[universe] enrich batch failed", r.status, await r.text());
+          return {};
+        } catch (e) {
+          if (attempt < 3) {
+            await new Promise(res => setTimeout(res, 2000 * attempt));
+            return callBatch(batch, attempt + 1);
+          }
+          console.error("[universe] enrich batch error", e);
+          return {};
+        }
+      };
+
+      // Run batches with concurrency 3
+      let idx = 0;
+      const runners = Array.from({ length: Math.min(3, batches.length) }, async () => {
+        while (idx < batches.length) {
+          const my = idx++;
+          const m = await callBatch(batches[my]);
+          Object.assign(metricsMap, m);
+          await setProgress("enriching_dataforseo", Object.keys(metricsMap).length, { total: allKws.length });
+        }
       });
-      if (enrichRes.ok) {
-        const j = await enrichRes.json();
-        metricsMap = j.metrics || {};
-      } else {
-        console.error("[universe] enrich failed", enrichRes.status, await enrichRes.text());
-      }
+      await Promise.all(runners);
     } catch (e) {
       console.error("[universe] enrich error", e);
     }
