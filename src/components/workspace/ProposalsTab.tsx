@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CheckCircle2, XCircle, Send, Sparkles, RefreshCw, Inbox, AlertCircle, Loader2,
+  CheckCircle2, XCircle, Send, Sparkles, RefreshCw, Inbox, AlertCircle, Loader2, Download,
 } from "lucide-react";
+import { toCsv, downloadCsv, ymd } from "@/lib/csv";
 
 interface Proposal {
   id: string;
