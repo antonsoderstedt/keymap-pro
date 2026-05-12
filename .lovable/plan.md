@@ -1,114 +1,54 @@
+## Problem
 
-# Datakällor & dataaktualitet
+Kopplingen är inte trasig — `keyword-universe`-funktionen kör faktiskt klart även på "Maximalt" enligt loggarna (genererar 1212 sökord, berikar med Semrush). Men eftersom `analyse` väntar synkront på svaret och max-skalan tar för lång tid, stängs HTTP-anslutningen ("Http: connection closed before message completed") innan resultatet hinner sparas till `analyses`-raden. UI visar då att max "inte fungerar".
 
-## Problem idag
+Det är ett **timeout-problem**, inte en datakälls-koppling som tappats.
 
-- Inställningar för GA4 / GSC / Ads ligger utspridda; ingen samlad bild av vad som är kopplat.
-- Ingen indikator visar om datan på en sida är färsk eller cachad.
-- När en scope saknas (t.ex. `MISSING_ADS_SCOPE`, `ACCESS_TOKEN_SCOPE_INSUFFICIENT`) ser sidor ofta tomma ut utan tydlig handling.
-- Reauth-bannern finns men det saknas en plats där man kan se status, byta konto och tvinga ny hämtning.
+## Mål: maximalt med data, inga genvägar
 
-## Mål
+Vi bygger om till en bakgrundsjobb-modell där universumet får så lång tid det behöver, och vi **höjer taken** istället för att sänka dem.
 
-1. Veta på 5 sekunder: är GA4, GSC, Google Ads (och övriga) anslutna och hämtar nytt?
-2. På varje sida se: "Uppdaterad för X min sedan" + knapp **Hämta nytt nu**.
-3. Ett klick → koppla om Google med rätt scopes, eller byt valt konto/property/site.
+### 1. Kör `keyword-universe` som bakgrundsjobb
+- `analyse` triggar `keyword-universe` fire-and-forget (via `EdgeRuntime.waitUntil`) och returnerar direkt med `universe_pending: true`.
+- `keyword-universe` skriver själv `keyword_universe_json` + `universe_scale` till `analyses`-raden när den är klar — ingen risk för avbruten anslutning.
+- Frontend pollar var 5:e sekund (eller via Supabase realtime) och visar "Bygger universum… X sökord hittills" tills datan är skriven.
 
-## Lösning
+### 2. Höj taken på max-skalan (mer data)
+Nuvarande `max`: 4000 kw, semrushCap 1500. Höjs till:
+- `maxKeywords`: 4000 → **8000**
+- `aiCities`: 15 → **25** (fler geo-kombinationer)
+- `geoPerProduct`: 12 → **20**
+- `problemPairs`: 8 → **12**
+- `segmentPairs`: 8 → **12**
+- `semrushCap`: 1500 → **3000** (KD + SERP features på dubbelt så många)
 
-### 1. Ny sida: "Datakällor" (`/clients/:id/data-sources`)
+### 3. Berika allt, parallellt och i batchar
+- DataForSEO och Semrush körs i parallell med `Promise.all` istället för sekventiellt.
+- Båda batchar i grupper om 500 kw så vi inte träffar API-gränser.
+- **Inga timeouts som droppar data** — om Semrush är långsam väntar vi klart. Eftersom det är ett bakgrundsjobb spelar väntetiden ingen roll.
+- Retry med backoff per batch om DataForSEO/Semrush returnerar 429/5xx.
 
-Ersätter den nuvarande halvbyggda Anslutningar-sektionen i Inställningar och lyfts till sidomenyn (med grön/orange/röd prick).
+### 4. Lägg till en ny "Ultra"-skala (valfritt extra)
+Om du vill ha ännu mer data på vissa projekt: `ultra` = 15 000 kw, semrushCap 5000. Tar 5–10 min men ger maximal täckning.
 
-För varje datakälla (GA4, GSC, Google Ads, Lovable Cloud, Firecrawl, DataForSEO):
+### Tekniska detaljer
 
-```text
-┌────────────────────────────────────────────────────────────────┐
-│ ●  Google Analytics 4              Ansluten · GA4 scope OK     │
-│    Property: Slay Station (properties/123)         [Byt ▾]     │
-│    Senast hämtad: 4 min sedan       [Hämta nytt]  [Koppla om]  │
-│    Ev. felmeddelande från senaste anrop                         │
-└────────────────────────────────────────────────────────────────┘
-```
+**Filer som ändras:**
+- `supabase/functions/analyse/index.ts` — för `scale ∈ {max, ultra}`: trigga `keyword-universe` med `EdgeRuntime.waitUntil`, returnera direkt utan att vänta.
+- `supabase/functions/keyword-universe/index.ts` — höj `SCALE_CONFIG.max`, lägg till `SCALE_CONFIG.ultra`, kör DataForSEO + Semrush i `Promise.all`, batcha i 500-grupper med retry, skriv resultat direkt till `analyses` om `analysis_id` skickas med, lagra progress (`universe_progress: { stage, count }`) löpande.
+- `supabase/functions/enrich-keywords/index.ts` + `enrich-semrush/index.ts` — säkerställ batch-stöd och 3x retry vid 429.
+- `src/pages/KeywordUniverse.tsx` + `src/pages/workspace/WorkspaceKeywordUniverse.tsx` — poll-loop var 5:e sek, visa "Bygger… {progress.count} sökord" tills `keyword_universe_json` finns. Knappen "Generera om" disablad medan jobb pågår.
+- `src/components/wizard/StepAnalyse.tsx` — uppdatera beskrivningar:
+  - Maximalt: "5000–8000 sökord, 2–4 min, körs i bakgrunden"
+  - (om ultra) Ultra: "10000–15000 sökord, 5–10 min, körs i bakgrunden"
 
-Status-prick:
-- **Grön** — token giltig, scope OK, valt konto svarar 200, senaste hämtning < TTL.
-- **Orange** — anslutet men data > TTL eller property/site ej vald.
-- **Röd** — token saknas/utgången, scope saknas, eller upstream 4xx.
+**Migration:**
+- Lägg till kolumn `analyses.universe_progress jsonb` så frontend kan visa "X sökord genererade hittills".
 
-Knappar:
-- **Byt** öppnar dropdown med konton/properties/sajter (från `gsc-fetch sites`, `ga4-fetch properties`, `ads-list-customers`).
-- **Hämta nytt** triggar bakgrundshämtning + uppdaterar `last_synced_at`.
-- **Koppla om** kör befintlig `reconnectGoogle()`-flöde.
-- **Koppla om alla Google-tjänster** högst upp som master-knapp.
+**Vad som inte ändras:**
+- Inga datakälls-kopplingar (GA4/GSC/Ads). De fungerar oberoende av detta.
+- "Focused" och "Broad" fortsätter köras synkront — de hinner klart.
 
-### 2. Färskhetschip på varje sida
+## Resultat
 
-Liten rad i toppen av Ga4Dashboard, SeoDashboard, GoogleAdsHub, AuctionInsights, AdsAudit m.fl.:
-
-```text
-GA4 ● uppdaterad 4 min sedan · cache 30 min  [↻ Hämta nytt]
-```
-
-Klick på chip = samma "Hämta nytt"-flöde som datakälla-sidan. Klick på källans namn = navigera till Datakällor.
-
-### 3. Single source of truth: `data_source_status`-tabell
-
-Ny tabell som varje fetch-edge-funktion skriver till efter lyckat/misslyckat anrop:
-
-```text
-data_source_status
-├ project_id  uuid
-├ source      text   ('ga4' | 'gsc' | 'ads' | ...)
-├ status      text   ('ok' | 'stale' | 'error' | 'reauth_required')
-├ last_synced_at  timestamptz
-├ last_error  text
-├ ttl_seconds int     -- standard 1800
-└ meta        jsonb   -- valt property/site/customer
-```
-
-Frontend läser denna tabell + realtime-subscribe för live status.
-
-### 4. Edge-funktion: `data-sources-status`
-
-Engångsanrop som returnerar status för alla källor i ett svep:
-
-- Läser `google_tokens.scope` och jämför mot kraven (`webmasters.readonly`, `analytics.readonly`, `adwords`).
-- Pingar light endpoint per källa endast om `last_synced_at` är äldre än TTL.
-- Returnerar samlad status + `last_synced_at` + `connectedAccount`.
-
-### 5. Tvinga färsk data när TTL passerats
-
-Ändra `gsc-fetch`, `ga4-fetch`, `ads-diagnose`, `ads-list-customers`, `ga4-revenue-fetch` så att:
-
-- Skriver `data_source_status` efter varje anrop.
-- Stödjer `?force=true` i body som förbigår cache (där cache finns, t.ex. `ads_diagnostics_cache`).
-- Reauth-svar (befintligt `reauthRequired`) sätter status = `reauth_required` så bannern + datakälla-sidan synkas direkt.
-
-### 6. Sidomenyns visuella signal
-
-Lägg till liten prick bredvid sidor som beror av en källa när källan är röd/orange — så användaren slipper klicka in på en trasig sida.
-
-## Tekniska detaljer
-
-- **Tabell**: `data_source_status` med RLS via befintliga `is_project_member`. Unique på (`project_id`, `source`).
-- **Hook**: `useDataSourceStatus(projectId)` som listar alla källor + realtime subscribe på `postgres_changes`.
-- **Komponent**: `<DataFreshnessChip source="ga4" projectId={…} />` återanvänds på alla datasidor.
-- **Edge-funktion**: ny `data-sources-status` deno-funktion som batch-läser `google_tokens`, `project_google_settings`, `data_source_status` och returnerar normaliserad payload.
-- **Återanvänd**: existerande `googleReauth.ts` (banner + toast), `reconnectGoogle()`, `invokeGoogleOauth("disconnect"/"start")`.
-- **TTL-default**: 30 min för GA4/GSC, 60 min för Ads-diagnose. Konfigurerbart per projekt senare.
-- **Migration**: lägg in `data_source_status` + RLS-policies + en hjälp-RPC `mark_source_status(project_id, source, status, last_error, meta)`.
-
-## Vad jag inte gör i detta steg
-
-- Ingen automatisk schemalagd refresh — bara on-demand + read-on-page-load om data > TTL.
-- Inga ändringar i icke-Google-källor (Firecrawl/DataForSEO) utöver att de visas i listan med status från senaste användning.
-- Ingen multi-account-koppling per projekt utöver Google Ads (som redan finns).
-
-## Acceptanskriterier
-
-1. På `/data-sources` ser jag alla källor med grön/orange/röd prick + senaste hämtningstid.
-2. På Ga4Dashboard, SeoDashboard, GoogleAdsHub, AuctionInsights, AdsAudit visas färskhetschip.
-3. "Hämta nytt"-knapp tvingar färsk hämtning och uppdaterar tiden inom 5 sek.
-4. När scope saknas → röd prick + reauth-banner triggas direkt utan att jag behöver klicka in på en datasida.
-5. "Koppla om alla Google-tjänster" rensar token, startar OAuth med samtliga scopes, redirectar tillbaka och visar grönt.
+Du kan välja Maximalt (eller Ultra) och få **dubbelt så mycket data** som idag, utan att UI:t verkar tappa kopplingen. Du ser progress i realtid och universumet sparas korrekt även om det tar 5+ min.
