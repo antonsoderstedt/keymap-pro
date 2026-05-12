@@ -659,11 +659,12 @@ export default function KeywordsHub() {
       )}
 
       {/* Background universe-job status (Max / Ultra) */}
-      {universeProgress && (
+      {universeProgress && !(universeProgress.stage === "done" && doneDismissed) && (
         <BackgroundUniverseStatus
           progress={universeProgress}
           startedAt={progressStartedAt}
           tick={progressTick}
+          onDismiss={() => setDoneDismissed(true)}
         />
       )}
       {source === "prelaunch" && (
