@@ -173,6 +173,44 @@ export default function KeywordsHub() {
 
   const isBackgroundRunning = !!universeProgress && universeProgress.stage !== "done" && universeProgress.stage !== "error";
 
+  // Realtime subscription so the progress bar uppdateras direkt utan polling
+  useEffect(() => {
+    if (!analysisId) return;
+    const channel = supabase
+      .channel(`analysis_progress:${analysisId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "analyses", filter: `id=eq.${analysisId}` },
+        (payload) => {
+          const row: any = payload.new;
+          const prog = row?.universe_progress;
+          const universe = row?.keyword_universe_json;
+          if (prog && prog.stage && prog.stage !== "done" && prog.stage !== "error") {
+            wasRunningRef.current = true;
+            setUniverseProgress(prog);
+            setProgressStartedAt((s) => s ?? Date.now());
+          } else if (prog?.stage === "error") {
+            setUniverseProgress(prog);
+          } else if (universe && wasRunningRef.current) {
+            setUniverseProgress(null);
+            setProgressStartedAt(null);
+            refetch();
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisId]);
+
+  // 1Hz tick to update the elapsed-time counter while a job is running
+  const [progressTick, setProgressTick] = useState(0);
+  useEffect(() => {
+    if (!isBackgroundRunning) return;
+    const t = setInterval(() => setProgressTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [isBackgroundRunning]);
+
   // ── Filter state (Sökord-tabben) ───────────────────────────────────
   const [search, setSearch] = useState("");
   const [intent, setIntent] = useState("all");
