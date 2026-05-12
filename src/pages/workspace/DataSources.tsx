@@ -40,8 +40,15 @@ export default function DataSources() {
 
   const handleReconnect = async () => {
     setReconnecting(true);
-    try { await reconnectGoogle(); }
-    catch (e: any) { toast.error("Kunde inte starta OAuth", { description: e?.message }); setReconnecting(false); }
+    const t = toast.loading("Startar Google-inloggning…");
+    try {
+      await reconnectGoogle();
+      toast.success("Öppnar Google-inloggning i ny flik", { id: t, description: "Slutför där och kom tillbaka hit." });
+    } catch (e: any) {
+      toast.error("Kunde inte öppna Google-inloggning", { id: t, description: e?.message });
+    } finally {
+      setReconnecting(false);
+    }
   };
 
   const handleForceRefresh = async (source: string) => {
