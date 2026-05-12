@@ -196,9 +196,27 @@ export default function WorkspaceKeywordUniverse() {
         )}
       </div>
 
+      {progress && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-primary animate-pulse shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                Bygger sökordsuniversum i bakgrunden
+                {progress.scale ? ` (${progress.scale})` : ""}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Steg: <span className="font-mono">{progress.stage}</span>
+                {progress.count > 0 && ` — ${progress.count.toLocaleString("sv-SE")}${progress.total ? ` / ${progress.total.toLocaleString("sv-SE")}` : ""} sökord`}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {loading ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Laddar…</CardContent></Card>
-      ) : !data ? (
+      ) : !data && !progress ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center space-y-3">
             <Sparkles className="h-8 w-8 text-primary mx-auto" />
