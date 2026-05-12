@@ -236,7 +236,7 @@ export default function WorkspaceKeywordUniverse() {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : data ? (
         <>
           <div className="grid grid-cols-3 gap-4">
             <StatCard label="Kluster" value={data.clusters.length} />
