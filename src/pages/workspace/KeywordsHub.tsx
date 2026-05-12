@@ -2,7 +2,7 @@
 // Migrerar all funktionalitet från /project/:id/results (Results.tsx + KeywordUniverse.tsx)
 // in i workspace. 6 tabbar: Översikt / Sökord / Briefs / Strategi / Teknisk SEO / Google Ads-export.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
