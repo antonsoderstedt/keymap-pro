@@ -1,114 +1,126 @@
+## Översikt
 
-## Mål
+Bygger "Live ⇄ Förslag ⇄ Resultat" — en samlad vy där du ser ditt riktiga Google Ads-konto, AI:ns förslag, kan godkänna och pusha **pausat**, **och** följer upp KPI-effekten av varje pushat förslag automatiskt.
 
-Bygga en pedagogisk, visuell guide-sida som förklarar hur projekt, datakällor, sökordsuniversum, SEO/Ads-motorer, briefing och åtgärder hänger ihop — så att användaren förstår ordningen, vad som påverkar vad, och vad som uppdateras automatiskt.
+---
 
-## Placering
+## Del 1 — Live-spegel av kontot
 
-- Ny route: `/clients/:id/how-it-works`
-- Ny sidebar-post i `WorkspaceSidebar.tsx` direkt **under "Inställningar"** med ikon `HelpCircle` och label **"Så fungerar det"**.
-- Lägg också en länk-kort högst upp i `WorkspaceSettings.tsx` ("Ny här? Läs guiden →") så att den hittas från Inställningar.
-- Registrera route i `src/App.tsx` inom workspace-layouten.
+**Ny edge-funktion `ads-fetch-account-tree`**: hämtar via GAQL i en request och cachar 15 min i ny tabell `ads_account_tree_cache(project_id, fetched_at, tree jsonb)`:
+- Campaigns (id, name, status, channel, budget, bidding_strategy, optimization_score, 30d-metrics)
+- Ad groups per campaign (status, default_cpc, type, 30d-metrics)
+- Keywords per ad group (text, match_type, status, QS, 30d-metrics)
+- Ads per ad group (RSA headlines/descriptions/paths/final_url, ad_strength, status)
+- Negative keywords (campaign-nivå + shared sets)
 
-## Sidans struktur (en lång scrollvy, inga tabs)
+Allt läs-API finns redan i `_shared/google-ads.ts`.
 
-Designen följer dark theme + lime-accent. Semantiska tokens, JetBrains Mono för data, Playfair för rubriker. Animerade element via framer-motion (redan i projektet). Ikoner från lucide-react.
+## Del 2 — Förslag och godkännande
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│ HERO                                                     │
-│  H1 "Så fungerar Slay Station"                           │
-│  Lead: 1 mening + två chips (5 min läsning · uppdaterad) │
-│  Animerad bakgrund (lime glow)                           │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 1 — Översikt i 30 sekunder                       │
-│  3 kort i rad: Samla data → Förstå → Agera               │
-│  Varje kort: ikon, 1 mening, lime pil mellan korten      │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 2 — Hela flödet (interaktivt diagram)            │
-│  SVG flowchart byggd inline (ej extern lib):             │
-│    Projekt → Datakällor + Sökord/Universum               │
-│      → Datalager → SEO-motor + Ads-motor                 │
-│      → Briefing/Rapporter → Action Tracker → loop        │
-│  Hover på nod ⇒ tooltip med kort förklaring              │
-│  Aktiva noder lime, vilande border-muted                 │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 3 — Steg för steg (numrerad timeline)            │
-│  Vertikal timeline med 5 steg, bild/illustration per steg│
-│  1. Skapa projekt & sätt mål                             │
-│  2. Koppla GA4, Search Console, Google Ads               │
-│  3. Generera sökordsuniversum (Lite/Max/Ultra)           │
-│  4. Läs SEO-dashboard & Ads Audit                        │
-│  5. Följ Veckobriefing → Action Tracker                  │
-│  Varje steg: "Gör nu →"-knapp som länkar rätt rutt       │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 4 — Vilken motor använder vilken data?           │
-│  Matrix-tabell med ikoner och pilar                      │
-│  Rader: SEO-motor, Ads-motor, Briefing, Pre-launch       │
-│  Kolumner: GA4, GSC, Ads, Universum, Mål                 │
-│  Fyllda lime-prickar vs tomma cirklar                    │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 5 — Korsbefruktning (3 visuella kort)            │
-│  Pil-illustrationer:                                     │
-│   • Universum → Ads (negativ-listor, intent)             │
-│   • Ads → SEO (höga CPC = SEO-möjlighet)                 │
-│   • GA4 → båda (estimated_value_sek)                     │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 6 — Vad uppdateras automatiskt?                  │
-│  4 status-kort med pulsande dot:                         │
-│   GA4/GSC/Ads · Diagnoser · Universum (manuell) · Action │
-│  Kort förklaring + intervall                             │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 7 — Status för DETTA projekt                     │
-│  Live checklist (läser useProjectCapabilities):          │
-│   ✓ GA4 kopplat   ✓ GSC kopplat   ⚠ Ads ej kopplat       │
-│   ✓ Universum genererat (ultra · 1412 sökord)            │
-│  Knappar för att åtgärda det som saknas                  │
-└──────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────┐
-│ SEKTION 8 — FAQ (Accordion)                              │
-│  • Måste jag köra Ultra först?                           │
-│  • Vad händer om en datakälla blir inaktuell?            │
-│  • Hur räknas estimated_value_sek?                       │
-│  • Kan Ads och SEO köras separat?                        │
-│  • Hur ofta hämtas ny data?                              │
-└──────────────────────────────────────────────────────────┘
+**Ny tabell `ads_change_proposals`**:
 ```
+id, project_id, analysis_id?, source ('diagnosis'|'ai_generation'|'manual'|'cluster_expansion'),
+action_type, payload jsonb (= det som skickas till ads-mutate),
+diff jsonb (before/after för UI),
+estimated_impact_sek numeric, baseline_metrics jsonb,
+rationale text, evidence jsonb,
+status ('draft'|'approved'|'pushed'|'rejected'|'failed'),
+push_as_paused bool default true,
+mutation_id (FK ads_mutations när pushat),
+outcome_id (FK ads_recommendation_outcomes när mätt),
+created_by, created_at, updated_at, pushed_at
+```
+RLS via `is_project_member`.
 
-## Tekniska detaljer
+**Ny edge-funktion `ads-build-proposals`** — bygger draft-proposals automatiskt från:
+1. Diagnos (15 regler) → matchande `proposed_actions[0]` blir proposal med rationale + estimated_impact_sek + baseline_metrics-snapshot.
+2. Wasted keywords → `pause_keyword`.
+3. Negative mining → `add_negative_keyword`.
+4. RSA-utkast (`ad_drafts`) som inte finns live → `create_rsa` (PAUSED).
+5. Sökord-kluster utan matchande live ad group → `create_ad_group` (PAUSED) + `add_keyword`.
 
-**Filer som skapas:**
-- `src/pages/workspace/HowItWorks.tsx` — sidkomponent
-- `src/components/howitworks/FlowDiagram.tsx` — inline SVG-flowchart (responsiv, hover-tooltips, ingen mermaid runtime)
-- `src/components/howitworks/StepTimeline.tsx` — numrerad timeline med "Gör nu"-länkar
-- `src/components/howitworks/DataMatrix.tsx` — motor × datakälla-matris
-- `src/components/howitworks/ProjectStatusChecklist.tsx` — läser `useProjectCapabilities` + analyses-tabellen för att visa konkret status
-- `src/components/howitworks/CrossPollinationCards.tsx` — 3 kort med SVG-pilar
+**Utökar `ads-mutate`** med tre nya action_type:
+- `create_rsa` — payload: `{ad_group_id, headlines[], descriptions[], path1, path2, final_url, status}` (default PAUSED).
+- `create_ad_group` — `{campaign_id, name, default_cpc_micros, status, keywords[]}`.
+- `add_keyword` — `{ad_group_id, text, match_type, cpc_micros?, status}`.
 
-**Filer som ändras:**
-- `src/components/workspace/WorkspaceSidebar.tsx` — lägg till `{ to: \`${base}/how-it-works\`, label: "Så fungerar det", icon: HelpCircle }` direkt efter Inställningar.
-- `src/components/workspace/MobileWorkspaceSidebar.tsx` — samma post för mobilmenyn.
-- `src/App.tsx` — registrera route `<Route path="how-it-works" element={<HowItWorks />} />`.
-- `src/pages/workspace/WorkspaceSettings.tsx` — lägg in ett kort högst upp: "Ny här? Läs guiden 'Så fungerar det' →".
+Alla create-actions sätter `status: PAUSED` när `push_as_paused=true` → kräver manuell aktivering i Google Ads = säkerhetsnät.
 
-**Visuella ingredienser (allt via Tailwind + inline SVG, inga nya beroenden):**
-- Diagrammen ritas som inline `<svg>` med `<path>` för pilar (animerade `stroke-dashoffset`).
-- Bilder/illustrationer: 2–3 enkla AI-genererade hjältebilder (lime/dark stil) sparade i `src/assets/howitworks/` för Hero och steg 1/3/5. Använder `imagegen--generate_image` (fast tier).
-- Ingen ny data; status-checklistan återanvänder befintliga hooks (`useProjectCapabilities`, `useWorkspaceAnalysis`).
+## Del 3 — Resultatmätning (det du frågade efter nu)
 
-**Innehåll:**
-- All copy på svenska, kort och pedagogisk.
-- Tydlig terminologi-ruta som översätter "snapshot", "diagnostik", "kluster", "intent" etc.
+Vi har redan två tabeller — `ads_recommendation_outcomes` och `action_outcomes`. Vi kopplar in flödet:
 
-## Avgränsningar
+**Snapshot vid push** (i `ads-mutate` när `source_action_item_id` eller proposal_id finns):
+- Läs senaste 14d-metrics för impacted scope (campaign/ad_group/keyword/ad) via GAQL.
+- Spara som `baseline_metrics` på proposal + skapa rad i `ads_recommendation_outcomes` med `predicted` = estimated_impact + `applied_at`.
 
-- Endast frontend/presentation. Ingen DB-migration, inga edge functions.
-- Ingen redigerbar guide (statisk innehållskälla i komponenten — kan flyttas till MDX senare om så önskas).
-- Inga nya beroenden.
+**Ny cron-funktion `cron-ads-outcomes`** (finns delvis — utöka):
+- Körs dagligen.
+- För varje rad i `ads_recommendation_outcomes` där `applied_at` är 14d / 30d gammal och respektive `measured_*` saknas:
+  - Hämta nya 14d/30d-metrics för samma scope.
+  - Beräkna delta vs `baseline_metrics`: clicks, cost, conversions, conv_value, CPA, ROAS, CTR, QS, impressions, position.
+  - Spara i `measured_14d` / `measured_30d` med `delta`, `delta_pct`, `confidence` (low/mid/high baserat på sample size).
+  - Markera proposal som `outcome_id` och uppdatera `action_items.tracking_status`.
+
+**KPI-vy i UI** — ny tab "Resultat" i `GoogleAdsHub.tsx`:
+
+Tre nivåer:
+
+1. **Toppraden (period-sammanfattning)** — KPI-cards för konto-nivå, valbar period (7d / 14d / 30d / 90d):
+   - Total Spend · Conversions · Conv. Value · CPA · ROAS · CTR · Avg. Position
+   - Varje card visar **Now vs Previous Period** + sparkline + delta-pil (lime ↑ / röd ↓).
+
+2. **"Effekt av pushade förslag" (kärnan)** — tabell över alla `proposals` med `status='pushed'` och `outcome_id`:
+   - Kolumner: Datum pushad · Action type · Scope · Predicted SEK · Measured 14d (Δ Spend, Δ Conv, Δ ROAS) · Measured 30d · Confidence · Verdict.
+   - **Verdict-logik**: 
+     - 🟢 Lyckad — uppmätt delta ≥ 70% av predicted i samma riktning.
+     - 🟡 Neutral — delta inom ±20% av baseline (för litet urval eller marginell effekt).
+     - 🔴 Misslyckad — delta i fel riktning, > 30% sämre. Knapp "Återställ" som triggrar `ads-revert-mutation`.
+   - Klick på rad → drawer med graf (daglig metric ±28d kring push-datum, push-datum markerat med vertikal linje), evidence-listan från proposalen, och länk till själva mutationen i logs.
+
+3. **"AI-träffsäkerhet"** — meta-KPI per regel:
+   - Per `rule_id`: antal pushade, antal lyckade, %-träffsäkerhet, snitt-delta i SEK.
+   - Hjälper dig se vilka regler som faktiskt levererar — och tysta de som inte gör det via `automation_rules.is_active=false`.
+
+**Realtime**: `ads_recommendation_outcomes` + `ads_change_proposals` med `postgres_changes` så cards uppdateras live när cron skriver.
+
+---
+
+## UI-flöde i Google Ads Hub
+
+Tre nya tabbar mellan befintliga:
+1. **Kampanjstruktur** — split view: Live-träd (vänster) ⇄ Förslagskö (höger) med approve/edit/reject + "Pusha N godkända (PAUSED)".
+2. **Resultat** — KPI-cards + effekttabell + AI-träffsäkerhet (denna del).
+3. **Audit** / **Annonsförslag** / **Chat** finns redan.
+
+Diagnosmotorn-bannern högst upp får en counter "12 förslag väntar på godkännande" som länkar till Kampanjstruktur-tabben.
+
+---
+
+## Filer
+
+**Skapas**
+- `supabase/functions/ads-fetch-account-tree/index.ts`
+- `supabase/functions/ads-build-proposals/index.ts`
+- `supabase/functions/ads-snapshot-baseline/index.ts` (anropas från ads-mutate vid push)
+- `src/components/workspace/CampaignStructureView.tsx` + `CampaignTree.tsx` + `ProposalQueue.tsx` + `ProposalCard.tsx` + `ProposalEditor.tsx`
+- `src/components/workspace/AdsResultsTab.tsx` + `OutcomeTable.tsx` + `OutcomeDrawer.tsx` + `RuleAccuracyCard.tsx`
+- `src/hooks/useAccountTree.ts`, `useProposals.ts`, `useAdsOutcomes.ts`
+
+**Ändras**
+- `supabase/functions/ads-mutate/index.ts` — nya action_types + baseline-snapshot vid push.
+- `supabase/functions/cron-ads-outcomes/index.ts` — utöka till att även mäta proposal-baserade outcomes med 14d/30d-fönster.
+- `src/pages/workspace/GoogleAdsHub.tsx` — nya tabbar.
+- `src/components/workspace/RecommendationRationale.tsx` — knapp "Skapa förslag".
+
+**DB-migrations**
+- `ads_change_proposals` + index på (project_id, status) + RLS.
+- `ads_account_tree_cache` + RLS.
+- Lägg till `proposal_id` (nullable) på `ads_recommendation_outcomes` för join.
+
+---
+
+## Inte i scope
+- Bid simulator API, Smart Bidding-strategi-byten, Performance Max asset-edits.
+- Multi-account roll-up (en kund i taget).
+- Statistisk signifikanstest mer avancerat än sample-size-confidence (kommer i v2 med Bayesian-modell om vi vill).

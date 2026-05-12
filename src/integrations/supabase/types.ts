@@ -168,6 +168,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ads_account_tree_cache: {
+        Row: {
+          created_at: string
+          customer_id: string
+          fetched_at: string
+          id: string
+          project_id: string
+          tree: Json
+          ttl_seconds: number
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          fetched_at?: string
+          id?: string
+          project_id: string
+          tree: Json
+          ttl_seconds?: number
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          fetched_at?: string
+          id?: string
+          project_id?: string
+          tree?: Json
+          ttl_seconds?: number
+        }
+        Relationships: []
+      }
       ads_audits: {
         Row: {
           created_at: string
@@ -205,6 +235,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ads_change_proposals: {
+        Row: {
+          action_type: string
+          analysis_id: string | null
+          baseline_metrics: Json | null
+          created_at: string
+          created_by: string | null
+          diff: Json
+          error_message: string | null
+          estimated_impact_sek: number | null
+          evidence: Json
+          id: string
+          mutation_id: string | null
+          outcome_id: string | null
+          payload: Json
+          project_id: string
+          push_as_paused: boolean
+          pushed_at: string | null
+          rationale: string | null
+          rejected_at: string | null
+          rule_id: string | null
+          scope_label: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          analysis_id?: string | null
+          baseline_metrics?: Json | null
+          created_at?: string
+          created_by?: string | null
+          diff?: Json
+          error_message?: string | null
+          estimated_impact_sek?: number | null
+          evidence?: Json
+          id?: string
+          mutation_id?: string | null
+          outcome_id?: string | null
+          payload: Json
+          project_id: string
+          push_as_paused?: boolean
+          pushed_at?: string | null
+          rationale?: string | null
+          rejected_at?: string | null
+          rule_id?: string | null
+          scope_label?: string | null
+          source: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          analysis_id?: string | null
+          baseline_metrics?: Json | null
+          created_at?: string
+          created_by?: string | null
+          diff?: Json
+          error_message?: string | null
+          estimated_impact_sek?: number | null
+          evidence?: Json
+          id?: string
+          mutation_id?: string | null
+          outcome_id?: string | null
+          payload?: Json
+          project_id?: string
+          push_as_paused?: boolean
+          pushed_at?: string | null
+          rationale?: string | null
+          rejected_at?: string | null
+          rule_id?: string | null
+          scope_label?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       ads_diagnostics_cache: {
         Row: {
@@ -353,6 +461,7 @@ export type Database = {
           notes: string | null
           predicted: Json
           project_id: string
+          proposal_id: string | null
           reverted_at: string | null
           rule_id: string
         }
@@ -369,6 +478,7 @@ export type Database = {
           notes?: string | null
           predicted: Json
           project_id: string
+          proposal_id?: string | null
           reverted_at?: string | null
           rule_id: string
         }
@@ -385,6 +495,7 @@ export type Database = {
           notes?: string | null
           predicted?: Json
           project_id?: string
+          proposal_id?: string | null
           reverted_at?: string | null
           rule_id?: string
         }
