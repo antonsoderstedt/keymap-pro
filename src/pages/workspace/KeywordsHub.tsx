@@ -2,7 +2,7 @@
 // Migrerar all funktionalitet från /project/:id/results (Results.tsx + KeywordUniverse.tsx)
 // in i workspace. 6 tabbar: Översikt / Sökord / Briefs / Strategi / Teknisk SEO / Google Ads-export.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -63,6 +63,50 @@ export default function KeywordsHub() {
   const [scale, setScale] = useState<UniverseScale>(
     (universeScale as UniverseScale) || "broad",
   );
+  const [universeProgress, setUniverseProgress] = useState<{
+    stage: string;
+    count: number;
+    total?: number;
+    scale?: string;
+    error?: string;
+    updated_at?: string;
+  } | null>(null);
+  const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null);
+
+  // Poll universe_progress for background (max/ultra) jobs
+  useEffect(() => {
+    if (!analysisId) return;
+    let cancelled = false;
+    const tick = async () => {
+      const { data } = await supabase
+        .from("analyses")
+        .select("universe_progress, keyword_universe_json")
+        .eq("id", analysisId)
+        .maybeSingle();
+      if (cancelled) return;
+      const prog = (data as any)?.universe_progress as any;
+      const hasUniverse = !!(data as any)?.keyword_universe_json;
+      if (prog && prog.stage && !["done"].includes(prog.stage) && !(prog.stage === "error")) {
+        setUniverseProgress(prog);
+        if (!progressStartedAt) setProgressStartedAt(Date.now());
+      } else if (prog?.stage === "error") {
+        setUniverseProgress(prog);
+      } else {
+        if (universeProgress && hasUniverse) {
+          // Job finished — refresh data once
+          refetch();
+        }
+        setUniverseProgress(null);
+        setProgressStartedAt(null);
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisId]);
+
+  const isBackgroundRunning = !!universeProgress && universeProgress.stage !== "done" && universeProgress.stage !== "error";
 
   // ── Filter state (Sökord-tabben) ───────────────────────────────────
   const [search, setSearch] = useState("");
@@ -385,7 +429,7 @@ export default function KeywordsHub() {
     );
   }
 
-  if (!universe && !pending) {
+  if (!universe && !pending && !isBackgroundRunning && !universeProgress) {
     return <EmptyState projectId={id!} navigate={navigate} />;
   }
 
@@ -425,11 +469,11 @@ export default function KeywordsHub() {
           <Button
             variant="outline"
             onClick={handleRegenerate}
-            disabled={regenerating || pending}
+            disabled={regenerating || pending || isBackgroundRunning}
             className="gap-2"
           >
-            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {regenerating ? "Genererar…" : "Regenerera"}
+            {(regenerating || isBackgroundRunning) ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isBackgroundRunning ? "Bakgrundsjobb…" : regenerating ? "Genererar…" : "Regenerera"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -503,7 +547,13 @@ export default function KeywordsHub() {
         </Card>
       )}
 
-      {/* Pre-launch banner */}
+      {/* Background universe-job status (Max / Ultra) */}
+      {universeProgress && (
+        <BackgroundUniverseStatus
+          progress={universeProgress}
+          startedAt={progressStartedAt}
+        />
+      )}
       {source === "prelaunch" && (
         <Card className="border-warning/40 bg-warning/5">
           <CardContent className="p-4 flex items-center gap-3">
@@ -902,5 +952,108 @@ function EmptyState({ projectId, navigate }: { projectId: string; navigate: (p: 
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  init: "Initierar",
+  starting: "Startar jobbet",
+  generating: "AI genererar bas-sökord",
+  ai_seeds: "AI-fröord",
+  expanding: "Expanderar dimensioner",
+  dataforseo: "Hämtar volym & CPC (DataForSEO)",
+  semrush: "Berikar med Semrush",
+  enriching: "Berikar sökord",
+  clustering: "Bygger kluster",
+  scoring: "Scoring & priorisering",
+  saving: "Sparar resultat",
+  done: "Klart",
+  error: "Fel",
+};
+
+function BackgroundUniverseStatus({
+  progress,
+  startedAt,
+}: {
+  progress: { stage: string; count: number; total?: number; scale?: string; error?: string };
+  startedAt: number | null;
+}) {
+  const isError = progress.stage === "error";
+  const label = STAGE_LABELS[progress.stage] || progress.stage;
+  const pct = progress.total && progress.total > 0
+    ? Math.min(100, Math.round((progress.count / progress.total) * 100))
+    : null;
+
+  const elapsed = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+  const mm = Math.floor(elapsed / 60);
+  const ss = String(elapsed % 60).padStart(2, "0");
+  const elapsedStr = startedAt ? `${mm}:${ss}` : null;
+
+  if (isError) {
+    return (
+      <Card className="border-destructive/40 bg-destructive/5">
+        <CardContent className="p-4 flex items-start gap-3">
+          <Ban className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Bakgrundsjobbet misslyckades</p>
+            <p className="text-xs text-muted-foreground mt-1 break-words">
+              {progress.error || "Okänt fel — försök igen."}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-primary/40 bg-primary/5">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <Sparkles className="h-5 w-5 text-primary animate-pulse shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm font-medium">
+                Bygger sökordsuniversum i bakgrunden
+                {progress.scale ? (
+                  <Badge variant="secondary" className="ml-2 uppercase tracking-wide">{progress.scale}</Badge>
+                ) : null}
+              </p>
+              {elapsedStr && (
+                <span className="text-xs text-muted-foreground font-mono">⏱ {elapsedStr}</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {label}
+              {progress.count > 0 && (
+                <>
+                  {" — "}
+                  <span className="font-mono text-foreground">
+                    {progress.count.toLocaleString("sv-SE")}
+                    {progress.total ? ` / ${progress.total.toLocaleString("sv-SE")}` : ""}
+                  </span>{" "}
+                  sökord
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+          {pct !== null ? (
+            <div
+              className="h-full bg-primary transition-all duration-500 ease-out"
+              style={{ width: `${pct}%` }}
+            />
+          ) : (
+            <div className="h-full w-1/3 bg-primary/70 animate-pulse" />
+          )}
+        </div>
+
+        <p className="text-[11px] text-muted-foreground">
+          Du kan stänga sidan — jobbet körs på servern. Resultatet visas automatiskt när det är klart (ca 5–10 min för Ultra).
+        </p>
+      </CardContent>
+    </Card>
   );
 }
