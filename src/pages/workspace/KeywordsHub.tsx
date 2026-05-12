@@ -655,6 +655,7 @@ export default function KeywordsHub() {
         <BackgroundUniverseStatus
           progress={universeProgress}
           startedAt={progressStartedAt}
+          tick={progressTick}
         />
       )}
       {source === "prelaunch" && (
