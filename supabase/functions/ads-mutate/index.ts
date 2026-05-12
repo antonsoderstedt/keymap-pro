@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
     const map: Record<string, number> = {
       NO_ADS_CUSTOMER: 400, MISSING_IDS: 400, MISSING_KEYWORD: 400,
       MISSING_CAMPAIGN_ID: 400, INVALID_MATCH_TYPE: 400, UNSUPPORTED_ACTION: 400,
-      MISSING_REVERT: 400, MISSING_ADS_SCOPE: 403,
+      MISSING_REVERT: 400, MISSING_ADS_SCOPE: 403, RSA_INVALID: 400, RSA_NOT_FOUND: 404,
     };
     return json({ error: msg, code }, map[code] ?? 500);
   }
