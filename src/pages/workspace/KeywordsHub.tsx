@@ -70,8 +70,11 @@ export default function KeywordsHub() {
     scale?: string;
     error?: string;
     updated_at?: string;
+    finished_at?: string;
+    totalEnriched?: number;
   } | null>(null);
   const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null);
+  const [doneDismissed, setDoneDismissed] = useState(false);
 
   // Poll universe_progress for background (max/ultra) jobs + notify on completion
   const wasRunningRef = useRef(false);
