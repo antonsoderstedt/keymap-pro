@@ -14,6 +14,7 @@ import { useAutoSync } from "@/hooks/useAutoSync";
 export function WorkspaceLayout() {
   const { workspace, loading } = useWorkspace();
   const { user, signOut } = useAuth();
+  useAutoSync(workspace?.id);
 
   if (loading) {
     return (
