@@ -333,16 +333,27 @@ export default function KeywordsHub() {
 
   const handleRegenerate = async () => {
     if (!id) return;
+    const isBackground = scale === "max" || scale === "ultra";
     const ok = window.confirm(
-      "Detta genererar ett nytt sökordsuniversum baserat på befintlig analysdata. Det tar 1-2 minuter. Vill du fortsätta?",
+      isBackground
+        ? "Detta startar ett stort sökordsuniversum i bakgrunden (5–10 min). Du kan följa progressen. Fortsätta?"
+        : "Detta genererar ett nytt sökordsuniversum baserat på befintlig analysdata. Det tar 1-2 minuter. Vill du fortsätta?",
     );
     if (!ok) return;
     setRegenerating(true);
     try {
-      const { data: resp, error: err } = await supabase.functions.invoke("keyword-universe", {
-        body: { project_id: id, scale },
-      });
+      const body: any = { project_id: id, scale };
+      if (isBackground && analysisId) {
+        body.background = true;
+        body.analysis_id = analysisId;
+      }
+      const { data: resp, error: err } = await supabase.functions.invoke("keyword-universe", { body });
       if (err) throw err;
+      if (isBackground) {
+        toast({ title: "Startat i bakgrunden", description: "Universumet byggs. Sidan uppdateras när det är klart." });
+        refetch();
+        return;
+      }
       const newUniverse = (resp as any)?.universe;
       if (!newUniverse) throw new Error("Ingen universe-data returnerades");
       if (analysisId) {
