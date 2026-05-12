@@ -9,10 +9,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
 import { DataSourceAlerts } from "@/components/DataSourceAlerts";
+import { useAutoSync } from "@/hooks/useAutoSync";
 
 export function WorkspaceLayout() {
   const { workspace, loading } = useWorkspace();
   const { user, signOut } = useAuth();
+  useAutoSync(workspace?.id);
 
   if (loading) {
     return (
