@@ -17,6 +17,8 @@ interface UniverseData {
   totalKeywords: number;
   sourceId: string;
   createdAt: string;
+  opportunities?: any[];
+  engineVersion?: string;
 }
 
 interface Progress {
