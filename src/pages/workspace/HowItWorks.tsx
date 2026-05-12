@@ -2,7 +2,7 @@
 // Hittas via sidomenyn under Inställningar.
 
 import { useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+
 import { Sparkles, Database, Brain, Target, Clock, RefreshCw, Zap, BookOpen } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FlowDiagram } from "@/components/howitworks/FlowDiagram";
@@ -36,12 +36,7 @@ export default function HowItWorks() {
   return (
     <div className="max-w-6xl mx-auto p-6 lg:p-8 space-y-12">
       {/* HERO */}
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-2xl border border-border bg-card/40"
-      >
+      <section className="relative overflow-hidden rounded-2xl border border-border bg-card/40 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="absolute inset-0 opacity-30">
           <img src={heroImg} alt="" width={1536} height={768} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
