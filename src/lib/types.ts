@@ -70,6 +70,8 @@ export interface KeywordOpportunity {
   keywords: string[];
   estimated_revenue_p50?: number;
   priority: "high" | "medium" | "low";
+  scope?: { campaign_id?: string; campaign_name?: string };
+  action_label?: string;
 }
 
 // Google Ads draft (one per ad group)
