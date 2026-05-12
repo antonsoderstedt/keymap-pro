@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { scoreKeyword, type ScoringContext } from "../_shared/keyword-intel/scoring.ts";
+import { discoverOpportunities } from "../_shared/keyword-intel/opportunities.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -393,12 +395,177 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       console.error("[universe] semrush error", e);
     }
 
+    // === PASS 3.6: SERP-expansion (PAA + related searches) med cache + hård cap ===
+    // Fix 4: max 10 live DataForSEO-anrop per körning, 14d cache i keyword_serp_cache
+    await setProgress("expanding_serp", 0);
+    try {
+      const dfLogin = Deno.env.get("DATAFORSEO_LOGIN");
+      const dfPassword = Deno.env.get("DATAFORSEO_PASSWORD");
+      if (dfLogin && dfPassword) {
+        const dfAuth = btoa(`${dfLogin}:${dfPassword}`);
+        const seedCandidates = [
+          ...products.slice(0, 6),
+          ...services.slice(0, 5),
+          ...(problems || []).slice(0, 3),
+        ].filter(Boolean);
+
+        const MAX_SERP_CALLS = 10;
+        const serpExpanded = new Set<string>();
+        let liveCallCount = 0;
+
+        const fetchSerpForSeed = async (seed: string) => {
+          const { data: cached } = await supabase
+            .from("keyword_serp_cache")
+            .select("result_json")
+            .eq("keyword", seed.toLowerCase())
+            .eq("location_code", 2752)
+            .gt("expires_at", new Date().toISOString())
+            .maybeSingle();
+          if (cached?.result_json) {
+            const r = cached.result_json as any;
+            return { paa: r.paa || [], related: r.related || [], fromCache: true };
+          }
+          if (liveCallCount >= MAX_SERP_CALLS) {
+            return { paa: [], related: [], fromCache: false };
+          }
+          liveCallCount++;
+          try {
+            const res = await fetch(
+              "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+              {
+                method: "POST",
+                headers: { Authorization: `Basic ${dfAuth}`, "Content-Type": "application/json" },
+                body: JSON.stringify([{
+                  keyword: seed,
+                  language_code: "sv",
+                  location_code: 2752,
+                  calculate_rectangles: false,
+                  load_async_ai_overview: false,
+                }]),
+              },
+            );
+            if (!res.ok) return { paa: [], related: [], fromCache: false };
+            const data = await res.json();
+            const items = data.tasks?.[0]?.result?.[0]?.items || [];
+            const paa: string[] = [];
+            const related: string[] = [];
+            for (const item of items) {
+              if (item.type === "people_also_ask") {
+                for (const i of (item.items || [])) {
+                  const q = i.title?.toLowerCase()?.trim();
+                  if (q && q.length >= 6 && q.length <= 80) paa.push(q);
+                }
+              }
+              if (item.type === "related_searches") {
+                for (const i of (item.items || [])) {
+                  const kw = i.title?.toLowerCase()?.trim();
+                  if (kw && kw.length >= 4 && kw.length <= 60) related.push(kw);
+                }
+              }
+            }
+            const resultJson = { paa, related };
+            await supabase.from("keyword_serp_cache").upsert({
+              keyword: seed.toLowerCase(),
+              location_code: 2752,
+              result_json: resultJson,
+              fetched_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            } as any, { onConflict: "keyword,location_code" });
+            return { paa, related, fromCache: false };
+          } catch (e) {
+            console.warn(`[universe] SERP live fail for "${seed}":`, e);
+            return { paa: [], related: [], fromCache: false };
+          }
+        };
+
+        for (const seed of seedCandidates) {
+          if (universe.length >= cfg.maxKeywords) break;
+          const { paa, related } = await fetchSerpForSeed(seed);
+          for (const q of paa) {
+            if (!seen.has(q) && universe.length < cfg.maxKeywords) {
+              add({
+                keyword: q,
+                cluster: `Fråga: ${seed}`,
+                dimension: "fraga",
+                intent: "informational",
+                funnel: "awareness",
+                channel: "Content",
+              });
+              serpExpanded.add(q);
+            }
+          }
+          for (const kw of related) {
+            if (!seen.has(kw) && universe.length < cfg.maxKeywords) {
+              const isTrans = /pris|köpa|beställ|offert|kostnad|leverant/.test(kw);
+              add({
+                keyword: kw,
+                cluster: `Relaterat: ${seed}`,
+                dimension: "losning",
+                intent: isTrans ? "transactional" : "commercial",
+                funnel: isTrans ? "conversion" : "consideration",
+                channel: isTrans ? "Google Ads" : "SEO",
+              });
+              serpExpanded.add(kw);
+            }
+          }
+        }
+        console.log(
+          `[universe] SERP-expanded: +${serpExpanded.size} sökord, ${liveCallCount} live-anrop (${seedCandidates.length - liveCallCount} från cache)`,
+        );
+        await setProgress("expanding_serp", serpExpanded.size, {
+          live_calls: liveCallCount,
+          cache_hits: seedCandidates.length - liveCallCount,
+        });
+
+        // Berika de nya sökorden med DataForSEO-volym (en extra batch)
+        const newKws = [...serpExpanded].filter((k) => !metricsMap[k]);
+        if (newKws.length > 0) {
+          try {
+            const r = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ keywords: newKws }),
+            });
+            if (r.ok) {
+              const j = await r.json();
+              Object.assign(metricsMap, j.metrics || {});
+            }
+          } catch (e) {
+            console.warn("[universe] SERP-expanded enrich failed", e);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[universe] SERP expand error:", e);
+    }
+
     // Determine project domain (for competitor-gap detection)
     const projectDomain = (project as any).domain
       ? String((project as any).domain).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")
       : null;
 
-    // === PASS 4: Build final output with priority + recommendations ===
+    // === Bygg ScoringContext (en gång) ===
+    const customerProductHints: string[] = Array.from(new Set(
+      (customers || [])
+        .flatMap((c: any) => String(c.products || "").toLowerCase().split(/[,;\n]+/))
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length >= 3 && s.length <= 40),
+    )).slice(0, 40);
+
+    const scoringCtx: ScoringContext = {
+      workspaceType: (project as any).workspace_type || "b2b_service",
+      productTerms: products.map((p) => p.toLowerCase()),
+      serviceTerms: services.map((s) => s.toLowerCase()),
+      materialTerms: materials.map((m) => m.toLowerCase()),
+      customerProductHints,
+      customerIndustries: new Set(
+        (industries as string[]).map((i) => String(i).toLowerCase()),
+      ),
+      diagFlaggedKeywords: new Set<string>(),
+      goals: undefined,
+    };
+
+    // === PASS 4: Build final output med multi-signal scoring (Fix 2: negativa filtreras) ===
     const final = universe.map((u) => {
       const m = metricsMap[u.keyword];
       const sm = semrushMap[u.keyword];
@@ -408,23 +575,29 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       const kd = sm?.kd ?? null;
       const serpFeatures = sm?.serp_features ?? null;
       const topDomains: string[] | null = sm?.top_domains ?? null;
+      const trendJson = m?.trend_json ?? null;
 
       const competitorGap = projectDomain && topDomains && topDomains.length > 0
         ? !topDomains.some((d: string) => d.toLowerCase().includes(projectDomain))
         : false;
 
-      // Priority heuristic (improved with KD)
-      let priority: "high" | "medium" | "low" = "low";
-      if (vol != null) {
-        if (vol >= 200 && (kd == null || kd < 50)) priority = "high";
-        else if (vol >= 50 && (kd == null || kd < 70)) priority = "medium";
-        else if (vol >= 50) priority = "low";
-      } else if (u.intent === "transactional") {
-        priority = "medium";
-      }
-      // Boost: competitor ranks but you don't = big opportunity
-      if (competitorGap && vol != null && vol >= 100) {
-        priority = priority === "low" ? "medium" : "high";
+      // Fix 2: skippa scoring för negativa sökord ELLER kluster "Negativa kandidater"
+      const isNeg = !!u.isNegative ||
+        (u.dimension === "kommersiell" && u.channel === "Google Ads" && u.cluster === "Negativa kandidater");
+
+      const sc = isNeg
+        ? null
+        : scoreKeyword(u, { vol, cpc, comp, kd, serpFeatures, topDomains, trendJson }, scoringCtx);
+
+      // Fix 2: tvinga priority=skip för negativa
+      const effectivePriority: "high" | "medium" | "low" | "skip" =
+        isNeg ? "skip" : (sc?.priority || "low");
+
+      // Boost: competitor ranks but you don't = +1 priority-steg (på icke-negativa)
+      let finalPriority = effectivePriority;
+      if (!isNeg && competitorGap && vol != null && vol >= 100) {
+        if (finalPriority === "low") finalPriority = "medium";
+        else if (finalPriority === "medium") finalPriority = "high";
       }
 
       const slug = slugify(u.cluster);
@@ -434,12 +607,12 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         dimension: u.dimension,
         intent: u.intent,
         funnelStage: u.funnel,
-        priority,
+        priority: finalPriority,
         channel: u.channel,
-        recommendedLandingPage: u.isNegative ? undefined : `/${slug}`,
+        recommendedLandingPage: isNeg ? undefined : `/${slug}`,
         recommendedAdGroup: u.cluster,
         contentIdea: u.intent === "informational" ? `Guide: ${u.keyword}` : undefined,
-        isNegative: u.isNegative || false,
+        isNegative: isNeg,
         searchVolume: vol ?? undefined,
         cpc: cpc ?? undefined,
         competition: comp ?? undefined,
@@ -448,11 +621,22 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         serpFeatures: serpFeatures ?? undefined,
         topRankingDomains: topDomains ?? undefined,
         competitorGap: competitorGap || undefined,
+        score: sc
+          ? {
+              final: sc.final,
+              components: sc.components,
+              revenue: sc.revenue,
+            }
+          : undefined,
       };
     });
 
     const enrichedCount = final.filter((k) => k.dataSource === "real").length;
     console.log(`[universe] enriched ${enrichedCount}/${final.length}`);
+
+    // === PASS 5: Discover opportunities (filtrerar negativa internt) ===
+    const opportunities = discoverOpportunities(final as any);
+    console.log(`[universe] discovered ${opportunities.length} opportunities`);
 
     const result = {
       scale,
@@ -461,6 +645,8 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       totalEnriched: enrichedCount,
       cities,
       keywords: final,
+      opportunities,
+      engineVersion: "v2",
     };
 
     // If called with analysis_id, write the universe back to the analyses row
