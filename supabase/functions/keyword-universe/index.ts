@@ -29,8 +29,11 @@ const normalizeKw = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let analysisIdGlobal: string | null = null;
+  let supabaseGlobal: ReturnType<typeof createClient> | null = null;
+
   try {
-    const { project_id, scale: scaleInput } = await req.json();
+    const { project_id, scale: scaleInput, analysis_id, background } = await req.json();
     if (!project_id) throw new Error("project_id is required");
 
     const scale: Scale = (scaleInput || "broad") as Scale;
@@ -42,15 +45,39 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    supabaseGlobal = supabase;
+    analysisIdGlobal = analysis_id || null;
 
-    const { data: project, error: pErr } = await supabase.from("projects").select("*").eq("id", project_id).single();
-    if (pErr || !project) throw new Error("Project not found");
+    const setProgress = async (stage: string, count = 0, extra: Record<string, any> = {}) => {
+      if (!analysis_id) return;
+      try {
+        await supabase.from("analyses").update({
+          universe_progress: { stage, count, scale, updated_at: new Date().toISOString(), ...extra },
+        } as any).eq("id", analysis_id);
+      } catch (e) {
+        console.error("[universe] progress update failed", e);
+      }
+    };
 
-    const { data: customers } = await supabase.from("customers").select("*").eq("project_id", project_id).limit(50);
-    const industries = Array.from(new Set((customers || []).map((c: any) => c.industry).filter(Boolean)));
+    // If caller wants background mode (analysis_id given + background=true), respond immediately
+    // and continue work via EdgeRuntime.waitUntil.
+    if (background && analysis_id) {
+      const task = runUniverseJob({
+        project_id, scale, cfg, supabase, supabaseUrl, supabaseKey,
+        LOVABLE_API_KEY, analysis_id, setProgress,
+      });
+      const waitUntil = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil;
+      if (typeof waitUntil === "function") waitUntil(task);
+      else task.catch((e) => console.error("[universe] background error:", e));
+      await setProgress("queued", 0);
+      return new Response(JSON.stringify({ success: true, status: "processing", analysis_id }), {
+        status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // === PASS 1: Ask AI for structured dimension lists ===
     console.log(`[universe] scale=${scale} cap=${cfg.maxKeywords}`);
+    await setProgress("dimensions", 0);
 
     const dimensionSchema = {
       type: "object",
