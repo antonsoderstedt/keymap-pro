@@ -25,7 +25,7 @@ import {
 import {
   Search, BarChart3, BookOpen, Target, ShieldCheck, Megaphone,
   Download, RefreshCw, Loader2, Sparkles, FileText, MapPin, Ban,
-  Network, FileType, Presentation, LayoutGrid, List,
+  Network, FileType, Presentation, LayoutGrid, List, CheckCircle2, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
@@ -70,8 +70,11 @@ export default function KeywordsHub() {
     scale?: string;
     error?: string;
     updated_at?: string;
+    finished_at?: string;
+    totalEnriched?: number;
   } | null>(null);
   const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null);
+  const [doneDismissed, setDoneDismissed] = useState(false);
 
   // Poll universe_progress for background (max/ultra) jobs + notify on completion
   const wasRunningRef = useRef(false);
@@ -161,7 +164,12 @@ export default function KeywordsHub() {
         refetch();
       }
       wasRunningRef.current = false;
-      setUniverseProgress(null);
+      // Behåll "done"-state synligt så användaren ser kvitto på att jobbet gick bra
+      if (prog?.stage === "done" && prog?.finished_at) {
+        setUniverseProgress(prog);
+      } else {
+        setUniverseProgress(null);
+      }
       setProgressStartedAt(null);
     };
 
@@ -651,11 +659,12 @@ export default function KeywordsHub() {
       )}
 
       {/* Background universe-job status (Max / Ultra) */}
-      {universeProgress && (
+      {universeProgress && !(universeProgress.stage === "done" && doneDismissed) && (
         <BackgroundUniverseStatus
           progress={universeProgress}
           startedAt={progressStartedAt}
           tick={progressTick}
+          onDismiss={() => setDoneDismissed(true)}
         />
       )}
       {source === "prelaunch" && (
@@ -1102,12 +1111,15 @@ function BackgroundUniverseStatus({
   progress,
   startedAt,
   tick,
+  onDismiss,
 }: {
-  progress: { stage: string; count: number; total?: number; scale?: string; error?: string };
+  progress: { stage: string; count: number; total?: number; scale?: string; error?: string; finished_at?: string; totalEnriched?: number };
   startedAt: number | null;
   tick: number;
+  onDismiss?: () => void;
 }) {
   const isError = progress.stage === "error";
+  const isDone = progress.stage === "done";
   const label = STAGE_LABELS[progress.stage] || progress.stage;
 
   // Real percent if total known, else stage-weighted fallback
@@ -1136,6 +1148,43 @@ function BackgroundUniverseStatus({
             <p className="text-sm font-medium">Bakgrundsjobbet misslyckades</p>
             <p className="text-xs text-muted-foreground mt-1 break-words">
               {progress.error || "Okänt fel — försök igen."}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isDone) {
+    const finishedAt = progress.finished_at ? new Date(progress.finished_at) : null;
+    const finishedStr = finishedAt
+      ? finishedAt.toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })
+      : null;
+    const total = progress.totalEnriched ?? progress.count ?? 0;
+    return (
+      <Card className="border-primary/50 bg-primary/10">
+        <CardContent className="p-4 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm font-medium">
+                Bakgrundsjobbet är klart
+                {progress.scale ? (
+                  <Badge variant="secondary" className="ml-2 uppercase tracking-wide">{progress.scale}</Badge>
+                ) : null}
+              </p>
+              {onDismiss && (
+                <Button variant="ghost" size="sm" className="h-7 px-2 gap-1" onClick={onDismiss}>
+                  <X className="h-3.5 w-3.5" /> Dölj
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="font-mono text-foreground tabular-nums">{total.toLocaleString("sv-SE")}</span> sökord sparade & berikade
+              {finishedStr && <> — slutfördes <span className="text-foreground">{finishedStr}</span></>}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Resultatet är synligt i flikarna nedan (Översikt, Sökord, Briefs, Strategi, Teknisk SEO, Google Ads-export).
             </p>
           </div>
         </CardContent>
