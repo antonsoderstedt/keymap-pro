@@ -248,6 +248,55 @@ export default function WorkspaceKeywordUniverse() {
             <StatCard label="Källa" value={data.source === "analysis" ? "Full analys" : "Pre-launch"} />
           </div>
 
+          {data.opportunities && data.opportunities.length > 0 && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="font-serif text-lg flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Möjligheter ({data.opportunities.length})
+                  {data.engineVersion && (
+                    <Badge variant="outline" className="ml-2 text-[10px] font-mono">{data.engineVersion}</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {data.opportunities.map((op: any, i: number) => (
+                  <div key={i} className="p-3 rounded-md border border-border bg-card">
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <div className="font-medium text-sm">{op.title}</div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {op.estimated_revenue_p50 != null && op.estimated_revenue_p50 > 0 && (
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            ~{Math.round(op.estimated_revenue_p50 / 1000)}k SEK/år
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={op.priority === "high" ? "default" : op.priority === "medium" ? "secondary" : "outline"}
+                          className="text-[10px]"
+                        >
+                          {op.priority}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{op.description}</p>
+                    {op.keywords?.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {op.keywords.slice(0, 6).map((kw: string, j: number) => (
+                          <span key={j} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                            {kw}
+                          </span>
+                        ))}
+                        {op.keywords.length > 6 && (
+                          <span className="text-[10px] text-muted-foreground">+{op.keywords.length - 6}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="font-serif text-lg">
