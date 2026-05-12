@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
-    const { project_id, action_type, payload, source_action_item_id } = body;
+    const { project_id, action_type, payload, source_action_item_id, proposal_id } = body;
     if (!project_id || !action_type || !payload) throw new Error("project_id, action_type, payload required");
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
