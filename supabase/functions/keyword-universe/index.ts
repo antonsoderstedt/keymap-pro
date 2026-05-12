@@ -463,11 +463,32 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       keywords: final,
     };
 
+    // If called with analysis_id, write the universe back to the analyses row
+    if (analysis_id) {
+      const { error: writeErr } = await supabase
+        .from("analyses")
+        .update({
+          keyword_universe_json: result,
+          universe_scale: scale,
+          universe_progress: { stage: "done", count: final.length, scale, totalEnriched: enrichedCount, finished_at: new Date().toISOString() },
+        } as any)
+        .eq("id", analysis_id);
+      if (writeErr) console.error("[universe] write-back error", writeErr);
+      else console.log(`[universe] wrote ${final.length} kw to analysis ${analysis_id}`);
+    }
+
     return new Response(JSON.stringify({ success: true, universe: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("[universe] error", e);
+    if (analysisIdGlobal && supabaseGlobal) {
+      try {
+        await supabaseGlobal.from("analyses").update({
+          universe_progress: { stage: "error", error: e instanceof Error ? e.message : "Unknown error", finished_at: new Date().toISOString() },
+        } as any).eq("id", analysisIdGlobal);
+      } catch {}
+    }
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
