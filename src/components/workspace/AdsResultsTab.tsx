@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, TrendingUp, TrendingDown, Minus, Target, Award, Activity, ChevronRight } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus, Target, Award, Activity, ChevronRight, Download } from "lucide-react";
 import { OutcomeDrawer } from "./OutcomeDrawer";
+import { toCsv, downloadCsv, ymd } from "@/lib/csv";
 
 interface Outcome {
   id: string;
@@ -105,7 +106,7 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-4 flex items-center justify-between gap-3">
+        <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h3 className="font-serif text-lg flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" /> Resultat av AI-förslag
@@ -114,9 +115,46 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
               Mätning av pushade förslag — jämför kampanjmetrics före vs efter.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Uppdatera
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline" size="sm"
+              disabled={!outcomes.length}
+              onClick={() => {
+                const rows = outcomes.map((o) => {
+                  const m14 = o.measured_14d || {};
+                  const m30 = o.measured_30d || {};
+                  const v = verdict(m14);
+                  return {
+                    applied_at: o.applied_at ?? "",
+                    fired_at: o.fired_at,
+                    rule_id: o.rule_id,
+                    rule_label: RULE_LABEL[o.rule_id] || o.rule_id,
+                    campaign_id: o.campaign_id ?? "",
+                    proposal_id: o.proposal_id ?? "",
+                    mutation_id: o.mutation_id ?? "",
+                    verdict: v.label,
+                    delta_conversions_pct_14d: m14?.delta?.conversions_pct ?? "",
+                    delta_cost_pct_14d: m14?.delta?.cost_pct ?? "",
+                    cpa_before_14d: m14?.delta?.cpa_before ?? "",
+                    cpa_after_14d: m14?.delta?.cpa_after ?? "",
+                    spend_before_14d: m14?.before?.cost_micros != null ? Math.round(m14.before.cost_micros / 1_000_000) : "",
+                    spend_after_14d: m14?.after?.cost_micros != null ? Math.round(m14.after.cost_micros / 1_000_000) : "",
+                    conversions_before_14d: m14?.before?.conversions ?? "",
+                    conversions_after_14d: m14?.after?.conversions ?? "",
+                    delta_conversions_pct_30d: m30?.delta?.conversions_pct ?? "",
+                    delta_cost_pct_30d: m30?.delta?.cost_pct ?? "",
+                    predicted_sek: o.predicted?.estimated_savings_sek ?? o.predicted?.expected_impact_sek ?? "",
+                  };
+                });
+                downloadCsv(`resultat-${ymd()}.csv`, toCsv(rows));
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Exportera CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Uppdatera
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CheckCircle2, XCircle, Send, Sparkles, RefreshCw, Inbox, AlertCircle, Loader2,
+  CheckCircle2, XCircle, Send, Sparkles, RefreshCw, Inbox, AlertCircle, Loader2, Download,
 } from "lucide-react";
+import { toCsv, downloadCsv, ymd } from "@/lib/csv";
 
 interface Proposal {
   id: string;
@@ -155,6 +156,36 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Uppdatera
+            </Button>
+            <Button
+              variant="outline" size="sm"
+              disabled={!proposals.length}
+              onClick={() => {
+                const rows = proposals.map((p) => ({
+                  created_at: p.created_at,
+                  pushed_at: p.pushed_at ?? "",
+                  status: p.status,
+                  source: p.source,
+                  action_type: p.action_type,
+                  scope: p.scope_label ?? "",
+                  rule_id: p.rule_id ?? "",
+                  estimated_impact_sek: p.estimated_impact_sek ?? "",
+                  rationale: p.rationale ?? "",
+                  keyword: (p.payload as any)?.keyword ?? (p.payload as any)?.text ?? "",
+                  match_type: (p.payload as any)?.match_type ?? "",
+                  campaign_id: (p.payload as any)?.campaign_id ?? "",
+                  ad_group_id: (p.payload as any)?.ad_group_id ?? "",
+                  criterion_id: (p.payload as any)?.criterion_id ?? "",
+                  ad_id: (p.payload as any)?.ad_id ?? "",
+                  push_as_paused: p.push_as_paused,
+                  mutation_id: p.mutation_id ?? "",
+                  error_message: p.error_message ?? "",
+                  payload_json: p.payload,
+                }));
+                downloadCsv(`forslag-${ymd()}.csv`, toCsv(rows));
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Exportera CSV
             </Button>
             <Button size="sm" onClick={buildProposals} disabled={building}>
               {building ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
