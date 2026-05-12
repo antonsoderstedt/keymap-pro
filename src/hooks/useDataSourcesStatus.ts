@@ -51,8 +51,11 @@ export function useDataSourcesStatus(projectId: string | null | undefined) {
   // Realtime: re-fetch when status row ändras
   useEffect(() => {
     if (!projectId) return;
+    // Unikt kanalnamn per mount för att undvika att supabase-js återanvänder
+    // en redan-subscribad kanal (vilket ger "cannot add postgres_changes ... after subscribe()").
+    const channelName = `data_source_status:${projectId}:${Math.random().toString(36).slice(2, 10)}`;
     const channel = supabase
-      .channel(`data_source_status:${projectId}`)
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "data_source_status", filter: `project_id=eq.${projectId}` }, () => refresh())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
