@@ -92,6 +92,8 @@ export default function WorkspaceKeywordUniverse() {
           totalKeywords: u.totalKeywords ?? flat.length,
           sourceId: analysis.id,
           createdAt: analysis.created_at,
+          opportunities: u.opportunities || [],
+          engineVersion: u.engineVersion,
         };
       } else if (prelaunch) {
         const u: any = prelaunch.keyword_universe || {};
