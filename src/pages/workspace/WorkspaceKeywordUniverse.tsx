@@ -280,7 +280,7 @@ export default function WorkspaceKeywordUniverse() {
             </CardContent>
           </Card>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
