@@ -429,7 +429,7 @@ export default function KeywordsHub() {
     );
   }
 
-  if (!universe && !pending) {
+  if (!universe && !pending && !isBackgroundRunning && !universeProgress) {
     return <EmptyState projectId={id!} navigate={navigate} />;
   }
 
