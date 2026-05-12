@@ -73,10 +73,58 @@ export default function KeywordsHub() {
   } | null>(null);
   const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null);
 
-  // Poll universe_progress for background (max/ultra) jobs
+  // Poll universe_progress for background (max/ultra) jobs + notify on completion
+  const wasRunningRef = useRef(false);
+  const lastNotifiedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!analysisId) return;
     let cancelled = false;
+
+    // Ask permission once when a background job is detected (best-effort)
+    const ensureNotifyPermission = () => {
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      if (Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
+    };
+
+    const fireDoneNotification = (count: number, scale?: string) => {
+      const key = `${analysisId}:done`;
+      if (lastNotifiedRef.current === key) return;
+      lastNotifiedRef.current = key;
+      toast({
+        title: "Sökordsuniversum klart",
+        description: `${count.toLocaleString("sv-SE")} sökord sparade${scale ? ` (${scale})` : ""}. Sidan har uppdaterats.`,
+      });
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") {
+        try {
+          new Notification("Slay Station — universum klart", {
+            body: `${count.toLocaleString("sv-SE")} sökord redo att granska${scale ? ` (${scale})` : ""}.`,
+            tag: `universe-${analysisId}`,
+          });
+        } catch { /* noop */ }
+      }
+    };
+
+    const fireErrorNotification = (msg: string) => {
+      const key = `${analysisId}:error`;
+      if (lastNotifiedRef.current === key) return;
+      lastNotifiedRef.current = key;
+      toast({
+        title: "Bakgrundsjobbet misslyckades",
+        description: msg || "Försök generera om.",
+        variant: "destructive",
+      });
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") {
+        try {
+          new Notification("Slay Station — universum misslyckades", {
+            body: msg || "Försök generera om.",
+            tag: `universe-${analysisId}-err`,
+          });
+        } catch { /* noop */ }
+      }
+    };
+
     const tick = async () => {
       const { data } = await supabase
         .from("analyses")
@@ -85,21 +133,38 @@ export default function KeywordsHub() {
         .maybeSingle();
       if (cancelled) return;
       const prog = (data as any)?.universe_progress as any;
-      const hasUniverse = !!(data as any)?.keyword_universe_json;
-      if (prog && prog.stage && !["done"].includes(prog.stage) && !(prog.stage === "error")) {
+      const universe = (data as any)?.keyword_universe_json as any;
+      const hasUniverse = !!universe;
+      const running = !!(prog && prog.stage && prog.stage !== "done" && prog.stage !== "error");
+
+      if (running) {
+        wasRunningRef.current = true;
+        ensureNotifyPermission();
         setUniverseProgress(prog);
         if (!progressStartedAt) setProgressStartedAt(Date.now());
-      } else if (prog?.stage === "error") {
-        setUniverseProgress(prog);
-      } else {
-        if (universeProgress && hasUniverse) {
-          // Job finished — refresh data once
-          refetch();
-        }
-        setUniverseProgress(null);
-        setProgressStartedAt(null);
+        return;
       }
+
+      // Not running — check transitions
+      if (prog?.stage === "error") {
+        if (wasRunningRef.current || universeProgress) {
+          fireErrorNotification(prog.error || "");
+        }
+        setUniverseProgress(prog);
+        wasRunningRef.current = false;
+        return;
+      }
+
+      if (wasRunningRef.current && hasUniverse) {
+        const count = universe?.totalKeywords ?? universe?.keywords?.length ?? 0;
+        fireDoneNotification(count, prog?.scale);
+        refetch();
+      }
+      wasRunningRef.current = false;
+      setUniverseProgress(null);
+      setProgressStartedAt(null);
     };
+
     tick();
     const interval = setInterval(tick, 5000);
     return () => { cancelled = true; clearInterval(interval); };
