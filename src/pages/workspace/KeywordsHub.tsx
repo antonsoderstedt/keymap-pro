@@ -1155,6 +1155,43 @@ function BackgroundUniverseStatus({
     );
   }
 
+  if (isDone) {
+    const finishedAt = progress.finished_at ? new Date(progress.finished_at) : null;
+    const finishedStr = finishedAt
+      ? finishedAt.toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })
+      : null;
+    const total = progress.totalEnriched ?? progress.count ?? 0;
+    return (
+      <Card className="border-success/40 bg-success/5">
+        <CardContent className="p-4 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm font-medium">
+                Bakgrundsjobbet är klart
+                {progress.scale ? (
+                  <Badge variant="secondary" className="ml-2 uppercase tracking-wide">{progress.scale}</Badge>
+                ) : null}
+              </p>
+              {onDismiss && (
+                <Button variant="ghost" size="sm" className="h-7 px-2 gap-1" onClick={onDismiss}>
+                  <X className="h-3.5 w-3.5" /> Dölj
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="font-mono text-foreground tabular-nums">{total.toLocaleString("sv-SE")}</span> sökord sparade & berikade
+              {finishedStr && <> — slutfördes <span className="text-foreground">{finishedStr}</span></>}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Resultatet är synligt i flikarna nedan (Översikt, Sökord, Briefs, Strategi, Teknisk SEO, Google Ads-export).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-primary/40 bg-primary/5">
       <CardContent className="p-4 space-y-3">
