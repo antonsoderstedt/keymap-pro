@@ -5,11 +5,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Megaphone, LayoutDashboard, ShieldCheck, MessageSquare, Sparkles } from "lucide-react";
+import { Megaphone, LayoutDashboard, ShieldCheck, MessageSquare, Sparkles, GitPullRequest } from "lucide-react";
 import AuctionInsights from "./AuctionInsights";
 import AdsAudit from "./AdsAudit";
 import AdsChat from "./AdsChat";
 import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
+import { ProposalsTab } from "@/components/workspace/ProposalsTab";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
 
@@ -80,8 +81,8 @@ export default function GoogleAdsHub() {
           <TabsTrigger value="audit" className="gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5" /> Audit
           </TabsTrigger>
-          <TabsTrigger value="ads" className="gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> Annonsförslag
+          <TabsTrigger value="proposals" className="gap-1.5">
+            <GitPullRequest className="h-3.5 w-3.5" /> Förslag
           </TabsTrigger>
           <TabsTrigger value="chat" className="gap-1.5">
             <MessageSquare className="h-3.5 w-3.5" /> Chat
@@ -91,17 +92,7 @@ export default function GoogleAdsHub() {
         <div className="mt-4">
           <TabsContent value="overview"><AuctionInsights /></TabsContent>
           <TabsContent value="audit"><AdsAudit /></TabsContent>
-          <TabsContent value="ads">
-            <Card className="border-dashed">
-              <CardContent className="p-8 text-center">
-                <Sparkles className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-serif text-xl mb-2">Kommer i nästa version</h3>
-                <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  AI-genererade RSA-annonser med push direkt till ditt Google Ads-konto. Vi förbereder funktionen nu.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <TabsContent value="proposals"><ProposalsTab projectId={workspaceId} /></TabsContent>
           <TabsContent value="chat"><AdsChat /></TabsContent>
         </div>
       </Tabs>
