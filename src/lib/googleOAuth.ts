@@ -48,17 +48,32 @@ export async function reconnectGoogle(): Promise<void> {
   }
   const { url } = await invokeGoogleOauth<{ url?: string }>("start");
   if (!url) throw new Error("Kunde inte starta Google OAuth — ingen URL returnerades.");
-  // Bryt ut ur ev. iframe (t.ex. Lovable preview) — annars blockerar Google med 403.
-  try {
-    if (window.top && window.top !== window.self) {
-      window.top.location.href = url;
+  openOAuthUrl(url);
+}
+
+/**
+ * Öppnar Google OAuth-URL på ett sätt som funkar både i Lovable preview-iframe
+ * och i fristående fönster. Returnerar true om navigation startades, annars
+ * kastar fel som beskriver att popup blockerades.
+ */
+export function openOAuthUrl(url: string): void {
+  const inIframe = (() => { try { return window.top !== window.self; } catch { return true; } })();
+
+  if (inIframe) {
+    // 1) Försök öppna i ny flik (kräver att klicket räknas som user-gesture)
+    const popup = window.open(url, "_blank", "noopener,noreferrer");
+    if (popup) return;
+    // 2) Popup blockerad — försök bryta ut ur iframen via _top
+    try {
+      const a = document.createElement("a");
+      a.href = url; a.target = "_top"; a.rel = "noopener noreferrer";
+      document.body.appendChild(a); a.click(); a.remove();
       return;
+    } catch {
+      throw new Error("Popup blockerades. Tillåt popups för Lovable-preview, eller öppna appen i en egen flik och försök igen.");
     }
-  } catch {
-    // Cross-origin iframe — öppna i ny flik istället
-    window.open(url, "_blank", "noopener,noreferrer");
-    return;
   }
+
   window.location.assign(url);
 }
 
