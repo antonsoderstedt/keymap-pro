@@ -47,6 +47,7 @@ export function AdsResultsTab({ projectId }: { projectId: string | null }) {
   const { toast } = useToast();
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [loading, setLoading] = useState(true);
+  const [drilldown, setDrilldown] = useState<Outcome | null>(null);
 
   const load = async () => {
     if (!projectId) return;
