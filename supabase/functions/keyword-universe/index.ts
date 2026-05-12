@@ -332,7 +332,8 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       console.error("[universe] enrich error", e);
     }
 
-    // === PASS 3.5: Semrush enrichment for top N (sorted by DataForSEO volume) ===
+    // === PASS 3.5: Semrush enrichment for top N (sorted by DataForSEO volume), batched ===
+    await setProgress("enriching_semrush", 0, { total: cfg.semrushCap });
     let semrushMap: Record<string, any> = {};
     try {
       const sortedByVol = [...universe]
@@ -342,18 +343,51 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         .map((x) => x.kw);
 
       if (sortedByVol.length > 0 && Deno.env.get("SEMRUSH_API_KEY")) {
-        const semrushRes = await fetch(`${supabaseUrl}/functions/v1/enrich-semrush`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ keywords: sortedByVol, max_keywords: cfg.semrushCap }),
-        });
-        if (semrushRes.ok) {
-          const j = await semrushRes.json();
-          semrushMap = j.metrics || {};
-          console.log(`[universe] semrush fetched=${j.fetched} cached=${j.cached}`);
-        } else {
-          console.error("[universe] semrush failed", semrushRes.status, await semrushRes.text());
+        const SEMRUSH_BATCH = 500;
+        const semBatches: string[][] = [];
+        for (let i = 0; i < sortedByVol.length; i += SEMRUSH_BATCH) {
+          semBatches.push(sortedByVol.slice(i, i + SEMRUSH_BATCH));
         }
+
+        const callSem = async (batch: string[], attempt = 1): Promise<Record<string, any>> => {
+          try {
+            const r = await fetch(`${supabaseUrl}/functions/v1/enrich-semrush`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ keywords: batch, max_keywords: batch.length }),
+            });
+            if (r.ok) {
+              const j = await r.json();
+              return j.metrics || {};
+            }
+            if ([429, 500, 502, 503, 504].includes(r.status) && attempt < 3) {
+              await new Promise(res => setTimeout(res, 3000 * attempt));
+              return callSem(batch, attempt + 1);
+            }
+            console.error("[universe] semrush batch failed", r.status, await r.text());
+            return {};
+          } catch (e) {
+            if (attempt < 3) {
+              await new Promise(res => setTimeout(res, 3000 * attempt));
+              return callSem(batch, attempt + 1);
+            }
+            console.error("[universe] semrush batch error", e);
+            return {};
+          }
+        };
+
+        // Run with concurrency 2 (Semrush is heavier)
+        let sIdx = 0;
+        const sRunners = Array.from({ length: Math.min(2, semBatches.length) }, async () => {
+          while (sIdx < semBatches.length) {
+            const my = sIdx++;
+            const m = await callSem(semBatches[my]);
+            Object.assign(semrushMap, m);
+            await setProgress("enriching_semrush", Object.keys(semrushMap).length, { total: sortedByVol.length });
+          }
+        });
+        await Promise.all(sRunners);
+        console.log(`[universe] semrush enriched ${Object.keys(semrushMap).length}/${sortedByVol.length}`);
       }
     } catch (e) {
       console.error("[universe] semrush error", e);
