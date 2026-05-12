@@ -107,6 +107,8 @@ export interface KeywordUniverse {
   totalEnriched: number;
   cities: string[];
   keywords: UniverseKeyword[];
+  opportunities?: KeywordOpportunity[];
+  engineVersion?: string;
 }
 
 export interface Customer {
