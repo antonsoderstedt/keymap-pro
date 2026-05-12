@@ -547,7 +547,13 @@ export default function KeywordsHub() {
         </Card>
       )}
 
-      {/* Pre-launch banner */}
+      {/* Background universe-job status (Max / Ultra) */}
+      {universeProgress && (
+        <BackgroundUniverseStatus
+          progress={universeProgress}
+          startedAt={progressStartedAt}
+        />
+      )}
       {source === "prelaunch" && (
         <Card className="border-warning/40 bg-warning/5">
           <CardContent className="p-4 flex items-center gap-3">
