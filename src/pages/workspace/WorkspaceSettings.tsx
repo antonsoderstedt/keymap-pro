@@ -87,6 +87,21 @@ export default function WorkspaceSettings() {
         </p>
       </div>
 
+      {/* Guide-länk */}
+      <a
+        href={`/clients/${id}/how-it-works`}
+        className="group flex items-center gap-4 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-colors p-4"
+      >
+        <div className="h-10 w-10 rounded-lg bg-primary/15 border border-primary/40 flex items-center justify-center shrink-0">
+          <SettingsIcon className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm">Ny här? Läs guiden "Så fungerar Slay Station"</div>
+          <div className="text-xs text-muted-foreground">5 min · flowchart, steg-för-steg, datamatris och FAQ</div>
+        </div>
+        <span className="text-primary text-sm shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+      </a>
+
       {/* Kunduppgifter */}
       <ClientInfoCard projectId={id!} />
 

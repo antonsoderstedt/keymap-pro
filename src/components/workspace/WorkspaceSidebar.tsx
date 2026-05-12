@@ -12,6 +12,7 @@ import {
   Lock,
   Megaphone,
   Plug,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
@@ -57,6 +58,7 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
     { to: `${base}/reports`, label: "Rapporter", icon: FileText },
     { to: `${base}/data-sources`, label: "Datakällor", icon: Plug },
     { to: settingsTo, label: "Inställningar", icon: Settings },
+    { to: `${base}/how-it-works`, label: "Så fungerar det", icon: HelpCircle },
   ];
 
   return (
