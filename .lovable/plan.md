@@ -1,54 +1,114 @@
-## Problem
 
-Kopplingen är inte trasig — `keyword-universe`-funktionen kör faktiskt klart även på "Maximalt" enligt loggarna (genererar 1212 sökord, berikar med Semrush). Men eftersom `analyse` väntar synkront på svaret och max-skalan tar för lång tid, stängs HTTP-anslutningen ("Http: connection closed before message completed") innan resultatet hinner sparas till `analyses`-raden. UI visar då att max "inte fungerar".
+## Mål
 
-Det är ett **timeout-problem**, inte en datakälls-koppling som tappats.
+Bygga en pedagogisk, visuell guide-sida som förklarar hur projekt, datakällor, sökordsuniversum, SEO/Ads-motorer, briefing och åtgärder hänger ihop — så att användaren förstår ordningen, vad som påverkar vad, och vad som uppdateras automatiskt.
 
-## Mål: maximalt med data, inga genvägar
+## Placering
 
-Vi bygger om till en bakgrundsjobb-modell där universumet får så lång tid det behöver, och vi **höjer taken** istället för att sänka dem.
+- Ny route: `/clients/:id/how-it-works`
+- Ny sidebar-post i `WorkspaceSidebar.tsx` direkt **under "Inställningar"** med ikon `HelpCircle` och label **"Så fungerar det"**.
+- Lägg också en länk-kort högst upp i `WorkspaceSettings.tsx` ("Ny här? Läs guiden →") så att den hittas från Inställningar.
+- Registrera route i `src/App.tsx` inom workspace-layouten.
 
-### 1. Kör `keyword-universe` som bakgrundsjobb
-- `analyse` triggar `keyword-universe` fire-and-forget (via `EdgeRuntime.waitUntil`) och returnerar direkt med `universe_pending: true`.
-- `keyword-universe` skriver själv `keyword_universe_json` + `universe_scale` till `analyses`-raden när den är klar — ingen risk för avbruten anslutning.
-- Frontend pollar var 5:e sekund (eller via Supabase realtime) och visar "Bygger universum… X sökord hittills" tills datan är skriven.
+## Sidans struktur (en lång scrollvy, inga tabs)
 
-### 2. Höj taken på max-skalan (mer data)
-Nuvarande `max`: 4000 kw, semrushCap 1500. Höjs till:
-- `maxKeywords`: 4000 → **8000**
-- `aiCities`: 15 → **25** (fler geo-kombinationer)
-- `geoPerProduct`: 12 → **20**
-- `problemPairs`: 8 → **12**
-- `segmentPairs`: 8 → **12**
-- `semrushCap`: 1500 → **3000** (KD + SERP features på dubbelt så många)
+Designen följer dark theme + lime-accent. Semantiska tokens, JetBrains Mono för data, Playfair för rubriker. Animerade element via framer-motion (redan i projektet). Ikoner från lucide-react.
 
-### 3. Berika allt, parallellt och i batchar
-- DataForSEO och Semrush körs i parallell med `Promise.all` istället för sekventiellt.
-- Båda batchar i grupper om 500 kw så vi inte träffar API-gränser.
-- **Inga timeouts som droppar data** — om Semrush är långsam väntar vi klart. Eftersom det är ett bakgrundsjobb spelar väntetiden ingen roll.
-- Retry med backoff per batch om DataForSEO/Semrush returnerar 429/5xx.
+```text
+┌──────────────────────────────────────────────────────────┐
+│ HERO                                                     │
+│  H1 "Så fungerar Slay Station"                           │
+│  Lead: 1 mening + två chips (5 min läsning · uppdaterad) │
+│  Animerad bakgrund (lime glow)                           │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 1 — Översikt i 30 sekunder                       │
+│  3 kort i rad: Samla data → Förstå → Agera               │
+│  Varje kort: ikon, 1 mening, lime pil mellan korten      │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 2 — Hela flödet (interaktivt diagram)            │
+│  SVG flowchart byggd inline (ej extern lib):             │
+│    Projekt → Datakällor + Sökord/Universum               │
+│      → Datalager → SEO-motor + Ads-motor                 │
+│      → Briefing/Rapporter → Action Tracker → loop        │
+│  Hover på nod ⇒ tooltip med kort förklaring              │
+│  Aktiva noder lime, vilande border-muted                 │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 3 — Steg för steg (numrerad timeline)            │
+│  Vertikal timeline med 5 steg, bild/illustration per steg│
+│  1. Skapa projekt & sätt mål                             │
+│  2. Koppla GA4, Search Console, Google Ads               │
+│  3. Generera sökordsuniversum (Lite/Max/Ultra)           │
+│  4. Läs SEO-dashboard & Ads Audit                        │
+│  5. Följ Veckobriefing → Action Tracker                  │
+│  Varje steg: "Gör nu →"-knapp som länkar rätt rutt       │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 4 — Vilken motor använder vilken data?           │
+│  Matrix-tabell med ikoner och pilar                      │
+│  Rader: SEO-motor, Ads-motor, Briefing, Pre-launch       │
+│  Kolumner: GA4, GSC, Ads, Universum, Mål                 │
+│  Fyllda lime-prickar vs tomma cirklar                    │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 5 — Korsbefruktning (3 visuella kort)            │
+│  Pil-illustrationer:                                     │
+│   • Universum → Ads (negativ-listor, intent)             │
+│   • Ads → SEO (höga CPC = SEO-möjlighet)                 │
+│   • GA4 → båda (estimated_value_sek)                     │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 6 — Vad uppdateras automatiskt?                  │
+│  4 status-kort med pulsande dot:                         │
+│   GA4/GSC/Ads · Diagnoser · Universum (manuell) · Action │
+│  Kort förklaring + intervall                             │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 7 — Status för DETTA projekt                     │
+│  Live checklist (läser useProjectCapabilities):          │
+│   ✓ GA4 kopplat   ✓ GSC kopplat   ⚠ Ads ej kopplat       │
+│   ✓ Universum genererat (ultra · 1412 sökord)            │
+│  Knappar för att åtgärda det som saknas                  │
+└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ SEKTION 8 — FAQ (Accordion)                              │
+│  • Måste jag köra Ultra först?                           │
+│  • Vad händer om en datakälla blir inaktuell?            │
+│  • Hur räknas estimated_value_sek?                       │
+│  • Kan Ads och SEO köras separat?                        │
+│  • Hur ofta hämtas ny data?                              │
+└──────────────────────────────────────────────────────────┘
+```
 
-### 4. Lägg till en ny "Ultra"-skala (valfritt extra)
-Om du vill ha ännu mer data på vissa projekt: `ultra` = 15 000 kw, semrushCap 5000. Tar 5–10 min men ger maximal täckning.
+## Tekniska detaljer
 
-### Tekniska detaljer
+**Filer som skapas:**
+- `src/pages/workspace/HowItWorks.tsx` — sidkomponent
+- `src/components/howitworks/FlowDiagram.tsx` — inline SVG-flowchart (responsiv, hover-tooltips, ingen mermaid runtime)
+- `src/components/howitworks/StepTimeline.tsx` — numrerad timeline med "Gör nu"-länkar
+- `src/components/howitworks/DataMatrix.tsx` — motor × datakälla-matris
+- `src/components/howitworks/ProjectStatusChecklist.tsx` — läser `useProjectCapabilities` + analyses-tabellen för att visa konkret status
+- `src/components/howitworks/CrossPollinationCards.tsx` — 3 kort med SVG-pilar
 
 **Filer som ändras:**
-- `supabase/functions/analyse/index.ts` — för `scale ∈ {max, ultra}`: trigga `keyword-universe` med `EdgeRuntime.waitUntil`, returnera direkt utan att vänta.
-- `supabase/functions/keyword-universe/index.ts` — höj `SCALE_CONFIG.max`, lägg till `SCALE_CONFIG.ultra`, kör DataForSEO + Semrush i `Promise.all`, batcha i 500-grupper med retry, skriv resultat direkt till `analyses` om `analysis_id` skickas med, lagra progress (`universe_progress: { stage, count }`) löpande.
-- `supabase/functions/enrich-keywords/index.ts` + `enrich-semrush/index.ts` — säkerställ batch-stöd och 3x retry vid 429.
-- `src/pages/KeywordUniverse.tsx` + `src/pages/workspace/WorkspaceKeywordUniverse.tsx` — poll-loop var 5:e sek, visa "Bygger… {progress.count} sökord" tills `keyword_universe_json` finns. Knappen "Generera om" disablad medan jobb pågår.
-- `src/components/wizard/StepAnalyse.tsx` — uppdatera beskrivningar:
-  - Maximalt: "5000–8000 sökord, 2–4 min, körs i bakgrunden"
-  - (om ultra) Ultra: "10000–15000 sökord, 5–10 min, körs i bakgrunden"
+- `src/components/workspace/WorkspaceSidebar.tsx` — lägg till `{ to: \`${base}/how-it-works\`, label: "Så fungerar det", icon: HelpCircle }` direkt efter Inställningar.
+- `src/components/workspace/MobileWorkspaceSidebar.tsx` — samma post för mobilmenyn.
+- `src/App.tsx` — registrera route `<Route path="how-it-works" element={<HowItWorks />} />`.
+- `src/pages/workspace/WorkspaceSettings.tsx` — lägg in ett kort högst upp: "Ny här? Läs guiden 'Så fungerar det' →".
 
-**Migration:**
-- Lägg till kolumn `analyses.universe_progress jsonb` så frontend kan visa "X sökord genererade hittills".
+**Visuella ingredienser (allt via Tailwind + inline SVG, inga nya beroenden):**
+- Diagrammen ritas som inline `<svg>` med `<path>` för pilar (animerade `stroke-dashoffset`).
+- Bilder/illustrationer: 2–3 enkla AI-genererade hjältebilder (lime/dark stil) sparade i `src/assets/howitworks/` för Hero och steg 1/3/5. Använder `imagegen--generate_image` (fast tier).
+- Ingen ny data; status-checklistan återanvänder befintliga hooks (`useProjectCapabilities`, `useWorkspaceAnalysis`).
 
-**Vad som inte ändras:**
-- Inga datakälls-kopplingar (GA4/GSC/Ads). De fungerar oberoende av detta.
-- "Focused" och "Broad" fortsätter köras synkront — de hinner klart.
+**Innehåll:**
+- All copy på svenska, kort och pedagogisk.
+- Tydlig terminologi-ruta som översätter "snapshot", "diagnostik", "kluster", "intent" etc.
 
-## Resultat
+## Avgränsningar
 
-Du kan välja Maximalt (eller Ultra) och få **dubbelt så mycket data** som idag, utan att UI:t verkar tappa kopplingen. Du ser progress i realtid och universumet sparas korrekt även om det tar 5+ min.
+- Endast frontend/presentation. Ingen DB-migration, inga edge functions.
+- Ingen redigerbar guide (statisk innehållskälla i komponenten — kan flyttas till MDX senare om så önskas).
+- Inga nya beroenden.
