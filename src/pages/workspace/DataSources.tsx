@@ -37,6 +37,7 @@ export default function DataSources() {
   const { id = "" } = useParams<{ id: string }>();
   const { data, loading, refresh } = useDataSourcesStatus(id);
   const [reconnecting, setReconnecting] = useState(false);
+  const [refreshingSource, setRefreshingSource] = useState<string | null>(null);
 
   const handleReconnect = async () => {
     setReconnecting(true);
@@ -51,16 +52,51 @@ export default function DataSources() {
     }
   };
 
-  const handleForceRefresh = async (source: string) => {
-    if (source === "ads") {
-      await supabase.functions.invoke("ads-diagnose", { body: { project_id: id } });
-    } else if (source === "gsc") {
-      await supabase.functions.invoke("gsc-fetch", { body: { action: "sites", projectId: id } });
-    } else if (source === "ga4") {
-      await supabase.functions.invoke("ga4-fetch", { body: { action: "properties", projectId: id } });
+  const handleForceRefresh = async (info: SourceInfo) => {
+    const selectionId = info.selection.id;
+    if (!selectionId) {
+      toast.error(`${info.selection.label} saknas`, { description: "Välj datakälla i inställningarna och försök igen." });
+      return;
     }
-    toast.success("Hämtning startad");
-    setTimeout(refresh, 800);
+
+    setRefreshingSource(info.source);
+    const t = toast.loading(`Hämtar färsk data från ${LABEL[info.source] || info.source}…`);
+    try {
+      const today = new Date();
+      const end = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const start = new Date(today.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const result = info.source === "ads"
+        ? await supabase.functions.invoke("ads-diagnose", { body: { project_id: id, force: true } })
+        : info.source === "gsc"
+          ? await supabase.functions.invoke("gsc-fetch", {
+              body: { action: "query", projectId: id, siteUrl: selectionId, startDate: start, endDate: end, dimensions: ["date"], rowLimit: 1 },
+            })
+          : await supabase.functions.invoke("ga4-fetch", {
+              body: {
+                action: "report",
+                projectId: id,
+                propertyId: selectionId,
+                startDate: "7daysAgo",
+                endDate: "today",
+                dimensions: [{ name: "date" }],
+                metrics: [{ name: "sessions" }, { name: "totalUsers" }],
+                limit: 1,
+              },
+            });
+
+      if (result.error) throw result.error;
+      if ((result.data as any)?.reauthRequired) throw new Error((result.data as any).error || "Google behöver kopplas om");
+      if ((result.data as any)?.error) throw new Error(typeof (result.data as any).error === "string" ? (result.data as any).error : "Hämtningen misslyckades");
+
+      toast.success("Färsk data hämtad", { id: t });
+      await refresh();
+    } catch (e: any) {
+      toast.error("Kunde inte hämta färsk data", { id: t, description: e?.message || String(e) });
+      await refresh();
+    } finally {
+      setRefreshingSource(null);
+    }
   };
 
   return (
@@ -102,7 +138,13 @@ export default function DataSources() {
 
       <div className="space-y-4">
         {(data?.sources ?? []).map((s) => (
-          <SourceCard key={s.source} info={s} onRefresh={() => handleForceRefresh(s.source)} onReconnect={handleReconnect} />
+          <SourceCard
+            key={s.source}
+            info={s}
+            refreshing={refreshingSource === s.source}
+            onRefresh={() => handleForceRefresh(s)}
+            onReconnect={handleReconnect}
+          />
         ))}
         {!data && loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
       </div>
@@ -110,7 +152,7 @@ export default function DataSources() {
   );
 }
 
-function SourceCard({ info, onRefresh, onReconnect }: { info: SourceInfo; onRefresh: () => void; onReconnect: () => void }) {
+function SourceCard({ info, refreshing, onRefresh, onReconnect }: { info: SourceInfo; refreshing: boolean; onRefresh: () => void; onReconnect: () => void }) {
   const needsReconnect = info.status === "reauth_required" || info.status === "not_connected";
   return (
     <Card>
@@ -141,8 +183,9 @@ function SourceCard({ info, onRefresh, onReconnect }: { info: SourceInfo; onRefr
           <p className="text-xs text-destructive border-l-2 border-destructive/40 pl-3 break-all">{info.last_error}</p>
         )}
         <div className="flex gap-2 pt-1">
-          <Button size="sm" variant="outline" onClick={onRefresh} disabled={needsReconnect}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Hämta nytt
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={needsReconnect || refreshing}>
+            {refreshing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+            {refreshing ? "Hämtar…" : "Hämta nytt"}
           </Button>
           {needsReconnect && (
             <Button size="sm" onClick={onReconnect}>

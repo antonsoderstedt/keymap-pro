@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
   const t0 = Date.now();
 
   try {
-    const { project_id, scope = null } = await req.json();
+    const { project_id, scope = null, force = false } = await req.json();
     if (!project_id) {
       return jsonError("project_id required", 400);
     }
@@ -312,12 +312,14 @@ Deno.serve(async (req) => {
 
     // Cache lookup
     const bucket = hourBucket();
-    const { data: cached } = await admin
-      .from("ads_diagnostics_cache")
-      .select("snapshot")
-      .eq("project_id", project_id)
-      .eq("hour_bucket", bucket)
-      .maybeSingle();
+    const { data: cached } = force
+      ? { data: null }
+      : await admin
+        .from("ads_diagnostics_cache")
+        .select("snapshot")
+        .eq("project_id", project_id)
+        .eq("hour_bucket", bucket)
+        .maybeSingle();
 
     let snapshot: AccountSnapshot;
     let cacheHit = false;
@@ -385,6 +387,7 @@ Deno.serve(async (req) => {
         rules_evaluated: rulesEvaluated,
         rules_fired: rulesFired,
         cache_hit: cacheHit,
+        forced_refresh: Boolean(force),
         duration_ms: Date.now() - t0,
       },
     };
