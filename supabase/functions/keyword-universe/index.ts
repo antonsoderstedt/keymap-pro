@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { scoreKeyword, type ScoringContext } from "../_shared/keyword-intel/scoring.ts";
+import { discoverOpportunities } from "../_shared/keyword-intel/opportunities.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
