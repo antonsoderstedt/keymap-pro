@@ -1,126 +1,56 @@
-## Översikt
+## Mål
 
-Bygger "Live ⇄ Förslag ⇄ Resultat" — en samlad vy där du ser ditt riktiga Google Ads-konto, AI:ns förslag, kan godkänna och pusha **pausat**, **och** följer upp KPI-effekten av varje pushat förslag automatiskt.
+Applicera de fyra korrigeringarna från `prompt-9b-keyword-intelligence-patch.md` så att de redan ligger inne när Keyword Intelligence v2 byggs. Patchen rör endast backend (edge functions + en ny tabell) — ingen UI-ändring.
 
----
+## Ordning
 
-## Del 1 — Live-spegel av kontot
+Eftersom filerna som patchen redigerar (`_shared/keyword-intel/scoring.ts`, `opportunities.ts`, samt nya block i `keyword-universe/index.ts`) ännu inte finns, gör vi så här:
 
-**Ny edge-funktion `ads-fetch-account-tree`**: hämtar via GAQL i en request och cachar 15 min i ny tabell `ads_account_tree_cache(project_id, fetched_at, tree jsonb)`:
-- Campaigns (id, name, status, channel, budget, bidding_strategy, optimization_score, 30d-metrics)
-- Ad groups per campaign (status, default_cpc, type, 30d-metrics)
-- Keywords per ad group (text, match_type, status, QS, 30d-metrics)
-- Ads per ad group (RSA headlines/descriptions/paths/final_url, ad_strength, status)
-- Negative keywords (campaign-nivå + shared sets)
+1. **Skapa cache-tabellen nu** (kan stå själv, blockerar inget).
+2. **Baka in fyra fixarna direkt** när v2-motorn implementeras i nästa steg — patch-dokumentet blir då en kravspec, inte en separat redigeringsomgång.
 
-Allt läs-API finns redan i `_shared/google-ads.ts`.
+## Steg 1 — Migration: `keyword_serp_cache`
 
-## Del 2 — Förslag och godkännande
+Ny global cache-tabell för DataForSEO SERP-svar (PAA + related searches), 14 dagars TTL, ingen RLS (publik sökmotor-data, service-role only).
 
-**Ny tabell `ads_change_proposals`**:
+```sql
+CREATE TABLE public.keyword_serp_cache (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  keyword       text NOT NULL,
+  location_code integer NOT NULL DEFAULT 2752,
+  result_json   jsonb NOT NULL,
+  fetched_at    timestamptz NOT NULL DEFAULT now(),
+  expires_at    timestamptz NOT NULL DEFAULT (now() + interval '14 days')
+);
+CREATE UNIQUE INDEX idx_kw_serp_cache_kw ON public.keyword_serp_cache(keyword, location_code);
+CREATE INDEX idx_kw_serp_cache_expires ON public.keyword_serp_cache(expires_at);
 ```
-id, project_id, analysis_id?, source ('diagnosis'|'ai_generation'|'manual'|'cluster_expansion'),
-action_type, payload jsonb (= det som skickas till ads-mutate),
-diff jsonb (before/after för UI),
-estimated_impact_sek numeric, baseline_metrics jsonb,
-rationale text, evidence jsonb,
-status ('draft'|'approved'|'pushed'|'rejected'|'failed'),
-push_as_paused bool default true,
-mutation_id (FK ads_mutations när pushat),
-outcome_id (FK ads_recommendation_outcomes när mätt),
-created_by, created_at, updated_at, pushed_at
-```
-RLS via `is_project_member`.
 
-**Ny edge-funktion `ads-build-proposals`** — bygger draft-proposals automatiskt från:
-1. Diagnos (15 regler) → matchande `proposed_actions[0]` blir proposal med rationale + estimated_impact_sek + baseline_metrics-snapshot.
-2. Wasted keywords → `pause_keyword`.
-3. Negative mining → `add_negative_keyword`.
-4. RSA-utkast (`ad_drafts`) som inte finns live → `create_rsa` (PAUSED).
-5. Sökord-kluster utan matchande live ad group → `create_ad_group` (PAUSED) + `add_keyword`.
+## Steg 2 — Fyra fixar (appliceras när v2 byggs)
 
-**Utökar `ads-mutate`** med tre nya action_type:
-- `create_rsa` — payload: `{ad_group_id, headlines[], descriptions[], path1, path2, final_url, status}` (default PAUSED).
-- `create_ad_group` — `{campaign_id, name, default_cpc_micros, status, keywords[]}`.
-- `add_keyword` — `{ad_group_id, text, match_type, cpc_micros?, status}`.
+**Fix 1 — `businessRelevanceScore` i `scoring.ts`:** Token/ordgräns istället för naken `includes()`. Min 3 tecken; "stark match" = helt ord/ordstart, "medium match" = prefix ≥5 tecken inuti token. Eliminerar falskt positiva som "stålsättning katt" från en `productTerms`=["stål"].
 
-Alla create-actions sätter `status: PAUSED` när `push_as_paused=true` → kräver manuell aktivering i Google Ads = säkerhetsnät.
+**Fix 2 — Negativa sökord:** I `keyword-universe/index.ts` PASS 4: skippa scoring för `isNegative` ELLER negativa-kluster, tvinga `priority = "skip"`. I `opportunities.ts`: lägg till `!kw.isNegative && kw.priority !== "skip"` i alla `universe.filter()`-anrop (`quick_dominance`, `service_gap`, `striking_distance_cluster`, `geo_opportunity`).
 
-## Del 3 — Resultatmätning (det du frågade efter nu)
+**Fix 3 — `payback_weeks`:** Ny hjälpfunktion `contentCostByWorkspaceType()` i `scoring.ts` (b2b_manufacturer 12000, b2b_service 10000, d2c_brand 6000, local_service 4000, ecommerce 5000, default 8000). `calcRevenue` använder denna istället för hardcoded 8000.
 
-Vi har redan två tabeller — `ads_recommendation_outcomes` och `action_outcomes`. Vi kopplar in flödet:
-
-**Snapshot vid push** (i `ads-mutate` när `source_action_item_id` eller proposal_id finns):
-- Läs senaste 14d-metrics för impacted scope (campaign/ad_group/keyword/ad) via GAQL.
-- Spara som `baseline_metrics` på proposal + skapa rad i `ads_recommendation_outcomes` med `predicted` = estimated_impact + `applied_at`.
-
-**Ny cron-funktion `cron-ads-outcomes`** (finns delvis — utöka):
-- Körs dagligen.
-- För varje rad i `ads_recommendation_outcomes` där `applied_at` är 14d / 30d gammal och respektive `measured_*` saknas:
-  - Hämta nya 14d/30d-metrics för samma scope.
-  - Beräkna delta vs `baseline_metrics`: clicks, cost, conversions, conv_value, CPA, ROAS, CTR, QS, impressions, position.
-  - Spara i `measured_14d` / `measured_30d` med `delta`, `delta_pct`, `confidence` (low/mid/high baserat på sample size).
-  - Markera proposal som `outcome_id` och uppdatera `action_items.tracking_status`.
-
-**KPI-vy i UI** — ny tab "Resultat" i `GoogleAdsHub.tsx`:
-
-Tre nivåer:
-
-1. **Toppraden (period-sammanfattning)** — KPI-cards för konto-nivå, valbar period (7d / 14d / 30d / 90d):
-   - Total Spend · Conversions · Conv. Value · CPA · ROAS · CTR · Avg. Position
-   - Varje card visar **Now vs Previous Period** + sparkline + delta-pil (lime ↑ / röd ↓).
-
-2. **"Effekt av pushade förslag" (kärnan)** — tabell över alla `proposals` med `status='pushed'` och `outcome_id`:
-   - Kolumner: Datum pushad · Action type · Scope · Predicted SEK · Measured 14d (Δ Spend, Δ Conv, Δ ROAS) · Measured 30d · Confidence · Verdict.
-   - **Verdict-logik**: 
-     - 🟢 Lyckad — uppmätt delta ≥ 70% av predicted i samma riktning.
-     - 🟡 Neutral — delta inom ±20% av baseline (för litet urval eller marginell effekt).
-     - 🔴 Misslyckad — delta i fel riktning, > 30% sämre. Knapp "Återställ" som triggrar `ads-revert-mutation`.
-   - Klick på rad → drawer med graf (daglig metric ±28d kring push-datum, push-datum markerat med vertikal linje), evidence-listan från proposalen, och länk till själva mutationen i logs.
-
-3. **"AI-träffsäkerhet"** — meta-KPI per regel:
-   - Per `rule_id`: antal pushade, antal lyckade, %-träffsäkerhet, snitt-delta i SEK.
-   - Hjälper dig se vilka regler som faktiskt levererar — och tysta de som inte gör det via `automation_rules.is_active=false`.
-
-**Realtime**: `ads_recommendation_outcomes` + `ads_change_proposals` med `postgres_changes` så cards uppdateras live när cron skriver.
-
----
-
-## UI-flöde i Google Ads Hub
-
-Tre nya tabbar mellan befintliga:
-1. **Kampanjstruktur** — split view: Live-träd (vänster) ⇄ Förslagskö (höger) med approve/edit/reject + "Pusha N godkända (PAUSED)".
-2. **Resultat** — KPI-cards + effekttabell + AI-träffsäkerhet (denna del).
-3. **Audit** / **Annonsförslag** / **Chat** finns redan.
-
-Diagnosmotorn-bannern högst upp får en counter "12 förslag väntar på godkännande" som länkar till Kampanjstruktur-tabben.
-
----
+**Fix 4 — SERP-expansion med cache + cap:** I `keyword-universe/index.ts` PASS 3b — ersätt befintligt SERP-block med:
+- `MAX_SERP_CALLS = 10` per körning
+- `fetchSerpForSeed()` läser cache först (`expires_at > now()`); cache miss → live-anrop bara om under cap → upsert till cache
+- Sekventiell körning av seeds (sparar pengar vid cache-missar)
+- Loggar `live_calls` + `cache_hits` i progress-meta
 
 ## Filer
 
-**Skapas**
-- `supabase/functions/ads-fetch-account-tree/index.ts`
-- `supabase/functions/ads-build-proposals/index.ts`
-- `supabase/functions/ads-snapshot-baseline/index.ts` (anropas från ads-mutate vid push)
-- `src/components/workspace/CampaignStructureView.tsx` + `CampaignTree.tsx` + `ProposalQueue.tsx` + `ProposalCard.tsx` + `ProposalEditor.tsx`
-- `src/components/workspace/AdsResultsTab.tsx` + `OutcomeTable.tsx` + `OutcomeDrawer.tsx` + `RuleAccuracyCard.tsx`
-- `src/hooks/useAccountTree.ts`, `useProposals.ts`, `useAdsOutcomes.ts`
+| Fil | Åtgärd |
+|---|---|
+| `supabase/migrations/<ts>_keyword_serp_cache.sql` | NY (Steg 1) |
+| `_shared/keyword-intel/scoring.ts` | Skapas i v2 med Fix 1 + Fix 3 inbakat |
+| `_shared/keyword-intel/opportunities.ts` | Skapas i v2 med Fix 2 inbakat |
+| `keyword-universe/index.ts` | Uppdateras i v2 med Fix 2 (effectivePriority) + Fix 4 (cache+cap) |
 
-**Ändras**
-- `supabase/functions/ads-mutate/index.ts` — nya action_types + baseline-snapshot vid push.
-- `supabase/functions/cron-ads-outcomes/index.ts` — utöka till att även mäta proposal-baserade outcomes med 14d/30d-fönster.
-- `src/pages/workspace/GoogleAdsHub.tsx` — nya tabbar.
-- `src/components/workspace/RecommendationRationale.tsx` — knapp "Skapa förslag".
+Inga UI-ändringar, inga andra edge functions.
 
-**DB-migrations**
-- `ads_change_proposals` + index på (project_id, status) + RLS.
-- `ads_account_tree_cache` + RLS.
-- Lägg till `proposal_id` (nullable) på `ads_recommendation_outcomes` för join.
+## Efter denna patch
 
----
-
-## Inte i scope
-- Bid simulator API, Smart Bidding-strategi-byten, Performance Max asset-edits.
-- Multi-account roll-up (en kund i taget).
-- Statistisk signifikanstest mer avancerat än sample-size-confidence (kommer i v2 med Bayesian-modell om vi vill).
+Kör v2-huvudprompten — fixarna ovan är redan en del av kraven.
