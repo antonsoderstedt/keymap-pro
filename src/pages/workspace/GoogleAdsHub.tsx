@@ -93,6 +93,9 @@ export default function GoogleAdsHub() {
           <TabsTrigger value="results" className="gap-1.5">
             <Activity className="h-3.5 w-3.5" /> Resultat
           </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5">
+            <History className="h-3.5 w-3.5" /> Historik
+          </TabsTrigger>
           <TabsTrigger value="chat" className="gap-1.5">
             <MessageSquare className="h-3.5 w-3.5" /> Chat
           </TabsTrigger>
@@ -104,6 +107,7 @@ export default function GoogleAdsHub() {
           <TabsContent value="audit"><AdsAudit /></TabsContent>
           <TabsContent value="proposals"><ProposalsTab projectId={workspaceId} /></TabsContent>
           <TabsContent value="results"><AdsResultsTab projectId={workspaceId} /></TabsContent>
+          <TabsContent value="history"><AdsHistoryTab projectId={workspaceId} /></TabsContent>
           <TabsContent value="chat"><AdsChat /></TabsContent>
         </div>
       </Tabs>
