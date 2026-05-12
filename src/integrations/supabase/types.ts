@@ -1338,6 +1338,33 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_serp_cache: {
+        Row: {
+          expires_at: string
+          fetched_at: string
+          id: string
+          keyword: string
+          location_code: number
+          result_json: Json
+        }
+        Insert: {
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          keyword: string
+          location_code?: number
+          result_json: Json
+        }
+        Update: {
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          keyword?: string
+          location_code?: number
+          result_json?: Json
+        }
+        Relationships: []
+      }
       kpi_targets: {
         Row: {
           channel: string | null
