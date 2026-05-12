@@ -271,6 +271,12 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
+async function resolveCampaignId(ctx: any, cid: string, adGroupId: string): Promise<string | null> {
+  const rows = await searchGaql(ctx, cid,
+    `SELECT campaign.id FROM ad_group WHERE ad_group.id = ${adGroupId} LIMIT 1`).catch(() => []);
+  return (rows as any[])?.[0]?.campaign?.id ? String((rows as any[])[0].campaign.id) : null;
+}
+
 /**
  * Replace specific RSA headlines/descriptions on an existing ad.
  * Strategy: fetch current RSA via GAQL → build new headlines/descriptions arrays
