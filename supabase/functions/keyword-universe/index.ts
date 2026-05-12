@@ -11,12 +11,13 @@ const TOP_CITIES = [
   "Örebro", "Linköping", "Helsingborg", "Jönköping", "Norrköping",
 ];
 
-type Scale = "focused" | "broad" | "max";
+type Scale = "focused" | "broad" | "max" | "ultra";
 
 const SCALE_CONFIG: Record<Scale, { maxKeywords: number; aiCities: number; geoPerProduct: number; problemPairs: number; segmentPairs: number; semrushCap: number }> = {
-  focused: { maxKeywords: 500, aiCities: 5, geoPerProduct: 4, problemPairs: 3, segmentPairs: 3, semrushCap: 200 },
-  broad:   { maxKeywords: 1500, aiCities: 8, geoPerProduct: 8, problemPairs: 5, segmentPairs: 5, semrushCap: 600 },
-  max:     { maxKeywords: 4000, aiCities: 15, geoPerProduct: 12, problemPairs: 8, segmentPairs: 8, semrushCap: 1500 },
+  focused: { maxKeywords: 500,   aiCities: 5,  geoPerProduct: 4,  problemPairs: 3,  segmentPairs: 3,  semrushCap: 200 },
+  broad:   { maxKeywords: 1500,  aiCities: 8,  geoPerProduct: 8,  problemPairs: 5,  segmentPairs: 5,  semrushCap: 600 },
+  max:     { maxKeywords: 8000,  aiCities: 25, geoPerProduct: 20, problemPairs: 12, segmentPairs: 12, semrushCap: 3000 },
+  ultra:   { maxKeywords: 15000, aiCities: 40, geoPerProduct: 30, problemPairs: 18, segmentPairs: 18, semrushCap: 5000 },
 };
 
 const slugify = (s: string) =>
