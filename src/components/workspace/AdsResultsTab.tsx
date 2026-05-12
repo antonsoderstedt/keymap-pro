@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, TrendingUp, TrendingDown, Minus, Target, Award, Activity } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus, Target, Award, Activity, ChevronRight } from "lucide-react";
+import { OutcomeDrawer } from "./OutcomeDrawer";
 
 interface Outcome {
   id: string;
