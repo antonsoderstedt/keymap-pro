@@ -60,20 +60,32 @@ serve(async (req) => {
     };
 
     // If caller wants background mode (analysis_id given + background=true), respond immediately
-    // and continue work via EdgeRuntime.waitUntil.
+    // and continue work via EdgeRuntime.waitUntil by self-fetching synchronously.
     if (background && analysis_id) {
-      const task = runUniverseJob({
-        project_id, scale, cfg, supabase, supabaseUrl, supabaseKey,
-        LOVABLE_API_KEY, analysis_id, setProgress,
-      });
-      const waitUntil = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil;
-      if (typeof waitUntil === "function") waitUntil(task);
-      else task.catch((e) => console.error("[universe] background error:", e));
       await setProgress("queued", 0);
+      const selfTask = fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id, scale, analysis_id, background: false }),
+      }).then(async (r) => {
+        const t = await r.text();
+        if (!r.ok) console.error(`[universe] self-fetch failed ${r.status}: ${t}`);
+        else console.log(`[universe] self-fetch done`);
+      }).catch((e) => console.error("[universe] self-fetch error:", e));
+
+      const waitUntil = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil;
+      if (typeof waitUntil === "function") waitUntil(selfTask);
+
       return new Response(JSON.stringify({ success: true, status: "processing", analysis_id }), {
         status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const { data: project, error: pErr } = await supabase.from("projects").select("*").eq("id", project_id).single();
+    if (pErr || !project) throw new Error("Project not found");
+
+    const { data: customers } = await supabase.from("customers").select("*").eq("project_id", project_id).limit(50);
+    const industries = Array.from(new Set((customers || []).map((c: any) => c.industry).filter(Boolean)));
 
     // === PASS 1: Ask AI for structured dimension lists ===
     console.log(`[universe] scale=${scale} cap=${cfg.maxKeywords}`);
