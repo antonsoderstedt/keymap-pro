@@ -279,6 +279,7 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         add({ keyword: `${p} ${n}`, cluster: `Negativa kandidater`, dimension: "kommersiell", intent: "informational", funnel: "awareness", channel: "Google Ads", isNegative: true })));
 
     console.log(`[universe] generated ${universe.length} unique keywords`);
+    await setProgress("generated", universe.length);
 
     // === PASS 3: Enrich via DataForSEO ===
     let metricsMap: Record<string, any> = {};
