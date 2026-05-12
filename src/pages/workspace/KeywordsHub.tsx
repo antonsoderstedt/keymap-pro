@@ -469,11 +469,11 @@ export default function KeywordsHub() {
           <Button
             variant="outline"
             onClick={handleRegenerate}
-            disabled={regenerating || pending}
+            disabled={regenerating || pending || isBackgroundRunning}
             className="gap-2"
           >
-            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {regenerating ? "Genererar…" : "Regenerera"}
+            {(regenerating || isBackgroundRunning) ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isBackgroundRunning ? "Bakgrundsjobb…" : regenerating ? "Genererar…" : "Regenerera"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
