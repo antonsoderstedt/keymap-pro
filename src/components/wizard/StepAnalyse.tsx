@@ -23,7 +23,8 @@ const modules = [
 const scaleOptions: { value: UniverseScale; label: string; desc: string }[] = [
   { value: "focused", label: "Fokuserat", desc: "200–500 sökord, ~15 sek, ~5 öre" },
   { value: "broad", label: "Brett", desc: "500–1500 sökord, ~30 sek, ~15 öre" },
-  { value: "max", label: "Maximalt", desc: "1500–4000 sökord, ~60 sek, ~40 öre" },
+  { value: "max", label: "Maximalt", desc: "5 000–8 000 sökord, 2–4 min — körs i bakgrunden" },
+  { value: "ultra", label: "Ultra", desc: "10 000–15 000 sökord, 5–10 min — körs i bakgrunden" },
 ];
 
 export default function StepAnalyse({ options, setOptions, hasDomainsForScan }: StepAnalyseProps) {
