@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Megaphone, LayoutDashboard, ShieldCheck, MessageSquare, Sparkles, GitPullRequest, Network, Activity } from "lucide-react";
+import { Megaphone, LayoutDashboard, ShieldCheck, MessageSquare, Sparkles, GitPullRequest, Network, Activity, History } from "lucide-react";
 import AuctionInsights from "./AuctionInsights";
 import AdsAudit from "./AdsAudit";
 import AdsChat from "./AdsChat";
@@ -13,6 +13,7 @@ import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
 import { ProposalsTab } from "@/components/workspace/ProposalsTab";
 import { CampaignTree } from "@/components/workspace/CampaignTree";
 import { AdsResultsTab } from "@/components/workspace/AdsResultsTab";
+import { AdsHistoryTab } from "@/components/workspace/AdsHistoryTab";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
 
