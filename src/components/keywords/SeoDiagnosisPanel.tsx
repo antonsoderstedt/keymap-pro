@@ -14,6 +14,7 @@ import {
   Target,
 } from "lucide-react";
 import { toast } from "sonner";
+import { RecommendationRationale } from "@/components/workspace/RecommendationRationale";
 
 interface Props {
   projectId: string;
@@ -239,41 +240,25 @@ export function SeoDiagnosisPanel({ projectId }: Props) {
                   </div>
 
                   {isOpen && (
-                    <div className="mt-3 pt-3 border-t space-y-3 text-sm">
-                      <div>
-                        <p className="font-medium mb-1">Varför viktigt</p>
-                        <p className="text-muted-foreground">{d.why}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium mb-1">Evidens</p>
-                        <ul className="text-muted-foreground space-y-0.5">
-                          {d.evidence.map((e, i) => (
-                            <li key={i}>
-                              <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                {e.source}
-                              </span>{" "}
-                              {e.metric}: <strong>{String(e.value)}</strong>
-                              {e.period ? ` (${e.period})` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      {d.proposed_actions[0] && (
-                        <div>
-                          <p className="font-medium mb-1">
-                            {d.proposed_actions[0].label}{" "}
-                            <span className="text-xs text-muted-foreground">
-                              ({d.proposed_actions[0].effort} ansträngning)
-                            </span>
-                          </p>
-                          <p className="text-muted-foreground mb-2">{d.proposed_actions[0].detail}</p>
-                          <ol className="text-muted-foreground list-decimal pl-5 space-y-0.5">
-                            {d.proposed_actions[0].steps.map((s, i) => (
-                              <li key={i}>{s}</li>
-                            ))}
-                          </ol>
-                        </div>
-                      )}
+                    <div className="mt-3 pt-3 border-t">
+                      <RecommendationRationale
+                        ruleId={d.rule_id}
+                        category={CATEGORY_LABELS[d.category] || d.category}
+                        severity={d.severity}
+                        confidence={d.confidence}
+                        why={d.why}
+                        evidence={d.evidence as any}
+                        dataSources={d.data_sources}
+                        expectedImpact={d.expected_impact as any}
+                        estimatedValueSek={d.estimated_value_sek}
+                        proposedAction={d.proposed_actions[0] ? {
+                          label: d.proposed_actions[0].label,
+                          detail: d.proposed_actions[0].detail,
+                          steps: d.proposed_actions[0].steps,
+                          effort: d.proposed_actions[0].effort,
+                        } : undefined}
+                        defaultOpen
+                      />
                     </div>
                   )}
 
