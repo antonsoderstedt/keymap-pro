@@ -468,14 +468,19 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
       }
     }
 
+    const updatePayload: Record<string, unknown> = {
+      options,
+      result_json: resultJson,
+      universe_scale: (options?.universeScale as string | undefined) || null,
+    };
+    // Only overwrite universe if we have one in-hand (sync path).
+    // Background path: keyword-universe writes it itself — don't clobber with null.
+    if (!universeBackgrounded) {
+      updatePayload.keyword_universe_json = keywordUniverse;
+    }
     const { error: updateErr } = await supabase
       .from("analyses")
-      .update({
-        options,
-        result_json: resultJson,
-        keyword_universe_json: keywordUniverse,
-        universe_scale: (options?.universeScale as string | undefined) || null,
-      } as any)
+      .update(updatePayload as any)
       .eq("id", analysisId);
 
     if (updateErr) {
