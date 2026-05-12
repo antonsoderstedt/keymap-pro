@@ -57,7 +57,7 @@ export default function HowItWorks() {
             <span className="px-2 py-1 rounded border border-border bg-background/60">Pedagogiskt format</span>
           </div>
         </div>
-      </motion.section>
+      </section>
 
       {/* ÖVERSIKT 30s */}
       <section>
