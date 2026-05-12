@@ -11,7 +11,7 @@ export interface Project {
   created_at: string;
 }
 
-export type UniverseScale = "focused" | "broad" | "max";
+export type UniverseScale = "focused" | "broad" | "max" | "ultra";
 
 export type UniverseDimension =
   | "produkt" | "tjanst" | "bransch" | "material" | "problem" | "losning"
