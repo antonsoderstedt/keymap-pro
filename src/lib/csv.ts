@@ -1,7 +1,7 @@
 // CSV helpers — minimal, no deps. Sv-format vänligt.
 export function toCsv(rows: Record<string, any>[], headers?: string[]): string {
   if (!rows.length) return "";
-  const cols = headers ?? Array.from(rows.reduce((s, r) => {
+  const cols = headers ?? Array.from(rows.reduce<Set<string>>((s, r) => {
     Object.keys(r).forEach((k) => s.add(k));
     return s;
   }, new Set<string>()));
