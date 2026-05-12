@@ -1162,9 +1162,9 @@ function BackgroundUniverseStatus({
       : null;
     const total = progress.totalEnriched ?? progress.count ?? 0;
     return (
-      <Card className="border-success/40 bg-success/5">
+      <Card className="border-primary/50 bg-primary/10">
         <CardContent className="p-4 flex items-start gap-3">
-          <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
+          <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-sm font-medium">
