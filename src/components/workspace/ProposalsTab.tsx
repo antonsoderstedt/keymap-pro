@@ -121,7 +121,7 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
     setPushing(p.id);
     try {
       const { data, error } = await supabase.functions.invoke("ads-mutate", {
-        body: { project_id: projectId, action_type: p.action_type, payload: p.payload },
+        body: { project_id: projectId, action_type: p.action_type, payload: p.payload, proposal_id: p.id },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message || "Okänt fel");
       await setStatus(p.id, "pushed", { pushed_at: new Date().toISOString(), mutation_id: data?.mutation_id ?? null });
