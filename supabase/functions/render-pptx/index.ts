@@ -2,6 +2,23 @@
 // Tar { artifact_id } eller { project_id, payload } och returnerar binär .pptx.
 // Stödjer slides[]-arkitektur (nya rapporter) + bakåtkompatibel summary/charts/tables (gamla).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// Polyfill för pptxgenjs som internt använder `new Image()` (DOM API) i bild-pipeline.
+// Deno saknar Image, så vi stubbar den till en async-load som alltid lyckas.
+// @ts-ignore
+if (typeof (globalThis as any).Image === "undefined") {
+  // @ts-ignore
+  (globalThis as any).Image = class {
+    onload: ((ev?: any) => void) | null = null;
+    onerror: ((ev?: any) => void) | null = null;
+    width = 1; height = 1; naturalWidth = 1; naturalHeight = 1;
+    private _src = "";
+    get src() { return this._src; }
+    set src(v: string) {
+      this._src = v;
+      queueMicrotask(() => { try { this.onload && this.onload(); } catch (_) {} });
+    }
+  };
+}
 // @ts-ignore – default export från ESM
 import pptxgen from "https://esm.sh/pptxgenjs@3.12.0";
 
