@@ -248,61 +248,89 @@ export default function WorkspaceKeywordUniverse() {
             <StatCard label="Källa" value={data.source === "analysis" ? "Full analys" : "Pre-launch"} />
           </div>
 
-          {data.opportunities && data.opportunities.length > 0 && (
-            <Card className="border-primary/30 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="font-serif text-lg flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  Möjligheter ({data.opportunities.length})
-                  {data.engineVersion && (
-                    <Badge variant="outline" className="ml-2 text-[10px] font-mono">{data.engineVersion}</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.opportunities.map((op: any, i: number) => (
-                  <div key={i} className="p-3 rounded-md border border-border bg-card">
-                    <div className="flex items-start justify-between gap-3 mb-1">
-                      <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
-                        {op.title}
-                        {op.type && (
-                          <Badge variant="outline" className="text-[9px] font-mono uppercase">
-                            {String(op.type).replace(/_/g, " ")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {op.estimated_revenue_p50 != null && op.estimated_revenue_p50 > 0 && (
-                          <Badge variant="secondary" className="font-mono text-[10px]">
-                            ~{Math.round(op.estimated_revenue_p50 / 1000)}k SEK/år
-                          </Badge>
-                        )}
-                        <Badge
-                          variant={op.priority === "high" ? "default" : op.priority === "medium" ? "secondary" : "outline"}
-                          className="text-[10px]"
-                        >
-                          {op.priority}
-                        </Badge>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{op.description}</p>
-                    {op.keywords?.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {op.keywords.slice(0, 6).map((kw: string, j: number) => (
-                          <span key={j} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                            {kw}
-                          </span>
-                        ))}
-                        {op.keywords.length > 6 && (
-                          <span className="text-[10px] text-muted-foreground">+{op.keywords.length - 6}</span>
-                        )}
-                      </div>
+          {data.opportunities && data.opportunities.length > 0 && (() => {
+            const ADS_TYPES = new Set(["account_gap", "adgroup_candidate", "negative_candidate", "scalable_winner"]);
+            const adsOps = data.opportunities.filter((o: any) => ADS_TYPES.has(o.type));
+            const seoOps = data.opportunities.filter((o: any) => !ADS_TYPES.has(o.type));
+
+            const renderOp = (op: any, i: number) => (
+              <div key={i} className="p-3 rounded-md border border-border bg-card">
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+                    {op.title}
+                    {op.type && (
+                      <Badge variant="outline" className="text-[9px] font-mono uppercase">
+                        {String(op.type).replace(/_/g, " ")}
+                      </Badge>
                     )}
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {op.estimated_revenue_p50 != null && op.estimated_revenue_p50 > 0 && (
+                      <Badge variant="secondary" className="font-mono text-[10px]">
+                        ~{Math.round(op.estimated_revenue_p50 / 1000)}k SEK/år
+                      </Badge>
+                    )}
+                    <Badge
+                      variant={op.priority === "high" ? "default" : op.priority === "medium" ? "secondary" : "outline"}
+                      className="text-[10px]"
+                    >
+                      {op.priority}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">{op.description}</p>
+                {op.keywords?.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {op.keywords.slice(0, 6).map((kw: string, j: number) => (
+                      <span key={j} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                        {kw}
+                      </span>
+                    ))}
+                    {op.keywords.length > 6 && (
+                      <span className="text-[10px] text-muted-foreground">+{op.keywords.length - 6}</span>
+                    )}
+                  </div>
+                )}
+                {op.action_label && (
+                  <div className="mt-2 flex justify-end">
+                    <Button size="sm" variant="outline" className="text-[11px] h-7" disabled>
+                      {op.action_label}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+
+            return (
+              <div className="space-y-4">
+                {adsOps.length > 0 && (
+                  <Card className="border-primary/40 bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        Google Ads – action ({adsOps.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">{adsOps.map(renderOp)}</CardContent>
+                  </Card>
+                )}
+                {seoOps.length > 0 && (
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardHeader>
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        Strategiska möjligheter ({seoOps.length})
+                        {data.engineVersion && (
+                          <Badge variant="outline" className="ml-2 text-[10px] font-mono">{data.engineVersion}</Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">{seoOps.map(renderOp)}</CardContent>
+                  </Card>
+                )}
+              </div>
+            );
+          })()}
 
           <Card>
             <CardHeader>
