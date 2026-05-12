@@ -1111,12 +1111,15 @@ function BackgroundUniverseStatus({
   progress,
   startedAt,
   tick,
+  onDismiss,
 }: {
-  progress: { stage: string; count: number; total?: number; scale?: string; error?: string };
+  progress: { stage: string; count: number; total?: number; scale?: string; error?: string; finished_at?: string; totalEnriched?: number };
   startedAt: number | null;
   tick: number;
+  onDismiss?: () => void;
 }) {
   const isError = progress.stage === "error";
+  const isDone = progress.stage === "done";
   const label = STAGE_LABELS[progress.stage] || progress.stage;
 
   // Real percent if total known, else stage-weighted fallback
