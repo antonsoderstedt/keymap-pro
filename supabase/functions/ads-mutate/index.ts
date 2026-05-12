@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
-    const { project_id, action_type, payload, source_action_item_id } = body;
+    const { project_id, action_type, payload, source_action_item_id, proposal_id } = body;
     if (!project_id || !action_type || !payload) throw new Error("project_id, action_type, payload required");
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -120,6 +120,65 @@ Deno.serve(async (req) => {
         }
         response = { batch: results, success: results.filter(r => r.ok).length, total: results.length };
         revertPayload = { items: reverts };
+      } else if (action_type === "create_rsa") {
+        // payload: { ad_group_id, headlines: string[], descriptions: string[], path1?, path2?, final_url, push_as_paused? }
+        if (!payload.ad_group_id || !Array.isArray(payload.headlines) || !Array.isArray(payload.descriptions) || !payload.final_url) {
+          throw new Error("MISSING_IDS: ad_group_id, headlines, descriptions, final_url krävs");
+        }
+        if (payload.headlines.length < 3) throw new Error("RSA_INVALID: minst 3 headlines krävs");
+        if (payload.descriptions.length < 2) throw new Error("RSA_INVALID: minst 2 descriptions krävs");
+        const status = payload.push_as_paused === false ? "ENABLED" : "PAUSED";
+        const op = {
+          create: {
+            adGroup: `customers/${cid}/adGroups/${payload.ad_group_id}`,
+            status,
+            ad: {
+              finalUrls: [String(payload.final_url)],
+              responsiveSearchAd: {
+                headlines: payload.headlines.slice(0, 15).map((t: string) => ({ text: String(t).slice(0, 30) })),
+                descriptions: payload.descriptions.slice(0, 4).map((t: string) => ({ text: String(t).slice(0, 90) })),
+                path1: payload.path1 ? String(payload.path1).slice(0, 15) : undefined,
+                path2: payload.path2 ? String(payload.path2).slice(0, 15) : undefined,
+              },
+            },
+          },
+        };
+        response = await mutateAds(ctx, cid, "adGroupAds", [op]);
+        const created = response?.results?.[0]?.resourceName;
+        revertPayload = created ? { service: "adGroupAds", resource_name: created } : null;
+      } else if (action_type === "create_ad_group") {
+        // payload: { campaign_id, name, cpc_bid_sek?, push_as_paused? }
+        if (!payload.campaign_id || !payload.name) throw new Error("MISSING_IDS: campaign_id och name krävs");
+        const status = payload.push_as_paused === false ? "ENABLED" : "PAUSED";
+        const op: any = {
+          create: {
+            campaign: `customers/${cid}/campaigns/${payload.campaign_id}`,
+            name: String(payload.name).slice(0, 255),
+            status,
+            type: "SEARCH_STANDARD",
+          },
+        };
+        if (payload.cpc_bid_sek) op.create.cpcBidMicros = String(Math.round(Number(payload.cpc_bid_sek) * 1_000_000));
+        response = await mutateAds(ctx, cid, "adGroups", [op]);
+        const created = response?.results?.[0]?.resourceName;
+        revertPayload = created ? { service: "adGroups", resource_name: created } : null;
+      } else if (action_type === "add_keyword") {
+        // payload: { ad_group_id, keyword, match_type, cpc_bid_sek?, push_as_paused? }
+        if (!payload.ad_group_id || !payload.keyword) throw new Error("MISSING_IDS: ad_group_id och keyword krävs");
+        const matchType = (payload.match_type || "PHRASE").toUpperCase();
+        if (!KEYWORD_MATCH_TYPES.includes(matchType as any)) throw new Error("INVALID_MATCH_TYPE");
+        const status = payload.push_as_paused === false ? "ENABLED" : "PAUSED";
+        const op: any = {
+          create: {
+            adGroup: `customers/${cid}/adGroups/${payload.ad_group_id}`,
+            status,
+            keyword: { text: String(payload.keyword), matchType },
+          },
+        };
+        if (payload.cpc_bid_sek) op.create.cpcBidMicros = String(Math.round(Number(payload.cpc_bid_sek) * 1_000_000));
+        response = await mutateAds(ctx, cid, "adGroupCriteria", [op]);
+        const created = response?.results?.[0]?.resourceName;
+        revertPayload = created ? { service: "adGroupCriteria", resource_name: created } : null;
       } else {
         throw new Error(`UNSUPPORTED_ACTION: ${action_type}`);
       }
@@ -139,6 +198,54 @@ Deno.serve(async (req) => {
         }).eq("id", source_action_item_id);
       }
 
+      // Baseline snapshot + outcome row when pushed via proposal
+      if (proposal_id) {
+        try {
+          const campaignId = payload.campaign_id || (payload.ad_group_id ? await resolveCampaignId(ctx, cid, payload.ad_group_id) : null);
+          let baseline: any = null;
+          if (campaignId) {
+            const end = new Date(); end.setDate(end.getDate() - 1);
+            const start = new Date(end); start.setDate(start.getDate() - 13);
+            const fmt = (d: Date) => d.toISOString().slice(0, 10);
+            const rows = await searchGaql(ctx, cid, `
+              SELECT campaign.id, metrics.clicks, metrics.impressions, metrics.cost_micros, metrics.conversions, metrics.conversions_value
+              FROM campaign WHERE campaign.id = ${campaignId}
+                AND segments.date BETWEEN '${fmt(start)}' AND '${fmt(end)}'
+            `).catch(() => []);
+            const tot = { clicks: 0, impressions: 0, cost_micros: 0, conversions: 0, conversions_value: 0 };
+            for (const r of rows as any[]) {
+              tot.clicks += Number(r.metrics?.clicks ?? 0);
+              tot.impressions += Number(r.metrics?.impressions ?? 0);
+              tot.cost_micros += Number(r.metrics?.costMicros ?? 0);
+              tot.conversions += Number(r.metrics?.conversions ?? 0);
+              tot.conversions_value += Number(r.metrics?.conversionsValue ?? 0);
+            }
+            baseline = { window_days: 14, range: { start: fmt(start), end: fmt(end) }, totals: tot };
+          }
+          // Update proposal w/ baseline + mutation_id
+          const { data: prop } = await admin.from("ads_change_proposals")
+            .select("rule_id, project_id")
+            .eq("id", proposal_id).maybeSingle();
+          await admin.from("ads_change_proposals").update({
+            baseline_metrics: baseline,
+            mutation_id: logRow.id,
+          }).eq("id", proposal_id);
+          // Create outcome row
+          await admin.from("ads_recommendation_outcomes").insert({
+            project_id,
+            rule_id: prop?.rule_id || `proposal_${action_type}`,
+            campaign_id: campaignId ? String(campaignId) : null,
+            applied_at: new Date().toISOString(),
+            fired_at: new Date().toISOString(),
+            predicted: { action_type, payload },
+            proposal_id,
+            mutation_id: logRow.id,
+          });
+        } catch (snapErr) {
+          console.error("baseline snapshot failed", snapErr);
+        }
+      }
+
       return json({ ok: true, mutation_id: logRow.id, response, revert_payload: revertPayload });
     } catch (innerErr: any) {
       await admin.from("ads_mutations").update({
@@ -154,7 +261,7 @@ Deno.serve(async (req) => {
     const map: Record<string, number> = {
       NO_ADS_CUSTOMER: 400, MISSING_IDS: 400, MISSING_KEYWORD: 400,
       MISSING_CAMPAIGN_ID: 400, INVALID_MATCH_TYPE: 400, UNSUPPORTED_ACTION: 400,
-      MISSING_REVERT: 400, MISSING_ADS_SCOPE: 403,
+      MISSING_REVERT: 400, MISSING_ADS_SCOPE: 403, RSA_INVALID: 400, RSA_NOT_FOUND: 404,
     };
     return json({ error: msg, code }, map[code] ?? 500);
   }
@@ -162,6 +269,12 @@ Deno.serve(async (req) => {
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+async function resolveCampaignId(ctx: any, cid: string, adGroupId: string): Promise<string | null> {
+  const rows = await searchGaql(ctx, cid,
+    `SELECT campaign.id FROM ad_group WHERE ad_group.id = ${adGroupId} LIMIT 1`).catch(() => []);
+  return (rows as any[])?.[0]?.campaign?.id ? String((rows as any[])[0].campaign.id) : null;
 }
 
 /**
