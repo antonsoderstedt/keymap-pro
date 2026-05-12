@@ -407,7 +407,8 @@ export default function KeywordsHub() {
             <SelectContent>
               <SelectItem value="focused">Fokuserad (~500)</SelectItem>
               <SelectItem value="broad">Bred (~1500)</SelectItem>
-              <SelectItem value="max">Max (~4000)</SelectItem>
+              <SelectItem value="max">Max (~8000) — bakgrund</SelectItem>
+              <SelectItem value="ultra">Ultra (~15000) — bakgrund</SelectItem>
             </SelectContent>
           </Select>
           <Button
