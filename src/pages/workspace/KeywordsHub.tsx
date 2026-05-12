@@ -164,7 +164,12 @@ export default function KeywordsHub() {
         refetch();
       }
       wasRunningRef.current = false;
-      setUniverseProgress(null);
+      // Behåll "done"-state synligt så användaren ser kvitto på att jobbet gick bra
+      if (prog?.stage === "done" && prog?.finished_at) {
+        setUniverseProgress(prog);
+      } else {
+        setUniverseProgress(null);
+      }
       setProgressStartedAt(null);
     };
 
