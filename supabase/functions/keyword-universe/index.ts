@@ -634,9 +634,35 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
     const enrichedCount = final.filter((k) => k.dataSource === "real").length;
     console.log(`[universe] enriched ${enrichedCount}/${final.length}`);
 
-    // === PASS 5: Discover opportunities (filtrerar negativa internt) ===
-    const opportunities = discoverOpportunities(final as any);
-    console.log(`[universe] discovered ${opportunities.length} opportunities`);
+    // === PASS 5: Discover opportunities (Ads-kontext + SEO) ===
+    let adsContext: any = null;
+    try {
+      const [diagRes, aiRes] = await Promise.all([
+        supabase.from("ads_diagnostics_runs")
+          .select("report")
+          .eq("project_id", project_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from("auction_insights_snapshots")
+          .select("rows")
+          .eq("project_id", project_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const diagnoses = (diagRes.data as any)?.report?.diagnoses ?? [];
+      const aiRows = (aiRes.data as any)?.rows ?? {};
+      const campaigns = Array.isArray(aiRows?.campaigns) ? aiRows.campaigns : [];
+      const competitors = Array.isArray(aiRows?.competitors) ? aiRows.competitors : [];
+      if (diagnoses.length || campaigns.length || competitors.length) {
+        adsContext = { diagnoses, campaigns, competitors };
+      }
+    } catch (e) {
+      console.warn("[universe] adsContext load failed", e);
+    }
+    const opportunities = discoverOpportunities(final as any, adsContext);
+    console.log(`[universe] discovered ${opportunities.length} opportunities (ads=${!!adsContext})`);
 
     const result = {
       scale,

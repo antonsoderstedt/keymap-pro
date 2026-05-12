@@ -64,12 +64,14 @@ export interface UniverseKeyword {
 }
 
 export interface KeywordOpportunity {
-  type: "quick_dominance" | "service_gap" | "striking_distance_cluster" | "geo_opportunity" | "market_expansion" | "high_score_underserved" | "cluster_consolidation";
+  type: "quick_dominance" | "service_gap" | "striking_distance_cluster" | "geo_opportunity" | "market_expansion" | "high_score_underserved" | "cluster_consolidation" | "account_gap" | "adgroup_candidate" | "negative_candidate" | "scalable_winner";
   title: string;
   description: string;
   keywords: string[];
   estimated_revenue_p50?: number;
   priority: "high" | "medium" | "low";
+  scope?: { campaign_id?: string; campaign_name?: string };
+  action_label?: string;
 }
 
 // Google Ads draft (one per ad group)
