@@ -82,7 +82,7 @@ export default function StepAnalyse({ options, setOptions, hasDomainsForScan }: 
             <span className="text-sm font-medium">Universe-skala</span>
           </div>
           <p className="text-xs text-muted-foreground">Bestäm hur stort sökordsuniverse som ska byggas. Påverkar tid och DataForSEO-kostnad.</p>
-          <div className="grid gap-2 md:grid-cols-3">
+          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
             {scaleOptions.map((s) => {
               const active = (options.universeScale || "broad") === s.value;
               return (
