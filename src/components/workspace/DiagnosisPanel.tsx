@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { handleGoogleReauthError, notifyGoogleReauthRequired } from "@/lib/googleReauth";
+import { RecommendationRationale } from "@/components/workspace/RecommendationRationale";
 
 interface Diagnosis {
   id: string;
@@ -276,29 +277,43 @@ function DiagnosisCard({ d, expanded, onToggle }: { d: Diagnosis; expanded: bool
       </button>
 
       {expanded && (
-        <div className="mt-3 space-y-2 text-xs">
-          {d.why && <p className="opacity-80">{d.why}</p>}
-          {d.evidence.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {d.evidence.map((e, i) => (
-                <Badge key={i} variant="secondary" className="text-[10px] font-mono">
-                  {e.metric}: {String(e.value)}
-                </Badge>
+        <div className="mt-3">
+          <RecommendationRationale
+            ruleId={d.rule_id}
+            category={d.scope}
+            severity={d.severity}
+            confidence={d.confidence}
+            why={d.why}
+            evidence={(d.evidence || []).map((e) => ({ source: "Ads", metric: e.metric, value: e.value }))}
+            dataSources={["Ads", "GA4"]}
+            expectedImpact={d.expected_impact ? {
+              metric: d.expected_impact.metric,
+              direction: d.expected_impact.direction,
+              mid: d.expected_impact.mid,
+              horizon_days: d.expected_impact.horizon_days,
+            } : undefined}
+            estimatedValueSek={d.estimated_value_sek}
+            proposedAction={d.proposed_actions[0] ? {
+              label: d.proposed_actions[0].label,
+              detail: d.proposed_actions[0].detail,
+              risk: d.proposed_actions[0].risk,
+              risk_reason: d.proposed_actions[0].risk_reason,
+            } : undefined}
+            defaultOpen
+          />
+          {d.proposed_actions.length > 1 && (
+            <div className="mt-2 space-y-1.5">
+              {d.proposed_actions.slice(1).map((a, i) => (
+                <div key={i} className="rounded border border-border bg-background/50 p-2 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{a.label}</span>
+                    <Badge variant="outline" className="text-[10px]">Risk: {a.risk}</Badge>
+                  </div>
+                  <p className="opacity-80">{a.detail}</p>
+                </div>
               ))}
             </div>
           )}
-          {d.proposed_actions.map((a, i) => (
-            <div key={i} className="rounded border border-border bg-background/50 p-2 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{a.label}</span>
-                <Badge variant="outline" className="text-[10px]">
-                  Risk: {a.risk}
-                </Badge>
-              </div>
-              <p className="opacity-80">{a.detail}</p>
-              <p className="opacity-60 text-[10px]">Varför säker: {a.risk_reason}</p>
-            </div>
-          ))}
         </div>
       )}
     </div>
