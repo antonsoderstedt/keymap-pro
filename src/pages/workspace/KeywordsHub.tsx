@@ -63,6 +63,50 @@ export default function KeywordsHub() {
   const [scale, setScale] = useState<UniverseScale>(
     (universeScale as UniverseScale) || "broad",
   );
+  const [universeProgress, setUniverseProgress] = useState<{
+    stage: string;
+    count: number;
+    total?: number;
+    scale?: string;
+    error?: string;
+    updated_at?: string;
+  } | null>(null);
+  const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null);
+
+  // Poll universe_progress for background (max/ultra) jobs
+  useEffect(() => {
+    if (!analysisId) return;
+    let cancelled = false;
+    const tick = async () => {
+      const { data } = await supabase
+        .from("analyses")
+        .select("universe_progress, keyword_universe_json")
+        .eq("id", analysisId)
+        .maybeSingle();
+      if (cancelled) return;
+      const prog = (data as any)?.universe_progress as any;
+      const hasUniverse = !!(data as any)?.keyword_universe_json;
+      if (prog && prog.stage && !["done"].includes(prog.stage) && !(prog.stage === "error")) {
+        setUniverseProgress(prog);
+        if (!progressStartedAt) setProgressStartedAt(Date.now());
+      } else if (prog?.stage === "error") {
+        setUniverseProgress(prog);
+      } else {
+        if (universeProgress && hasUniverse) {
+          // Job finished — refresh data once
+          refetch();
+        }
+        setUniverseProgress(null);
+        setProgressStartedAt(null);
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisId]);
+
+  const isBackgroundRunning = !!universeProgress && universeProgress.stage !== "done" && universeProgress.stage !== "error";
 
   // ── Filter state (Sökord-tabben) ───────────────────────────────────
   const [search, setSearch] = useState("");
