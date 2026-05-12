@@ -1036,23 +1036,57 @@ const STAGE_LABELS: Record<string, string> = {
   error: "Fel",
 };
 
+const STAGE_WEIGHTS: Record<string, number> = {
+  init: 2,
+  starting: 5,
+  generating: 12,
+  ai_seeds: 15,
+  expanding: 25,
+  dataforseo: 55,
+  enriching: 60,
+  semrush: 80,
+  clustering: 90,
+  scoring: 95,
+  saving: 98,
+  done: 100,
+  error: 100,
+};
+
+function fmtDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
 function BackgroundUniverseStatus({
   progress,
   startedAt,
+  tick,
 }: {
   progress: { stage: string; count: number; total?: number; scale?: string; error?: string };
   startedAt: number | null;
+  tick: number;
 }) {
   const isError = progress.stage === "error";
   const label = STAGE_LABELS[progress.stage] || progress.stage;
-  const pct = progress.total && progress.total > 0
-    ? Math.min(100, Math.round((progress.count / progress.total) * 100))
-    : null;
 
-  const elapsed = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
-  const mm = Math.floor(elapsed / 60);
-  const ss = String(elapsed % 60).padStart(2, "0");
-  const elapsedStr = startedAt ? `${mm}:${ss}` : null;
+  // Real percent if total known, else stage-weighted fallback
+  const realPct = progress.total && progress.total > 0
+    ? Math.min(100, (progress.count / progress.total) * 100)
+    : null;
+  const stagePct = STAGE_WEIGHTS[progress.stage] ?? 10;
+  const pct = Math.round(realPct ?? stagePct);
+
+  const elapsed = startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0;
+  // Touch tick so React re-renders the elapsed counter every second
+  void tick;
+  const elapsedStr = startedAt ? fmtDuration(elapsed) : null;
+
+  // Naive ETA based on percent progress
+  const etaSec = startedAt && pct > 5 && pct < 100
+    ? Math.max(5, Math.round((elapsed / pct) * (100 - pct)))
+    : null;
 
   if (isError) {
     return (
@@ -1078,21 +1112,25 @@ function BackgroundUniverseStatus({
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-sm font-medium">
-                Bygger sökordsuniversum i bakgrunden
+                Bygger sökordsuniversum
                 {progress.scale ? (
                   <Badge variant="secondary" className="ml-2 uppercase tracking-wide">{progress.scale}</Badge>
                 ) : null}
+                <Badge variant="outline" className="ml-2 text-[10px] gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  LIVE
+                </Badge>
               </p>
-              {elapsedStr && (
-                <span className="text-xs text-muted-foreground font-mono">⏱ {elapsedStr}</span>
-              )}
+              <span className="font-mono text-sm font-semibold tabular-nums text-primary">
+                {pct}%
+              </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {label}
+              <span className="text-foreground font-medium">{label}</span>
               {progress.count > 0 && (
                 <>
                   {" — "}
-                  <span className="font-mono text-foreground">
+                  <span className="font-mono text-foreground tabular-nums">
                     {progress.count.toLocaleString("sv-SE")}
                     {progress.total ? ` / ${progress.total.toLocaleString("sv-SE")}` : ""}
                   </span>{" "}
@@ -1104,21 +1142,53 @@ function BackgroundUniverseStatus({
         </div>
 
         {/* Progress bar */}
-        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-          {pct !== null ? (
-            <div
-              className="h-full bg-primary transition-all duration-500 ease-out"
-              style={{ width: `${pct}%` }}
-            />
-          ) : (
-            <div className="h-full w-1/3 bg-primary/70 animate-pulse" />
-          )}
+        <div
+          className="h-2.5 w-full rounded-full bg-muted overflow-hidden"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+        >
+          <div
+            className="h-full bg-gradient-to-r from-primary/70 to-primary transition-[width] duration-700 ease-out"
+            style={{ width: `${Math.max(2, pct)}%` }}
+          />
+        </div>
+
+        {/* Stage timeline */}
+        <ol className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {(["generating", "expanding", "dataforseo", "semrush", "clustering", "saving"] as const).map((s) => {
+            const reached = (STAGE_WEIGHTS[progress.stage] ?? 0) >= (STAGE_WEIGHTS[s] ?? 100);
+            const active = progress.stage === s;
+            return (
+              <li
+                key={s}
+                className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors ${
+                  active
+                    ? "border-primary bg-primary/15 text-primary"
+                    : reached
+                      ? "border-primary/40 bg-primary/5 text-foreground"
+                      : "border-border bg-card text-muted-foreground"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${reached ? "bg-primary" : "bg-muted-foreground/40"} ${active ? "animate-pulse" : ""}`} />
+                {STAGE_LABELS[s]}
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono tabular-nums">
+          <span>⏱ {elapsedStr ?? "0s"} förflutet</span>
+          {etaSec !== null && <span>~ {fmtDuration(etaSec)} kvar</span>}
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Du kan stänga sidan — jobbet körs på servern. Resultatet visas automatiskt när det är klart (ca 5–10 min för Ultra).
+          Realtid via Lovable Cloud — du kan stänga sidan, jobbet körs på servern.
         </p>
       </CardContent>
     </Card>
+  );
+}
   );
 }
