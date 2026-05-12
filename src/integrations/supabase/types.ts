@@ -462,6 +462,7 @@ export type Database = {
           project_id: string
           result_json: Json | null
           scan_data_json: Json | null
+          universe_progress: Json | null
           universe_scale: string | null
         }
         Insert: {
@@ -472,6 +473,7 @@ export type Database = {
           project_id: string
           result_json?: Json | null
           scan_data_json?: Json | null
+          universe_progress?: Json | null
           universe_scale?: string | null
         }
         Update: {
@@ -482,6 +484,7 @@ export type Database = {
           project_id?: string
           result_json?: Json | null
           scan_data_json?: Json | null
+          universe_progress?: Json | null
           universe_scale?: string | null
         }
         Relationships: [

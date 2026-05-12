@@ -407,53 +407,80 @@ Returnera 3-6 kluster där summan av sökord är 40-60.`;
     }
 
     let keywordUniverse: any = null;
+    let universeBackgrounded = false;
     if (options?.keywordUniverse) {
       const scale = options.universeScale || "broad";
-      const maxAttempts = 3;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const isHeavy = scale === "max" || scale === "ultra";
+
+      if (isHeavy) {
+        // Heavy scales run as background job — keyword-universe writes back to analyses itself.
+        console.log(`[analyse] dispatching keyword-universe in background (scale=${scale})`);
         try {
-          console.log(`[analyse] running keyword-universe (scale=${scale}) attempt ${attempt}/${maxAttempts}`);
-          const uniRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
+          const dispatchRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${supabaseKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ project_id: projectId, scale }),
+            headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ project_id: projectId, scale, analysis_id: analysisId, background: true }),
           });
+          if (!dispatchRes.ok) {
+            console.error(`[analyse] background dispatch failed`, dispatchRes.status, await dispatchRes.text());
+          } else {
+            universeBackgrounded = true;
+          }
+        } catch (e) {
+          console.error("[analyse] background dispatch error", e);
+        }
+      } else {
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            console.log(`[analyse] running keyword-universe (scale=${scale}) attempt ${attempt}/${maxAttempts}`);
+            const uniRes = await fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${supabaseKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ project_id: projectId, scale }),
+            });
 
-          if (uniRes.ok) {
-            const payload = await uniRes.json();
-            keywordUniverse = payload.universe || null;
-            console.log(`[analyse] universe: ${keywordUniverse?.totalKeywords} kw, ${keywordUniverse?.totalEnriched} berikade`);
+            if (uniRes.ok) {
+              const payload = await uniRes.json();
+              keywordUniverse = payload.universe || null;
+              console.log(`[analyse] universe: ${keywordUniverse?.totalKeywords} kw, ${keywordUniverse?.totalEnriched} berikade`);
+              break;
+            }
+
+            const text = await uniRes.text();
+            console.error(`[analyse] universe failed (attempt ${attempt})`, uniRes.status, text);
+            if ([429, 500, 502, 503, 504].includes(uniRes.status) && attempt < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+              continue;
+            }
             break;
-          }
-
-          const text = await uniRes.text();
-          console.error(`[analyse] universe failed (attempt ${attempt})`, uniRes.status, text);
-          if ([429, 500, 502, 503, 504].includes(uniRes.status) && attempt < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
-            continue;
-          }
-          break;
-        } catch (error) {
-          console.error(`[analyse] universe error (attempt ${attempt})`, error);
-          if (attempt < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
-            continue;
+          } catch (error) {
+            console.error(`[analyse] universe error (attempt ${attempt})`, error);
+            if (attempt < maxAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+              continue;
+            }
           }
         }
       }
     }
 
+    const updatePayload: Record<string, unknown> = {
+      options,
+      result_json: resultJson,
+      universe_scale: (options?.universeScale as string | undefined) || null,
+    };
+    // Only overwrite universe if we have one in-hand (sync path).
+    // Background path: keyword-universe writes it itself — don't clobber with null.
+    if (!universeBackgrounded) {
+      updatePayload.keyword_universe_json = keywordUniverse;
+    }
     const { error: updateErr } = await supabase
       .from("analyses")
-      .update({
-        options,
-        result_json: resultJson,
-        keyword_universe_json: keywordUniverse,
-        universe_scale: (options?.universeScale as string | undefined) || null,
-      } as any)
+      .update(updatePayload as any)
       .eq("id", analysisId);
 
     if (updateErr) {

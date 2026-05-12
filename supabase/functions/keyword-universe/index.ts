@@ -11,12 +11,13 @@ const TOP_CITIES = [
   "Örebro", "Linköping", "Helsingborg", "Jönköping", "Norrköping",
 ];
 
-type Scale = "focused" | "broad" | "max";
+type Scale = "focused" | "broad" | "max" | "ultra";
 
 const SCALE_CONFIG: Record<Scale, { maxKeywords: number; aiCities: number; geoPerProduct: number; problemPairs: number; segmentPairs: number; semrushCap: number }> = {
-  focused: { maxKeywords: 500, aiCities: 5, geoPerProduct: 4, problemPairs: 3, segmentPairs: 3, semrushCap: 200 },
-  broad:   { maxKeywords: 1500, aiCities: 8, geoPerProduct: 8, problemPairs: 5, segmentPairs: 5, semrushCap: 600 },
-  max:     { maxKeywords: 4000, aiCities: 15, geoPerProduct: 12, problemPairs: 8, segmentPairs: 8, semrushCap: 1500 },
+  focused: { maxKeywords: 500,   aiCities: 5,  geoPerProduct: 4,  problemPairs: 3,  segmentPairs: 3,  semrushCap: 200 },
+  broad:   { maxKeywords: 1500,  aiCities: 8,  geoPerProduct: 8,  problemPairs: 5,  segmentPairs: 5,  semrushCap: 600 },
+  max:     { maxKeywords: 8000,  aiCities: 25, geoPerProduct: 20, problemPairs: 12, segmentPairs: 12, semrushCap: 3000 },
+  ultra:   { maxKeywords: 15000, aiCities: 40, geoPerProduct: 30, problemPairs: 18, segmentPairs: 18, semrushCap: 5000 },
 };
 
 const slugify = (s: string) =>
@@ -28,8 +29,11 @@ const normalizeKw = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let analysisIdGlobal: string | null = null;
+  let supabaseGlobal: ReturnType<typeof createClient> | null = null;
+
   try {
-    const { project_id, scale: scaleInput } = await req.json();
+    const { project_id, scale: scaleInput, analysis_id, background } = await req.json();
     if (!project_id) throw new Error("project_id is required");
 
     const scale: Scale = (scaleInput || "broad") as Scale;
@@ -41,6 +45,41 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    supabaseGlobal = supabase;
+    analysisIdGlobal = analysis_id || null;
+
+    const setProgress = async (stage: string, count = 0, extra: Record<string, any> = {}) => {
+      if (!analysis_id) return;
+      try {
+        await supabase.from("analyses").update({
+          universe_progress: { stage, count, scale, updated_at: new Date().toISOString(), ...extra },
+        } as any).eq("id", analysis_id);
+      } catch (e) {
+        console.error("[universe] progress update failed", e);
+      }
+    };
+
+    // If caller wants background mode (analysis_id given + background=true), respond immediately
+    // and continue work via EdgeRuntime.waitUntil by self-fetching synchronously.
+    if (background && analysis_id) {
+      await setProgress("queued", 0);
+      const selfTask = fetch(`${supabaseUrl}/functions/v1/keyword-universe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id, scale, analysis_id, background: false }),
+      }).then(async (r) => {
+        const t = await r.text();
+        if (!r.ok) console.error(`[universe] self-fetch failed ${r.status}: ${t}`);
+        else console.log(`[universe] self-fetch done`);
+      }).catch((e) => console.error("[universe] self-fetch error:", e));
+
+      const waitUntil = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil;
+      if (typeof waitUntil === "function") waitUntil(selfTask);
+
+      return new Response(JSON.stringify({ success: true, status: "processing", analysis_id }), {
+        status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: project, error: pErr } = await supabase.from("projects").select("*").eq("id", project_id).single();
     if (pErr || !project) throw new Error("Project not found");
@@ -50,6 +89,7 @@ serve(async (req) => {
 
     // === PASS 1: Ask AI for structured dimension lists ===
     console.log(`[universe] scale=${scale} cap=${cfg.maxKeywords}`);
+    await setProgress("dimensions", 0);
 
     const dimensionSchema = {
       type: "object",
@@ -239,27 +279,61 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         add({ keyword: `${p} ${n}`, cluster: `Negativa kandidater`, dimension: "kommersiell", intent: "informational", funnel: "awareness", channel: "Google Ads", isNegative: true })));
 
     console.log(`[universe] generated ${universe.length} unique keywords`);
+    await setProgress("generated", universe.length);
 
-    // === PASS 3: Enrich via DataForSEO ===
+    // === PASS 3: Enrich via DataForSEO (batched, with retry) ===
+    await setProgress("enriching_dataforseo", universe.length);
     let metricsMap: Record<string, any> = {};
     try {
       const allKws = universe.map((u) => u.keyword);
-      const enrichRes = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ keywords: allKws }),
+      const ENRICH_BATCH = 700;
+      const batches: string[][] = [];
+      for (let i = 0; i < allKws.length; i += ENRICH_BATCH) batches.push(allKws.slice(i, i + ENRICH_BATCH));
+
+      const callBatch = async (batch: string[], attempt = 1): Promise<Record<string, any>> => {
+        try {
+          const r = await fetch(`${supabaseUrl}/functions/v1/enrich-keywords`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ keywords: batch }),
+          });
+          if (r.ok) {
+            const j = await r.json();
+            return j.metrics || {};
+          }
+          if ([429, 500, 502, 503, 504].includes(r.status) && attempt < 3) {
+            await new Promise(res => setTimeout(res, 2000 * attempt));
+            return callBatch(batch, attempt + 1);
+          }
+          console.error("[universe] enrich batch failed", r.status, await r.text());
+          return {};
+        } catch (e) {
+          if (attempt < 3) {
+            await new Promise(res => setTimeout(res, 2000 * attempt));
+            return callBatch(batch, attempt + 1);
+          }
+          console.error("[universe] enrich batch error", e);
+          return {};
+        }
+      };
+
+      // Run batches with concurrency 3
+      let idx = 0;
+      const runners = Array.from({ length: Math.min(3, batches.length) }, async () => {
+        while (idx < batches.length) {
+          const my = idx++;
+          const m = await callBatch(batches[my]);
+          Object.assign(metricsMap, m);
+          await setProgress("enriching_dataforseo", Object.keys(metricsMap).length, { total: allKws.length });
+        }
       });
-      if (enrichRes.ok) {
-        const j = await enrichRes.json();
-        metricsMap = j.metrics || {};
-      } else {
-        console.error("[universe] enrich failed", enrichRes.status, await enrichRes.text());
-      }
+      await Promise.all(runners);
     } catch (e) {
       console.error("[universe] enrich error", e);
     }
 
-    // === PASS 3.5: Semrush enrichment for top N (sorted by DataForSEO volume) ===
+    // === PASS 3.5: Semrush enrichment for top N (sorted by DataForSEO volume), batched ===
+    await setProgress("enriching_semrush", 0, { total: cfg.semrushCap });
     let semrushMap: Record<string, any> = {};
     try {
       const sortedByVol = [...universe]
@@ -269,18 +343,51 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         .map((x) => x.kw);
 
       if (sortedByVol.length > 0 && Deno.env.get("SEMRUSH_API_KEY")) {
-        const semrushRes = await fetch(`${supabaseUrl}/functions/v1/enrich-semrush`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ keywords: sortedByVol, max_keywords: cfg.semrushCap }),
-        });
-        if (semrushRes.ok) {
-          const j = await semrushRes.json();
-          semrushMap = j.metrics || {};
-          console.log(`[universe] semrush fetched=${j.fetched} cached=${j.cached}`);
-        } else {
-          console.error("[universe] semrush failed", semrushRes.status, await semrushRes.text());
+        const SEMRUSH_BATCH = 500;
+        const semBatches: string[][] = [];
+        for (let i = 0; i < sortedByVol.length; i += SEMRUSH_BATCH) {
+          semBatches.push(sortedByVol.slice(i, i + SEMRUSH_BATCH));
         }
+
+        const callSem = async (batch: string[], attempt = 1): Promise<Record<string, any>> => {
+          try {
+            const r = await fetch(`${supabaseUrl}/functions/v1/enrich-semrush`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ keywords: batch, max_keywords: batch.length }),
+            });
+            if (r.ok) {
+              const j = await r.json();
+              return j.metrics || {};
+            }
+            if ([429, 500, 502, 503, 504].includes(r.status) && attempt < 3) {
+              await new Promise(res => setTimeout(res, 3000 * attempt));
+              return callSem(batch, attempt + 1);
+            }
+            console.error("[universe] semrush batch failed", r.status, await r.text());
+            return {};
+          } catch (e) {
+            if (attempt < 3) {
+              await new Promise(res => setTimeout(res, 3000 * attempt));
+              return callSem(batch, attempt + 1);
+            }
+            console.error("[universe] semrush batch error", e);
+            return {};
+          }
+        };
+
+        // Run with concurrency 2 (Semrush is heavier)
+        let sIdx = 0;
+        const sRunners = Array.from({ length: Math.min(2, semBatches.length) }, async () => {
+          while (sIdx < semBatches.length) {
+            const my = sIdx++;
+            const m = await callSem(semBatches[my]);
+            Object.assign(semrushMap, m);
+            await setProgress("enriching_semrush", Object.keys(semrushMap).length, { total: sortedByVol.length });
+          }
+        });
+        await Promise.all(sRunners);
+        console.log(`[universe] semrush enriched ${Object.keys(semrushMap).length}/${sortedByVol.length}`);
       }
     } catch (e) {
       console.error("[universe] semrush error", e);
@@ -356,11 +463,32 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       keywords: final,
     };
 
+    // If called with analysis_id, write the universe back to the analyses row
+    if (analysis_id) {
+      const { error: writeErr } = await supabase
+        .from("analyses")
+        .update({
+          keyword_universe_json: result,
+          universe_scale: scale,
+          universe_progress: { stage: "done", count: final.length, scale, totalEnriched: enrichedCount, finished_at: new Date().toISOString() },
+        } as any)
+        .eq("id", analysis_id);
+      if (writeErr) console.error("[universe] write-back error", writeErr);
+      else console.log(`[universe] wrote ${final.length} kw to analysis ${analysis_id}`);
+    }
+
     return new Response(JSON.stringify({ success: true, universe: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("[universe] error", e);
+    if (analysisIdGlobal && supabaseGlobal) {
+      try {
+        await supabaseGlobal.from("analyses").update({
+          universe_progress: { stage: "error", error: e instanceof Error ? e.message : "Unknown error", finished_at: new Date().toISOString() },
+        } as any).eq("id", analysisIdGlobal);
+      } catch {}
+    }
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

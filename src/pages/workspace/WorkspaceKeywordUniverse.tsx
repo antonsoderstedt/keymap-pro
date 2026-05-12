@@ -19,20 +19,30 @@ interface UniverseData {
   createdAt: string;
 }
 
+interface Progress {
+  stage: string;
+  count: number;
+  total?: number;
+  scale?: string;
+  error?: string;
+}
+
 export default function WorkspaceKeywordUniverse() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [data, setData] = useState<UniverseData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState<Progress | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    (async () => {
-      // Hämta båda källorna parallellt och välj den nyaste
+    let cancelled = false;
+
+    const load = async () => {
       const [analysisRes, prelaunchRes] = await Promise.all([
         supabase.from("analyses")
-          .select("id, created_at, universe_scale, keyword_universe_json")
+          .select("id, created_at, universe_scale, keyword_universe_json, universe_progress")
           .eq("project_id", id)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -44,28 +54,46 @@ export default function WorkspaceKeywordUniverse() {
           .limit(1)
           .maybeSingle(),
       ]);
+      if (cancelled) return;
 
-      const analysis = analysisRes.data;
+      const analysis = analysisRes.data as any;
       const prelaunch = prelaunchRes.data;
+
+      // Show progress if a background universe job is running on the latest analysis
+      const prog = analysis?.universe_progress as Progress | null | undefined;
+      const isRunning = prog && prog.stage && !["done", "error"].includes(prog.stage) && !analysis?.keyword_universe_json;
+      setProgress(isRunning ? prog : null);
 
       let chosen: UniverseData | null = null;
 
-      if (analysis && (!prelaunch || new Date(analysis.created_at) >= new Date(prelaunch.created_at))) {
+      if (analysis?.keyword_universe_json && (!prelaunch || new Date(analysis.created_at) >= new Date(prelaunch.created_at))) {
         const u: any = analysis.keyword_universe_json || {};
-        const clusters = u.clusters || [];
+        const flat = u.keywords || [];
+        // Build clusters from flat list (universe stores keywords flat)
+        let clusters = u.clusters as any[] | undefined;
+        if (!clusters) {
+          const map = new Map<string, any[]>();
+          for (const kw of flat) {
+            const key = kw.cluster || "Övrigt";
+            if (!map.has(key)) map.set(key, []);
+            map.get(key)!.push(kw);
+          }
+          clusters = Array.from(map.entries()).map(([name, keywords]) => ({
+            name, intent: keywords[0]?.intent, keywords,
+          }));
+        }
         chosen = {
           source: "analysis",
           scale: analysis.universe_scale,
           clusters,
-          flatKeywords: clusters.flatMap((c: any) => c.keywords || []),
-          totalKeywords: clusters.reduce((s: number, c: any) => s + (c.keywords?.length || 0), 0),
+          flatKeywords: flat,
+          totalKeywords: u.totalKeywords ?? flat.length,
           sourceId: analysis.id,
           createdAt: analysis.created_at,
         };
       } else if (prelaunch) {
         const u: any = prelaunch.keyword_universe || {};
         const flat = u.keywords || [];
-        // Bygg kluster från flat-listan
         const map = new Map<string, any[]>();
         for (const kw of flat) {
           const key = kw.cluster || "Övrigt";
@@ -73,9 +101,7 @@ export default function WorkspaceKeywordUniverse() {
           map.get(key)!.push(kw);
         }
         const clusters = Array.from(map.entries()).map(([name, keywords]) => ({
-          name,
-          intent: keywords[0]?.intent,
-          keywords,
+          name, intent: keywords[0]?.intent, keywords,
         }));
         chosen = {
           source: "prelaunch",
@@ -90,7 +116,14 @@ export default function WorkspaceKeywordUniverse() {
 
       setData(chosen);
       setLoading(false);
-    })();
+    };
+
+    load();
+    // Poll every 5s while a background job appears to be running
+    const interval = setInterval(() => {
+      if (!cancelled) load();
+    }, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [id]);
 
   function exportCsv() {
@@ -163,9 +196,27 @@ export default function WorkspaceKeywordUniverse() {
         )}
       </div>
 
+      {progress && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-primary animate-pulse shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                Bygger sökordsuniversum i bakgrunden
+                {progress.scale ? ` (${progress.scale})` : ""}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Steg: <span className="font-mono">{progress.stage}</span>
+                {progress.count > 0 && ` — ${progress.count.toLocaleString("sv-SE")}${progress.total ? ` / ${progress.total.toLocaleString("sv-SE")}` : ""} sökord`}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {loading ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Laddar…</CardContent></Card>
-      ) : !data ? (
+      ) : !data && !progress ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center space-y-3">
             <Sparkles className="h-8 w-8 text-primary mx-auto" />
@@ -185,7 +236,7 @@ export default function WorkspaceKeywordUniverse() {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : data ? (
         <>
           <div className="grid grid-cols-3 gap-4">
             <StatCard label="Kluster" value={data.clusters.length} />
@@ -229,7 +280,7 @@ export default function WorkspaceKeywordUniverse() {
             </CardContent>
           </Card>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
