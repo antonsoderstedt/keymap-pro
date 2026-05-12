@@ -19,8 +19,25 @@ export type UniverseDimension =
 
 export type UniverseIntent = "informational" | "commercial" | "transactional" | "navigational";
 export type UniverseFunnel = "awareness" | "consideration" | "conversion";
-export type UniversePriority = "high" | "medium" | "low";
+export type UniversePriority = "high" | "medium" | "low" | "skip";
 export type UniverseChannel = "SEO" | "Google Ads" | "Lokal SEO" | "Content" | "Landing Page";
+
+export interface KeywordScore {
+  final: number;
+  components: {
+    demand: number;
+    intent: number;
+    busRel: number;
+    difficulty: number;
+    icp: number;
+  };
+  revenue: {
+    p10: number;
+    p50: number;
+    p90: number;
+    payback_weeks: number | null;
+  };
+}
 
 export interface UniverseKeyword {
   keyword: string;
@@ -34,16 +51,25 @@ export interface UniverseKeyword {
   recommendedAdGroup?: string;
   contentIdea?: string;
   isNegative?: boolean;
-  // From DataForSEO
   searchVolume?: number;
   cpc?: number;
   competition?: number;
   dataSource: "real" | "estimated";
-  // From Semrush
-  kd?: number;                       // 0-100
+  kd?: number;
   serpFeatures?: string[];
   topRankingDomains?: string[];
-  competitorGap?: boolean;           // true if competitor ranks but project domain doesn't
+  competitorGap?: boolean;
+  // v2 Keyword Intelligence
+  score?: KeywordScore;
+}
+
+export interface KeywordOpportunity {
+  type: "quick_dominance" | "service_gap" | "striking_distance_cluster" | "geo_opportunity" | "market_expansion";
+  title: string;
+  description: string;
+  keywords: string[];
+  estimated_revenue_p50?: number;
+  priority: "high" | "medium" | "low";
 }
 
 // Google Ads draft (one per ad group)
@@ -81,6 +107,8 @@ export interface KeywordUniverse {
   totalEnriched: number;
   cities: string[];
   keywords: UniverseKeyword[];
+  opportunities?: KeywordOpportunity[];
+  engineVersion?: string;
 }
 
 export interface Customer {

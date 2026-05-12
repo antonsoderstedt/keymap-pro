@@ -14,8 +14,11 @@ export const INTENT_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_VARIANT: Record<string, any> = {
-  high: "default", medium: "secondary", low: "outline",
+  high: "default", medium: "secondary", low: "outline", skip: "outline",
 };
+
+const fmtSek = (n?: number) =>
+  n != null && n > 0 ? `${Math.round(n / 1000)}k` : "—";
 
 export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[]; limit?: number }) {
   if (items.length === 0) {
@@ -25,6 +28,7 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
       </Card>
     );
   }
+  const hasScores = items.some((k) => k.score);
   return (
     <Card className="border-border bg-card shadow-card">
       <CardContent className="overflow-x-auto p-0">
@@ -35,6 +39,8 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
               <TableHead className="text-right">Volym</TableHead>
               <TableHead className="text-right">CPC</TableHead>
               <TableHead className="text-right">KD%</TableHead>
+              {hasScores && <TableHead className="text-right" title="Multi-signal score 0–1">Score</TableHead>}
+              {hasScores && <TableHead className="text-right" title="Estimerad intäkt p50, 12 mån (SEK)">Intäkt p50</TableHead>}
               <TableHead>Dimension</TableHead>
               <TableHead>Intent</TableHead>
               <TableHead>Funnel</TableHead>
@@ -45,7 +51,7 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
           </TableHeader>
           <TableBody>
             {items.slice(0, limit).map((k, i) => (
-              <TableRow key={i} className={k.isNegative ? "opacity-60" : ""}>
+              <TableRow key={i} className={k.isNegative || k.priority === "skip" ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
                   {k.dataSource !== "real" && <Badge variant="outline" className="ml-2 text-[10px]">Uppskattad</Badge>}
@@ -61,6 +67,24 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
                     </span>
                   ) : "—"}
                 </TableCell>
+                {hasScores && (
+                  <TableCell
+                    className="text-right font-mono"
+                    title={k.score
+                      ? `Demand ${k.score.components.demand} · Intent ${k.score.components.intent} · BusRel ${k.score.components.busRel} · ICP ${k.score.components.icp} · Diff ${k.score.components.difficulty}`
+                      : undefined}
+                  >
+                    {k.score ? k.score.final.toFixed(2) : "—"}
+                  </TableCell>
+                )}
+                {hasScores && (
+                  <TableCell
+                    className="text-right font-mono"
+                    title={k.score?.revenue.payback_weeks != null ? `Payback ~${k.score.revenue.payback_weeks} v` : undefined}
+                  >
+                    {fmtSek(k.score?.revenue.p50)}
+                  </TableCell>
+                )}
                 <TableCell><Badge variant="outline">{DIMENSION_LABELS[k.dimension] || k.dimension}</Badge></TableCell>
                 <TableCell><Badge variant="secondary">{INTENT_LABELS[k.intent] || k.intent}</Badge></TableCell>
                 <TableCell className="text-xs text-muted-foreground">{k.funnelStage}</TableCell>
