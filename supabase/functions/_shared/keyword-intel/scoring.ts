@@ -10,6 +10,8 @@ export type ScoringContext = {
   customerIndustries: Set<string>;
   diagFlaggedKeywords: Set<string>;
   goals?: { conversion_type?: string; aov_sek?: number; margin?: number };
+  calibratedCtr?: number[];
+  gscByKeyword?: Map<string, { clicks: number; impressions: number; ctr: number; position: number }>;
 };
 
 export type RawKw = {
