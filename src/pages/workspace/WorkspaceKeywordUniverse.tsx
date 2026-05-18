@@ -19,6 +19,15 @@ interface UniverseData {
   createdAt: string;
   opportunities?: any[];
   engineVersion?: string;
+  scoring_metadata?: {
+    gsc_calibrated?: boolean;
+    gsc_keyword_count?: number;
+    goals_available?: boolean;
+    workspace_type?: string;
+    ctr_source?: string;
+    aov_sek?: number;
+    conversion_type?: string;
+  };
 }
 
 interface Progress {
