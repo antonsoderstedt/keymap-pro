@@ -88,6 +88,9 @@ export default function GoogleAdsHub() {
           <TabsTrigger value="audit" className="gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5" /> Audit
           </TabsTrigger>
+          <TabsTrigger value="plan" className="gap-1.5">
+            <ListPlus className="h-3.5 w-3.5" /> Plan
+          </TabsTrigger>
           <TabsTrigger value="proposals" className="gap-1.5">
             <GitPullRequest className="h-3.5 w-3.5" /> Förslag
           </TabsTrigger>
