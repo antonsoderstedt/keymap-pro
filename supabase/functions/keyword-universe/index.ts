@@ -608,7 +608,13 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         (industries as string[]).map((i) => String(i).toLowerCase()),
       ),
       diagFlaggedKeywords: new Set<string>(),
-      goals: undefined,
+      goals: goals ? {
+        conversion_type: goals.conversion_type,
+        aov_sek: Number(goals.conversion_value) || undefined,
+        margin: goals.conversion_rate_pct != null ? Number(goals.conversion_rate_pct) / 100 : undefined,
+      } : undefined,
+      calibratedCtr: gscCalibrated ? calibratedCtr : undefined,
+      gscByKeyword,
     };
 
     // === PASS 4: Build final output med multi-signal scoring (Fix 2: negativa filtreras) ===
