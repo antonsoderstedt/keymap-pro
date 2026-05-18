@@ -86,8 +86,54 @@ serve(async (req) => {
     const { data: project, error: pErr } = await supabase.from("projects").select("*").eq("id", project_id).single();
     if (pErr || !project) throw new Error("Project not found");
 
-    const { data: customers } = await supabase.from("customers").select("*").eq("project_id", project_id).limit(50);
-    const industries = Array.from(new Set((customers || []).map((c: any) => c.industry).filter(Boolean)));
+    const [customersRes, goalsRes, gscRes] = await Promise.all([
+      supabase.from("customers").select("*").eq("project_id", project_id).limit(50),
+      supabase.from("project_goals")
+        .select("conversion_type, conversion_value, conversion_rate_pct, brand_terms, primary_goal")
+        .eq("project_id", project_id)
+        .maybeSingle(),
+      supabase.from("gsc_snapshots")
+        .select("rows, totals")
+        .eq("project_id", project_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const customers = customersRes.data || [];
+    const goals = goalsRes.data as any;
+    const gscRows: any[] = ((gscRes.data as any)?.rows as any[]) || [];
+    const industries = Array.from(new Set(customers.map((c: any) => c.industry).filter(Boolean)));
+
+    // GSC keyword-index för scoring (fuzzy match)
+    const gscByKeyword = new Map<string, { clicks: number; impressions: number; ctr: number; position: number }>();
+    for (const r of gscRows) {
+      const kw = String(r.keyword || r.query || r.keys?.[0] || "").toLowerCase().trim();
+      if (kw) gscByKeyword.set(kw, {
+        clicks: r.clicks || 0,
+        impressions: r.impressions || 0,
+        ctr: r.ctr || 0,
+        position: r.position || 0,
+      });
+    }
+
+    // Kalibrerad CTR-kurva per position från projektets egna GSC-data
+    const AWR_CTR = [0, 0.319, 0.247, 0.187, 0.137, 0.099, 0.072, 0.054, 0.040, 0.031, 0.025];
+    const ctrBuckets: { sum: number; count: number }[] = Array.from({ length: 11 }, () => ({ sum: 0, count: 0 }));
+    for (const r of gscRows) {
+      const pos = Math.round(r.position || 0);
+      if (pos >= 1 && pos <= 10 && (r.impressions || 0) >= 100) {
+        ctrBuckets[pos].sum += r.ctr || 0;
+        ctrBuckets[pos].count++;
+      }
+    }
+    const calibratedCtr = ctrBuckets.map((b, i) => {
+      if (i === 0) return 0;
+      if (b.count < 10) return AWR_CTR[i] || 0.001;
+      const obs = b.sum / b.count;
+      const w = Math.min(b.count / 50, 1);
+      return obs * w + (AWR_CTR[i] || 0) * (1 - w);
+    });
+    const gscCalibrated = gscRows.filter((r) => r.position >= 1 && r.position <= 10 && (r.impressions || 0) >= 100).length >= 50;
 
     // === PASS 1: Ask AI for structured dimension lists ===
     console.log(`[universe] scale=${scale} cap=${cfg.maxKeywords}`);
@@ -562,7 +608,13 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         (industries as string[]).map((i) => String(i).toLowerCase()),
       ),
       diagFlaggedKeywords: new Set<string>(),
-      goals: undefined,
+      goals: goals ? {
+        conversion_type: goals.conversion_type,
+        aov_sek: Number(goals.conversion_value) || undefined,
+        margin: goals.conversion_rate_pct != null ? Number(goals.conversion_rate_pct) / 100 : undefined,
+      } : undefined,
+      calibratedCtr: gscCalibrated ? calibratedCtr : undefined,
+      gscByKeyword,
     };
 
     // === PASS 4: Build final output med multi-signal scoring (Fix 2: negativa filtreras) ===
@@ -600,6 +652,16 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         else if (finalPriority === "medium") finalPriority = "high";
       }
 
+      const scoringCtxAny = scoringCtx as any;
+      const kwLower = u.keyword.toLowerCase();
+      let gscData = scoringCtxAny.gscByKeyword?.get(kwLower);
+      if (!gscData && scoringCtxAny.gscByKeyword) {
+        for (const [gscKw, d] of scoringCtxAny.gscByKeyword as Map<string, any>) {
+          if (gscKw.includes(kwLower) && gscKw.length <= kwLower.length + 15) { gscData = d; break; }
+          if (kwLower.includes(gscKw) && gscKw.length >= 5) { gscData = d; break; }
+        }
+      }
+
       const slug = slugify(u.cluster);
       return {
         keyword: u.keyword,
@@ -628,6 +690,9 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
               revenue: sc.revenue,
             }
           : undefined,
+        is_already_ranking: !!gscData,
+        ranking_position: gscData?.position ? Math.round(gscData.position) : null,
+        ranking_ctr: gscData?.ctr ?? null,
       };
     });
 
@@ -669,10 +734,19 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       generatedAt: new Date().toISOString(),
       totalKeywords: final.length,
       totalEnriched: enrichedCount,
+      engineVersion: "v2.1",
+      scoring_metadata: {
+        gsc_calibrated: gscCalibrated,
+        gsc_keyword_count: gscByKeyword.size,
+        goals_available: !!goals,
+        workspace_type: (project as any).workspace_type || "b2b_service",
+        ctr_source: gscCalibrated ? "project_gsc" : "awr_default",
+        aov_sek: goals?.conversion_value || 2500,
+        conversion_type: goals?.conversion_type || "lead",
+      },
       cities,
       keywords: final,
       opportunities,
-      engineVersion: "v2",
     };
 
     // If called with analysis_id, write the universe back to the analyses row

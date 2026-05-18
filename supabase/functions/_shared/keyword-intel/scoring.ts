@@ -10,6 +10,8 @@ export type ScoringContext = {
   customerIndustries: Set<string>;
   diagFlaggedKeywords: Set<string>;
   goals?: { conversion_type?: string; aov_sek?: number; margin?: number };
+  calibratedCtr?: number[];
+  gscByKeyword?: Map<string, { clicks: number; impressions: number; ctr: number; position: number }>;
 };
 
 export type RawKw = {
@@ -169,11 +171,14 @@ function icpScore(keyword: string, ctx: ScoringContext): number {
 }
 
 // ---- CTR-kurva för position 1 utan dominerande SERP-features ----
-function expectedCtr(serpFeatures: string[] | null): number {
-  // Genomsnittlig CTR position 1-3 viktad ~0.20
-  let baseCtr = 0.18;
+function expectedCtr(serpFeatures: string[] | null, ctx: ScoringContext): number {
+  let baseCtr: number;
+  if (ctx.calibratedCtr && ctx.calibratedCtr.length >= 4) {
+    baseCtr = ((ctx.calibratedCtr[1] || 0.319) + (ctx.calibratedCtr[2] || 0.247) + (ctx.calibratedCtr[3] || 0.187)) / 3;
+  } else {
+    baseCtr = 0.18;
+  }
   if (!serpFeatures) return baseCtr;
-  // AI Overview / Featured Snippet stjäl trafik
   if (serpFeatures.some((f) => /ai_overview|featured_snippet/i.test(f))) baseCtr *= 0.55;
   if (serpFeatures.some((f) => /shopping/i.test(f))) baseCtr *= 0.75;
   if (serpFeatures.some((f) => /local_pack/i.test(f))) baseCtr *= 0.7;
@@ -210,7 +215,7 @@ function forecastRevenue(
 ): { p10: number; p50: number; p90: number } {
   if (!vol || vol <= 0) return { p10: 0, p50: 0, p90: 0 };
 
-  const ctr = expectedCtr(serpFeatures);
+  const ctr = expectedCtr(serpFeatures, ctx);
   const cr = expectedCr(intent, ctx.workspaceType);
   const aov = ctx.goals?.aov_sek || 2500;
   const margin = ctx.goals?.margin ?? 0.35;

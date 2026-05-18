@@ -19,6 +19,15 @@ interface UniverseData {
   createdAt: string;
   opportunities?: any[];
   engineVersion?: string;
+  scoring_metadata?: {
+    gsc_calibrated?: boolean;
+    gsc_keyword_count?: number;
+    goals_available?: boolean;
+    workspace_type?: string;
+    ctr_source?: string;
+    aov_sek?: number;
+    conversion_type?: string;
+  };
 }
 
 interface Progress {
@@ -94,6 +103,7 @@ export default function WorkspaceKeywordUniverse() {
           createdAt: analysis.created_at,
           opportunities: u.opportunities || [],
           engineVersion: u.engineVersion,
+          scoring_metadata: u.scoring_metadata,
         };
       } else if (prelaunch) {
         const u: any = prelaunch.keyword_universe || {};
@@ -167,6 +177,60 @@ export default function WorkspaceKeywordUniverse() {
       toast({ title: "Tillagd i Action Tracker", description: `Klustret "${cluster.name}" pushad.` });
     } catch (e: any) {
       toast({ title: "Fel", description: e.message, variant: "destructive" });
+    }
+  }
+
+  async function handleOpportunityAction(op: any) {
+    if (!id) return;
+    if (op.type === "negative_candidate") {
+      navigate(`/clients/${id}/google-ads?tab=audit`);
+      toast({ title: "Negativa kandidater", description: "Granska under Ads Audit → Negativa sökord" });
+      return;
+    }
+    if (op.type === "scalable_winner") {
+      navigate(`/clients/${id}/google-ads?tab=overview`);
+      toast({ title: `Kampanj: ${op.scope?.campaign_name || ""}`, description: "Justera budget i Google Ads-fliken" });
+      return;
+    }
+    if (op.type === "account_gap") {
+      navigate(`/clients/${id}/google-ads?tab=overview`);
+      toast({ title: "Account gap", description: "Kolla Auction Insights-fliken för konkurrentanalys" });
+      return;
+    }
+    if (op.type === "adgroup_candidate") {
+      const kws: string[] = op.keywords || [];
+      if (!kws.length) { toast({ title: "Inga sökord", variant: "destructive" }); return; }
+      const clusterName = String(op.title).replace(/^Annonsgrupp-kandidat:\s*[""]?/, "").replace(/[""]$/, "").trim();
+      const rows = [["Campaign", "Ad Group", "Keyword", "Match Type", "Max CPC"]];
+      kws.slice(0, 3).forEach((kw) => rows.push(["[Kampanjnamn]", clusterName, kw, "Exact", ""]));
+      kws.slice(3).forEach((kw) => rows.push(["[Kampanjnamn]", clusterName, kw, "Phrase", ""]));
+      const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `adgroup-${clusterName.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "CSV exporterad", description: `${kws.length} sökord redo för Google Ads Editor` });
+      return;
+    }
+    if (["quick_dominance", "cluster_consolidation", "striking_distance_cluster", "service_gap", "high_score_underserved"].includes(op.type)) {
+      try {
+        const { error } = await supabase.from("action_items").insert({
+          project_id: id,
+          title: op.title,
+          description: op.description + (op.keywords?.length ? `\n\nSökord: ${op.keywords.slice(0, 5).join(", ")}` : ""),
+          source_type: "keyword_opportunity",
+          priority: op.priority === "high" ? "high" : "medium",
+          status: "open",
+          category: "seo",
+        });
+        if (error) throw error;
+        toast({ title: "Tillagd i Åtgärder ✓", description: op.title });
+      } catch (e: any) {
+        toast({ title: "Fel", description: e.message || "Kunde inte skapa åtgärd", variant: "destructive" });
+      }
     }
   }
 
@@ -248,6 +312,28 @@ export default function WorkspaceKeywordUniverse() {
             <StatCard label="Källa" value={data.source === "analysis" ? "Full analys" : "Pre-launch"} />
           </div>
 
+          {data.scoring_metadata && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground font-mono">
+              <span>
+                CTR: {data.scoring_metadata.gsc_calibrated
+                  ? `kalibrerad (${data.scoring_metadata.gsc_keyword_count} kw)`
+                  : "AWR-default"}
+              </span>
+              <span>·</span>
+              <span>
+                {data.scoring_metadata.goals_available
+                  ? `${data.scoring_metadata.conversion_type} @${data.scoring_metadata.aov_sek?.toLocaleString("sv-SE")} kr`
+                  : "Standardvärden — sätt mål i Inställningar"}
+              </span>
+              {data.engineVersion && (
+                <>
+                  <span>·</span>
+                  <span className="text-primary/70">{data.engineVersion}</span>
+                </>
+              )}
+            </div>
+          )}
+
           {data.opportunities && data.opportunities.length > 0 && (() => {
             const ADS_TYPES = new Set(["account_gap", "adgroup_candidate", "negative_candidate", "scalable_winner"]);
             const adsOps = data.opportunities.filter((o: any) => ADS_TYPES.has(o.type));
@@ -293,7 +379,13 @@ export default function WorkspaceKeywordUniverse() {
                 )}
                 {op.action_label && (
                   <div className="mt-2 flex justify-end">
-                    <Button size="sm" variant="outline" className="text-[11px] h-7" disabled>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-[11px] h-7 gap-1"
+                      onClick={() => handleOpportunityAction(op)}
+                    >
+                      {op.type === "adgroup_candidate" && <Download className="h-3 w-3" />}
                       {op.action_label}
                     </Button>
                   </div>

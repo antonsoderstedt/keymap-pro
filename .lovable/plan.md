@@ -1,69 +1,49 @@
-# Ads-First Opportunity Engine
+# Keyword Intelligence v2.1 — kalibrering + aktiva actions
 
-Claude AI:s feedback har två konkreta poänger som vi följer:
-
-1. **Ta bort "garantera minst 5 opportunities"** — det maskerar tomma universum istället för att vara ärligt.
-2. **Lägg till Ads-specifika opportunity-typer** — alla nuvarande sex är SEO-tänkta. Verktyget ska driva Google Ads-action.
-
-Visionen är ett *Google Ads keyword-monster* som matar in segment + befintligt konto + konkurrentdata och spottar ut **kampanjstruktur direkt redo att tryckas live**. Inte SEO-planering.
-
-## Vad vi behåller från förra rundan
-
-- Percentil-baserade trösklar (kdP25/scoreP90 etc.) — solid grund.
-- `final_score` som primär gate — återanvänder v2-scoring.
-- De 6 SEO-orienterade typerna finns kvar; de kompletteras, ersätts inte.
-
-## Det som ändras
-
-### 1. Ärligare resultat
-
-Ta bort fallback-blocket i `opportunities.ts` som tvingar fram 5 st. Visa det som faktiskt finns. Lägg istället till en *soft floor*: om < 3 opportunities och universumet har ≥ 50 scored kw → sänk `scoreP90`-kravet till `scoreP75` för `high_score_underserved` (en gång). Det är adaptivt utan att vara fejkad fyllning.
-
-### 2. Fyra nya Ads-opportunity-typer
-
-Alla läses från Lovable Cloud-tabeller som redan finns och länkas till `analyses.project_id`:
-
-| Typ | Källa | Trigger | Action-output |
-|---|---|---|---|
-| `account_gap` | `auction_insights_snapshots.rows` ∪ befintliga sökord i kontot | Konkurrent har > 30 % impression share på en domän/term som **inte** finns som keyword i Ads-kontot | "Lägg till annonsgrupp X med dessa 5 sökord" |
-| `adgroup_candidate` | universumets kluster | Kluster med ≥ 5 kw, medel-score ≥ p50, samma intent + dimension | Färdig annonsgrupp-spec: namn, exakt/fras/bred-uppdelning, negativa |
-| `negative_candidate` | `ads_diagnostics_runs.report` (search-terms-rule) | Sökord med > 100 impressions, 0 konverteringar, > 30 dagar | Account-level negativ-lista |
-| `scalable_winner` | `ads_diagnostics_runs.report` (cost/conv-rule) | Sökord under target CPA + impression-share-lost-budget > 10 % | "Höj budget +X kr/dag på kampanj Y" |
-
-För kunder utan Ads-koppling visas dessa fyra typer inte alls — de skippas tyst (samma input/output-kontrakt, bara fler typer i unionen).
-
-### 3. UI uppdatering
-
-`WorkspaceKeywordUniverse.tsx` opportunity-tab grupperas i två sektioner:
-- **Google Ads (action)** → de 4 nya typerna med direkta CTA-knappar (`Skapa annonsgrupp`, `Lägg till negativ`, `Höj budget`).
-- **Strategiska (planering)** → de 6 befintliga SEO-typerna.
-
-Score + intäkt p50 visas på alla opportunity-keywords (enligt förra plan).
+Gör scoring kundspecifik (egen GSC-CTR + project_goals) och aktiverar opportunity-knapparna. Inga DB-migrationer.
 
 ## Filer som ändras
 
-| Fil | Ändring |
-|---|---|
-| `supabase/functions/_shared/keyword-intel/opportunities.ts` | Ta bort minimum-N-fallback. Lägg till 4 nya detektor-funktioner som tar `auctionInsights[]` + `adsDiagnosticsReport` som extra input. |
-| `supabase/functions/keyword-universe/index.ts` | Innan `discoverOpportunities()`: hämta senaste `auction_insights_snapshots` + `ads_diagnostics_runs.report` för projektet och skicka in. |
-| `src/lib/types.ts` | Utöka `Opportunity['type']`-union med `account_gap \| adgroup_candidate \| negative_candidate \| scalable_winner`. |
-| `src/pages/workspace/WorkspaceKeywordUniverse.tsx` | Två-sektion-layout + per-typ CTA-knappar (knapparna kan vara stub-länkar till `/ads-hub` i steg 1). |
+1. `supabase/functions/keyword-universe/index.ts`
+2. `supabase/functions/_shared/keyword-intel/scoring.ts`
+3. `src/pages/workspace/WorkspaceKeywordUniverse.tsx`
+4. `src/components/results/KeywordTable.tsx`
 
-## Tekniska detaljer
+## Steg
 
-- Inga DB-migrationer. Inga nya secrets. Inga ändringar i scoring-kontraktet.
-- `discoverOpportunities()`-signaturen utökas med en optional `adsContext`-param — om null körs bara SEO-typerna (bakåtkompatibelt).
-- `account_gap` matchar på normaliserad keyword-text (lowercase, trim) mellan auction-insights `rows[].domain/keyword` och universumets `keywords[].keyword`.
-- `adgroup_candidate` återanvänder befintlig kluster-aggregering — bara nytt filter + structured output.
-- `negative_candidate` + `scalable_winner` läser `report.findings[]` från senaste `ads_diagnostics_runs` (en query, ingen ny edge-call).
+### 1. Parallell datahämtning + GSC-kalibrering (`keyword-universe/index.ts`)
+- Ersätt enskild `customers`-query med `Promise.all` för `customers`, `project_goals`, senaste `gsc_snapshots`.
+- Bygg `gscByKeyword`-Map för fuzzy-lookup.
+- Bygg `calibratedCtr[1..10]` från GSC (impressions ≥100, vikt mot AWR-default när <50 rows). `gscCalibrated=true` om ≥50 kalibrerbara rader.
 
-## Effekt
+### 2. Utöka `ScoringContext` (`scoring.ts`)
+- Nya fält: `calibratedCtr?: number[]`, `gscByKeyword?: Map<...>`.
+- `expectedCtr(serpFeatures, ctx)` använder genomsnitt av pos 1–3 från projektets kurva, annars 0.18.
+- `forecastRevenue(..., ctx)` skickas vidare till `expectedCtr` och använder `goals.aov_sek` / `goals.margin`.
+- `scoreKeyword` anropar `forecastRevenue` med `ctx`.
 
-- Staldirect.se: får både SEO-strategiska opportunities **och** konkreta "lägg till denna annonsgrupp i konto X"-rader från auction insights.
-- Inget verktyg på marknaden gör segment + auction + diagnostics → kampanjstruktur i en vy. Det är differentieringen.
-- Om Ads-data saknas: tomt block + CTA "Koppla Google Ads för att låsa upp action-opportunities".
+### 3. `is_already_ranking` + `ranking_position` (`keyword-universe/index.ts` PASS 4)
+- Fuzzy GSC-match (exakt → substring ±15 tecken) i mapping-loopen.
+- Lägg till `is_already_ranking`, `ranking_position`, `ranking_ctr` på varje keyword-objekt.
 
-## Vad vi medvetet INTE gör i denna runda
+### 4. `scoring_metadata` + `engineVersion` i result (`keyword-universe/index.ts`)
+- Lägg till `engineVersion: "v2.1"` och `scoring_metadata` (gsc_calibrated, gsc_keyword_count, goals_available, workspace_type, ctr_source, aov_sek, conversion_type).
 
-- Ingen autoexekvering av mutations (`Höj budget` är förslag, inte action). Det kommer i nästa steg när vi vill koppla mot `ads-mutate`.
-- Ingen ny segment-intelligence-modul (SNI-vinkeln Claude lyfte) — den hör hemma i ett separat planeringssteg eftersom den kräver nya prompter och en ny tabell för segment-profiles.
+### 5. Aktiva opportunity-actions (`WorkspaceKeywordUniverse.tsx`)
+- `handleOpportunityAction(op)`:
+  - `negative_candidate` / `scalable_winner` / `account_gap` → `navigate` till `/clients/:id/google-ads` med rätt tab + toast.
+  - `adgroup_candidate` → CSV-export (Google Ads Editor-format, top 3 exact + resten phrase), download.
+  - SEO-typer (`quick_dominance`, `cluster_consolidation`, `striking_distance_cluster`, `service_gap`, `high_score_underserved`) → `insert` i `action_items`.
+- Ersätt disabled-knapp med aktiv knapp som visar `op.action_label` (Download-ikon för CSV).
+
+### 6. Kalibreringsstatus i UI (`WorkspaceKeywordUniverse.tsx`)
+- Liten rad under stat-korten: CTR-källa (kalibrerad/AWR), goals-källa, `engineVersion`.
+
+### 7. Ranking-badge i `KeywordTable.tsx`
+- `#position`-badge i keyword-cellen, färg efter pos (≤3 grön, ≤10 amber, annars muted), tooltip "Rankar #N i Google (GSC)".
+
+## Verifiering
+
+- Edge-funktionen deployas (`keyword-universe`); ny körning ska returnera `engineVersion: "v2.1"` och `scoring_metadata.gsc_calibrated`.
+- I UI: knappar på opportunities är klickbara, CSV laddas ner för adgroup-kandidater, ranking-badges syns på sökord som redan rankar.
+- Inga DB-ändringar krävs (använder befintliga `project_goals`, `gsc_snapshots`, `action_items`).

@@ -54,6 +54,20 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
               <TableRow key={i} className={k.isNegative || k.priority === "skip" ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
+                  {(k as any).is_already_ranking && (k as any).ranking_position && (
+                    <span
+                      className={`ml-1 font-mono text-[9px] px-1 rounded ${
+                        (k as any).ranking_position <= 3
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : (k as any).ranking_position <= 10
+                            ? "bg-amber-500/20 text-amber-400"
+                            : "bg-muted text-muted-foreground"
+                      }`}
+                      title={`Rankar #${(k as any).ranking_position} i Google (GSC)`}
+                    >
+                      #{(k as any).ranking_position}
+                    </span>
+                  )}
                   {k.dataSource !== "real" && <Badge variant="outline" className="ml-2 text-[10px]">Uppskattad</Badge>}
                   {k.isNegative && <Badge variant="destructive" className="ml-2 text-[10px]">Negativ</Badge>}
                   {k.competitorGap && <Badge variant="outline" className="ml-2 border-warning/50 text-[10px] text-warning">Gap</Badge>}
