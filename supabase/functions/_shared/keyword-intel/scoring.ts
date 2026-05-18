@@ -215,7 +215,7 @@ function forecastRevenue(
 ): { p10: number; p50: number; p90: number } {
   if (!vol || vol <= 0) return { p10: 0, p50: 0, p90: 0 };
 
-  const ctr = expectedCtr(serpFeatures);
+  const ctr = expectedCtr(serpFeatures, ctx);
   const cr = expectedCr(intent, ctx.workspaceType);
   const aov = ctx.goals?.aov_sek || 2500;
   const margin = ctx.goals?.margin ?? 0.35;
