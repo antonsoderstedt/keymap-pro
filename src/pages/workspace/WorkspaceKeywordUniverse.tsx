@@ -357,7 +357,13 @@ export default function WorkspaceKeywordUniverse() {
                 )}
                 {op.action_label && (
                   <div className="mt-2 flex justify-end">
-                    <Button size="sm" variant="outline" className="text-[11px] h-7" disabled>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-[11px] h-7 gap-1"
+                      onClick={() => handleOpportunityAction(op)}
+                    >
+                      {op.type === "adgroup_candidate" && <Download className="h-3 w-3" />}
                       {op.action_label}
                     </Button>
                   </div>
