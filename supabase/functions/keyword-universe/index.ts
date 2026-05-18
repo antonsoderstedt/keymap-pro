@@ -734,10 +734,19 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
       generatedAt: new Date().toISOString(),
       totalKeywords: final.length,
       totalEnriched: enrichedCount,
+      engineVersion: "v2.1",
+      scoring_metadata: {
+        gsc_calibrated: gscCalibrated,
+        gsc_keyword_count: gscByKeyword.size,
+        goals_available: !!goals,
+        workspace_type: (project as any).workspace_type || "b2b_service",
+        ctr_source: gscCalibrated ? "project_gsc" : "awr_default",
+        aov_sek: goals?.conversion_value || 2500,
+        conversion_type: goals?.conversion_type || "lead",
+      },
       cities,
       keywords: final,
       opportunities,
-      engineVersion: "v2",
     };
 
     // If called with analysis_id, write the universe back to the analyses row
