@@ -180,6 +180,60 @@ export default function WorkspaceKeywordUniverse() {
     }
   }
 
+  async function handleOpportunityAction(op: any) {
+    if (!id) return;
+    if (op.type === "negative_candidate") {
+      navigate(`/clients/${id}/google-ads?tab=audit`);
+      toast({ title: "Negativa kandidater", description: "Granska under Ads Audit → Negativa sökord" });
+      return;
+    }
+    if (op.type === "scalable_winner") {
+      navigate(`/clients/${id}/google-ads?tab=overview`);
+      toast({ title: `Kampanj: ${op.scope?.campaign_name || ""}`, description: "Justera budget i Google Ads-fliken" });
+      return;
+    }
+    if (op.type === "account_gap") {
+      navigate(`/clients/${id}/google-ads?tab=overview`);
+      toast({ title: "Account gap", description: "Kolla Auction Insights-fliken för konkurrentanalys" });
+      return;
+    }
+    if (op.type === "adgroup_candidate") {
+      const kws: string[] = op.keywords || [];
+      if (!kws.length) { toast({ title: "Inga sökord", variant: "destructive" }); return; }
+      const clusterName = String(op.title).replace(/^Annonsgrupp-kandidat:\s*[""]?/, "").replace(/[""]$/, "").trim();
+      const rows = [["Campaign", "Ad Group", "Keyword", "Match Type", "Max CPC"]];
+      kws.slice(0, 3).forEach((kw) => rows.push(["[Kampanjnamn]", clusterName, kw, "Exact", ""]));
+      kws.slice(3).forEach((kw) => rows.push(["[Kampanjnamn]", clusterName, kw, "Phrase", ""]));
+      const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `adgroup-${clusterName.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "CSV exporterad", description: `${kws.length} sökord redo för Google Ads Editor` });
+      return;
+    }
+    if (["quick_dominance", "cluster_consolidation", "striking_distance_cluster", "service_gap", "high_score_underserved"].includes(op.type)) {
+      try {
+        const { error } = await supabase.from("action_items").insert({
+          project_id: id,
+          title: op.title,
+          description: op.description + (op.keywords?.length ? `\n\nSökord: ${op.keywords.slice(0, 5).join(", ")}` : ""),
+          source_type: "keyword_opportunity",
+          priority: op.priority === "high" ? "high" : "medium",
+          status: "open",
+          category: "seo",
+        });
+        if (error) throw error;
+        toast({ title: "Tillagd i Åtgärder ✓", description: op.title });
+      } catch (e: any) {
+        toast({ title: "Fel", description: e.message || "Kunde inte skapa åtgärd", variant: "destructive" });
+      }
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
