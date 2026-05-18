@@ -646,6 +646,16 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
         else if (finalPriority === "medium") finalPriority = "high";
       }
 
+      const scoringCtxAny = scoringCtx as any;
+      const kwLower = u.keyword.toLowerCase();
+      let gscData = scoringCtxAny.gscByKeyword?.get(kwLower);
+      if (!gscData && scoringCtxAny.gscByKeyword) {
+        for (const [gscKw, d] of scoringCtxAny.gscByKeyword as Map<string, any>) {
+          if (gscKw.includes(kwLower) && gscKw.length <= kwLower.length + 15) { gscData = d; break; }
+          if (kwLower.includes(gscKw) && gscKw.length >= 5) { gscData = d; break; }
+        }
+      }
+
       const slug = slugify(u.cluster);
       return {
         keyword: u.keyword,
