@@ -312,6 +312,28 @@ export default function WorkspaceKeywordUniverse() {
             <StatCard label="Källa" value={data.source === "analysis" ? "Full analys" : "Pre-launch"} />
           </div>
 
+          {data.scoring_metadata && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground font-mono">
+              <span>
+                CTR: {data.scoring_metadata.gsc_calibrated
+                  ? `kalibrerad (${data.scoring_metadata.gsc_keyword_count} kw)`
+                  : "AWR-default"}
+              </span>
+              <span>·</span>
+              <span>
+                {data.scoring_metadata.goals_available
+                  ? `${data.scoring_metadata.conversion_type} @${data.scoring_metadata.aov_sek?.toLocaleString("sv-SE")} kr`
+                  : "Standardvärden — sätt mål i Inställningar"}
+              </span>
+              {data.engineVersion && (
+                <>
+                  <span>·</span>
+                  <span className="text-primary/70">{data.engineVersion}</span>
+                </>
+              )}
+            </div>
+          )}
+
           {data.opportunities && data.opportunities.length > 0 && (() => {
             const ADS_TYPES = new Set(["account_gap", "adgroup_candidate", "negative_candidate", "scalable_winner"]);
             const adsOps = data.opportunities.filter((o: any) => ADS_TYPES.has(o.type));
