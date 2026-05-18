@@ -103,6 +103,7 @@ export default function WorkspaceKeywordUniverse() {
           createdAt: analysis.created_at,
           opportunities: u.opportunities || [],
           engineVersion: u.engineVersion,
+          scoring_metadata: u.scoring_metadata,
         };
       } else if (prelaunch) {
         const u: any = prelaunch.keyword_universe || {};
