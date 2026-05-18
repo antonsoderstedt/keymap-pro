@@ -109,6 +109,7 @@ export default function GoogleAdsHub() {
           <TabsContent value="overview"><AuctionInsights /></TabsContent>
           <TabsContent value="campaigns"><CampaignTree projectId={workspaceId} /></TabsContent>
           <TabsContent value="audit"><AdsAudit /></TabsContent>
+          <TabsContent value="plan"><AdsAuditPlan /></TabsContent>
           <TabsContent value="proposals"><ProposalsTab projectId={workspaceId} /></TabsContent>
           <TabsContent value="results"><AdsResultsTab projectId={workspaceId} /></TabsContent>
           <TabsContent value="history"><AdsHistoryTab projectId={workspaceId} /></TabsContent>
