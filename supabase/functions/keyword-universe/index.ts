@@ -690,6 +690,9 @@ Returnera korta, sökbara svenska termer (1-3 ord). Inga meningar. Inga modifier
               revenue: sc.revenue,
             }
           : undefined,
+        is_already_ranking: !!gscData,
+        ranking_position: gscData?.position ? Math.round(gscData.position) : null,
+        ranking_ctr: gscData?.ctr ?? null,
       };
     });
 
