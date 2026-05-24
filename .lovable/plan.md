@@ -1,49 +1,102 @@
-# Keyword Intelligence v2.1 — kalibrering + aktiva actions
 
-Gör scoring kundspecifik (egen GSC-CTR + project_goals) och aktiverar opportunity-knapparna. Inga DB-migrationer.
+# Day 5 — Command Bar (NAVIGATE-only)
 
-## Filer som ändras
+Mål: snabb global navigation inom aktiv kunds workspace. Inga AI-lägen, inga åtgärder, ingen automation. Bara `⌘K` → välj → navigera.
 
-1. `supabase/functions/keyword-universe/index.ts`
-2. `supabase/functions/_shared/keyword-intel/scoring.ts`
-3. `src/pages/workspace/WorkspaceKeywordUniverse.tsx`
-4. `src/components/results/KeywordTable.tsx`
+## Filer
 
-## Steg
+**Nya**
+- `src/components/workspace/CommandBar.tsx` — själva dialogen (bygger på shadcn `command` + `dialog`).
+- `src/hooks/useCommandBar.tsx` — liten store (open-state + recent history i `localStorage`).
 
-### 1. Parallell datahämtning + GSC-kalibrering (`keyword-universe/index.ts`)
-- Ersätt enskild `customers`-query med `Promise.all` för `customers`, `project_goals`, senaste `gsc_snapshots`.
-- Bygg `gscByKeyword`-Map för fuzzy-lookup.
-- Bygg `calibratedCtr[1..10]` från GSC (impressions ≥100, vikt mot AWR-default när <50 rows). `gscCalibrated=true` om ≥50 kalibrerbara rader.
+**Ändrade**
+- `src/components/workspace/WorkspaceLayout.tsx` — montera `<CommandBar />` en gång + global `⌘K`/`Ctrl+K` listener; lägg subtil trigger-knapp i headern (`⌘K`-chip).
 
-### 2. Utöka `ScoringContext` (`scoring.ts`)
-- Nya fält: `calibratedCtr?: number[]`, `gscByKeyword?: Map<...>`.
-- `expectedCtr(serpFeatures, ctx)` använder genomsnitt av pos 1–3 från projektets kurva, annars 0.18.
-- `forecastRevenue(..., ctx)` skickas vidare till `expectedCtr` och använder `goals.aov_sek` / `goals.margin`.
-- `scoreKeyword` anropar `forecastRevenue` med `ctx`.
+**Inte rörda**: sidebar, routes, Today, Actions, Performance, alla hooks/edge functions, DB.
 
-### 3. `is_already_ranking` + `ranking_position` (`keyword-universe/index.ts` PASS 4)
-- Fuzzy GSC-match (exakt → substring ±15 tecken) i mapping-loopen.
-- Lägg till `is_already_ranking`, `ranking_position`, `ranking_ctr` på varje keyword-objekt.
+## Beteende
 
-### 4. `scoring_metadata` + `engineVersion` i result (`keyword-universe/index.ts`)
-- Lägg till `engineVersion: "v2.1"` och `scoring_metadata` (gsc_calibrated, gsc_keyword_count, goals_available, workspace_type, ctr_source, aov_sek, conversion_type).
+- `⌘K` (mac) / `Ctrl+K` (övrigt) togglar dialogen, oavsett route i workspace.
+- `Esc` stänger. `Enter` navigerar. `↑/↓` flyttar fokus. Standard shadcn Command-beteende.
+- Fuzzy-sök på `label` + `keywords` (svenska + engelska alias, t.ex. "performance, kpi, seo, ads").
+- Val → `navigate(path)` → stäng → push i recent (max 5, dedupe på path).
+- Tom query → visar **Recent** (om finns) + alla routes grupperade.
+- Med query → en platt filtrerad lista, ingen grupp-header.
+- Ingen toast, ingen laddningsindikator (allt är synkront i minnet).
 
-### 5. Aktiva opportunity-actions (`WorkspaceKeywordUniverse.tsx`)
-- `handleOpportunityAction(op)`:
-  - `negative_candidate` / `scalable_winner` / `account_gap` → `navigate` till `/clients/:id/google-ads` med rätt tab + toast.
-  - `adgroup_candidate` → CSV-export (Google Ads Editor-format, top 3 exact + resten phrase), download.
-  - SEO-typer (`quick_dominance`, `cluster_consolidation`, `striking_distance_cluster`, `service_gap`, `high_score_underserved`) → `insert` i `action_items`.
-- Ersätt disabled-knapp med aktiv knapp som visar `op.action_label` (Download-ikon för CSV).
+## Tangentbord
 
-### 6. Kalibreringsstatus i UI (`WorkspaceKeywordUniverse.tsx`)
-- Liten rad under stat-korten: CTR-källa (kalibrerad/AWR), goals-källa, `engineVersion`.
+- Lyssnare i `WorkspaceLayout` via `useEffect`: `(e.metaKey || e.ctrlKey) && e.key === "k"` → `preventDefault` + toggle.
+- Ignorerar shortcut om event-target är `<input>`, `<textarea>` eller `contentEditable` **och** dialogen inte redan är öppen? Nej — `⌘K` är reserverat globalt; vi tar det även i inputs (standardmönster, samma som Linear/Vercel).
+- Inga andra shortcuts i denna sprint (`g t`, `g a` etc. = out of scope).
 
-### 7. Ranking-badge i `KeywordTable.tsx`
-- `#position`-badge i keyword-cellen, färg efter pos (≤3 grön, ≤10 amber, annars muted), tooltip "Rankar #N i Google (GSC)".
+## Route-lista (NAVIGATE-only)
 
-## Verifiering
+Alla relativa `/clients/:id/...` där `:id` = aktiv workspace.
 
-- Edge-funktionen deployas (`keyword-universe`); ny körning ska returnera `engineVersion: "v2.1"` och `scoring_metadata.gsc_calibrated`.
-- I UI: knappar på opportunities är klickbara, CSV laddas ner för adgroup-kandidater, ranking-badges syns på sökord som redan rankar.
-- Inga DB-ändringar krävs (använder befintliga `project_goals`, `gsc_snapshots`, `action_items`).
+| Label (sv)       | Path              | Keywords                                  | Icon          |
+|------------------|-------------------|-------------------------------------------|---------------|
+| Idag             | `""` (index)      | today, start, hem, dashboard              | Sun           |
+| Åtgärder         | `actions`         | actions, pipeline, queue, todo, förslag   | ListChecks    |
+| Performance      | `performance`     | performance, kpi, seo, ads, ga4, trafik   | LineChart     |
+| Sökord           | `keywords`        | keywords, sökord, universe, segment       | Search        |
+| Pre-launch       | `prelaunch`       | prelaunch, blueprint, brief, lansering    | Rocket        |
+| Inställningar    | `settings`        | settings, källor, data sources, brand     | Settings      |
+| — Legacy —       |                   |                                           |               |
+| Översikt (legacy)| `overview-legacy` | overview, executive, legacy               | LayoutDashboard|
+| Google Ads (legacy)| `google-ads-legacy` | ads, auction, audit, chat, legacy     | Megaphone     |
+| Actions (legacy) | `actions-legacy`  | actions, hub, legacy                      | Archive       |
+
+Legacy-gruppen visas alltid sist, en aning muted (`text-muted-foreground`).
+
+## Recent history
+
+- Nyckel: `lovable:cmdbar:recent:<workspaceId>` i `localStorage`.
+- Lagrar array av `{ path, label, ts }`, max 5, dedupe på `path`, senaste först.
+- Push sker när användaren navigerar **via** command bar (inte via sidebar/direktklick) — håller listan ren och relevant.
+- Render endast när query är tom och listan ≥ 1.
+
+## Mobilbeteende
+
+- Trigger-chippet i headern göms `< md`. Dialogen själv funkar fortfarande om man triggar via tangentbord (sällsynt på mobil).
+- Ingen separat mobil-FAB i denna sprint (out of scope).
+- Dialogen renderas full-width på små skärmar (shadcn `CommandDialog` default).
+
+## Tillgänglighet
+
+- `CommandDialog` ger `role="dialog"` + focus trap + `aria-label="Sök och navigera"`.
+- Inputfält får `aria-label`. Listitems använder shadcn `CommandItem` med inbyggd `aria-selected`.
+- Tangentbordsnavigation fullt stödd (built-in).
+- Trigger-knappen i headern: `aria-label="Öppna kommandopalett (⌘K)"`.
+- Fokus återgår till trigger / föregående element vid stängning (Radix default).
+
+## Out of scope (uttryckligen)
+
+- Ingen ASK-mode, ingen ACT-mode, ingen AI.
+- Inga åtgärder (godkänn / pusha / etc.) — endast navigation.
+- Inga server-calls, edge functions, telemetri.
+- Ingen "go to action #123"-deep-link, inga entity-resultat (sökord, mutations, projekt).
+- Inga ytterligare shortcuts utöver `⌘K`.
+- Inga tema-/språkväljare i paletten.
+- Ingen ändring av sidebar eller routes.
+
+## Verifieringschecklista
+
+1. `⌘K` öppnar dialogen från Today, Actions, Performance, Keywords, Settings.
+2. `Ctrl+K` fungerar på Windows/Linux (testa via browser-emulering).
+3. `Esc` stänger; fokus återgår till trigger.
+4. Tom query → visar alla 6 huvudroutes + legacy-gruppen; Recent visas tom första gången.
+5. Skriv "perf" → endast Performance matchar; Enter navigerar till `/clients/:id/performance`.
+6. Skriv "ads" → Performance + Google Ads (legacy) matchar.
+7. Efter 3 navigeringar: Recent visar de 3 senaste, senaste först, dedupe fungerar.
+8. Byter man kund → recent-listan är tom (per-workspace nyckel).
+9. `⌘K` triggas inte dubbelt om man håller nere; ingen scroll-lock-läcka.
+10. Mobil 375px: dialogen är användbar, header-chippet dolt.
+11. Inga TS-fel, build grön, inga console-warnings.
+12. Axe / tab-flow: fokus trap fungerar, ingen orphan focus.
+
+## Follow-ups (noteras, ej Day 5)
+
+- Period-pills på Performance: ensa eller mjuka när alla sektioner stödjer dem.
+- Utvärdera SEO click-chart värde i nästa review.
+- Day 6+: överväg `g`-prefix shortcuts och ASK-mode först när NAVIGATE känns inarbetat.
