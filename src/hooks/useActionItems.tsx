@@ -86,5 +86,5 @@ export function useActionItems(projectId: string | undefined) {
     });
   };
 
-  return { items, loading, reload, create, update, remove, markImplemented };
+  return { items, loading, error, reload, create, update, remove, markImplemented };
 }
