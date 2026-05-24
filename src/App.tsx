@@ -21,6 +21,8 @@ import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+import ActionsPipeline from "./pages/workspace/ActionsPipeline";
+
 
 import { useParams } from "react-router-dom";
 
@@ -74,7 +76,9 @@ const App = () => (
             <Route path="overview-legacy" element={<ExecutiveDashboard />} />
 
             <Route path="keywords" element={<KeywordsHub />} />
-            <Route path="actions" element={<ActionHub />} />
+            <Route path="actions" element={<ActionsPipeline />} />
+            <Route path="actions-legacy" element={<ActionHub />} />
+
             <Route path="settings" element={<WorkspaceSettings />} />
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
 

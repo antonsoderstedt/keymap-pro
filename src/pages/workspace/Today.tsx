@@ -68,7 +68,7 @@ export default function Today() {
 
   const onOpen = () => {
     if (!primary || !workspace) return;
-    navigate(`/clients/${workspace.id}/actions?focus=${primary.id}`);
+    navigate(`/clients/${workspace.id}/actions?focus=a:${primary.id}`);
   };
 
   const name = firstName(user?.email);
