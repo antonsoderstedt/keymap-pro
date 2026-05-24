@@ -73,18 +73,13 @@ const App = () => (
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
             <Route index element={<ExecutiveDashboard />} />
-            <Route path="google-ads" element={<GoogleAdsHub />} />
             <Route path="keywords" element={<KeywordsHub />} />
             <Route path="actions" element={<ActionHub />} />
-            <Route path="reports" element={<ReportsLibrary />} />
             <Route path="settings" element={<WorkspaceSettings />} />
-            <Route path="data-sources" element={<DataSources />} />
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
-            <Route path="how-it-works" element={<HowItWorks />} />
 
             {/* Bakåtkompatibilitet — gamla rutter redirectar */}
             <Route path="performance" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
-            <Route path="reports-old" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
             <Route path="reports" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
             <Route path="google-ads" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
             <Route path="data-sources" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
