@@ -45,11 +45,14 @@ const ROUTES: Route[] = [
 
 interface CommandBarProps {
   workspaceId: string;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  recent: ReturnType<typeof useCommandBar>["recent"];
+  pushRecent: ReturnType<typeof useCommandBar>["pushRecent"];
 }
 
-export function CommandBar({ workspaceId }: CommandBarProps) {
+export function CommandBar({ workspaceId, open, setOpen, recent, pushRecent }: CommandBarProps) {
   const navigate = useNavigate();
-  const { open, setOpen, recent, pushRecent } = useCommandBar(workspaceId);
 
   const pathFor = (sub: string) =>
     sub ? `/clients/${workspaceId}/${sub}` : `/clients/${workspaceId}`;
