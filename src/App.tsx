@@ -76,7 +76,9 @@ const App = () => (
             <Route path="overview-legacy" element={<ExecutiveDashboard />} />
 
             <Route path="keywords" element={<KeywordsHub />} />
-            <Route path="actions" element={<ActionHub />} />
+            <Route path="actions" element={<ActionsPipeline />} />
+            <Route path="actions-legacy" element={<ActionHub />} />
+
             <Route path="settings" element={<WorkspaceSettings />} />
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
 
