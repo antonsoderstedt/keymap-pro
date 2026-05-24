@@ -52,7 +52,9 @@ export function WorkspaceLayout() {
             />
             <h1 className="font-serif text-lg truncate">{workspace.name}</h1>
           </div>
-          <div className="flex-1" />
+          <div className="flex-1 flex justify-center px-4">
+            <CommandBarTrigger onOpen={() => cmd.setOpen(true)} />
+          </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <span className="hidden sm:inline text-xs text-muted-foreground">{user?.email}</span>
@@ -61,6 +63,24 @@ export function WorkspaceLayout() {
             </Button>
           </div>
         </header>
+        <CommandBar
+          workspaceId={workspace.id}
+          open={cmd.open}
+          setOpen={cmd.setOpen}
+          recent={cmd.recent}
+          pushRecent={cmd.pushRecent}
+        />
+        <GoogleReauthBanner />
+        <DataSourceAlerts projectId={workspace.id} />
+        <main className="flex-1 overflow-x-hidden">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </main>
+      </div>
+    </div>
+  );
+}
         <GoogleReauthBanner />
         <DataSourceAlerts projectId={workspace.id} />
         <main className="flex-1 overflow-x-hidden">
