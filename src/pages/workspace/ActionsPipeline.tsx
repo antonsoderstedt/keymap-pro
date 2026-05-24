@@ -1,0 +1,333 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useActionItems } from "@/hooks/useActionItems";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  mergeIntoPipeline,
+  countByStage,
+  categoryLabel,
+  STAGE_LABEL,
+  type AdsProposalRow,
+  type PipelineItem,
+  type PipelineStage,
+} from "@/lib/actionsPipeline";
+
+const STAGES: PipelineStage[] = ["proposed", "approved", "implemented", "measured"];
+
+function formatImpact(n: number | null): string | null {
+  if (!n) return null;
+  return `+${n.toLocaleString("sv-SE")} kr/mån`;
+}
+
+export default function ActionsPipeline() {
+  const { id: projectId = "" } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const focusId = params.get("focus");
+
+  const { items, loading: itemsLoading, error: itemsError, update, markImplemented, reload } =
+    useActionItems(projectId);
+
+  const [proposals, setProposals] = useState<AdsProposalRow[]>([]);
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [proposalsError, setProposalsError] = useState<string | null>(null);
+  const [stage, setStage] = useState<PipelineStage>("proposed");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const loadProposals = async () => {
+    if (!projectId) return;
+    setProposalsLoading(true);
+    setProposalsError(null);
+    const { data, error } = await supabase
+      .from("ads_change_proposals")
+      .select(
+        "id,source,action_type,scope_label,payload,estimated_impact_sek,rationale,status,error_message,created_at",
+      )
+      .eq("project_id", projectId)
+      .order("estimated_impact_sek", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+    if (error) setProposalsError(error.message);
+    setProposals((data as AdsProposalRow[]) ?? []);
+    setProposalsLoading(false);
+  };
+
+  useEffect(() => {
+    loadProposals();
+    if (!projectId) return;
+    const channel = supabase
+      .channel(`pipeline_proposals:${projectId}:${Math.random().toString(36).slice(2, 8)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ads_change_proposals", filter: `project_id=eq.${projectId}` },
+        () => loadProposals(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  const pipeline = useMemo(() => mergeIntoPipeline(items, proposals), [items, proposals]);
+  const counts = useMemo(() => countByStage(pipeline), [pipeline]);
+  const visible = pipeline.filter((p) => p.stage === stage);
+
+  // Focus handling: scroll + transient ring
+  useEffect(() => {
+    if (!focusId || pipeline.length === 0) return;
+    const item = pipeline.find((p) => p.id === focusId || p.rawId === focusId);
+    if (!item) return;
+    if (item.stage !== stage) setStage(item.stage);
+    const t = setTimeout(() => {
+      const el = rowRefs.current[item.id];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-1", "ring-primary/40");
+        setTimeout(() => el.classList.remove("ring-1", "ring-primary/40"), 1500);
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [focusId, pipeline, stage]);
+
+  // Summary numbers — single line, no widgets
+  const openCount = counts.proposed + counts.approved;
+  const openValue = pipeline
+    .filter((p) => p.stage === "proposed" || p.stage === "approved")
+    .reduce((s, p) => s + (p.impactSek ?? 0), 0);
+  const implementedValue = pipeline
+    .filter((p) => p.stage === "implemented" || p.stage === "measured")
+    .reduce((s, p) => s + (p.impactSek ?? 0), 0);
+
+  const approveAction = async (p: PipelineItem) => {
+    if (p.origin !== "action") return;
+    setPendingId(p.id);
+    const { error } = await update(p.rawId, { status: "in_progress" });
+    setPendingId(null);
+    if (error) toast.error("Kunde inte godkänna åtgärden.");
+    else toast.success("Godkänd.");
+  };
+
+  const markDone = async (p: PipelineItem) => {
+    if (p.origin !== "action") return;
+    setPendingId(p.id);
+    const { error } = await markImplemented(p.rawId);
+    setPendingId(null);
+    if (error) toast.error("Kunde inte markera som klar.");
+    else toast.success("Markerad som klar.");
+  };
+
+  const archive = async (p: PipelineItem) => {
+    if (p.origin !== "action") return;
+    setPendingId(p.id);
+    const { error } = await update(p.rawId, { status: "archived" });
+    setPendingId(null);
+    if (error) toast.error("Kunde inte avvisa.");
+    else toast.success("Avvisad.");
+  };
+
+  const pushAds = async (p: PipelineItem) => {
+    if (p.origin !== "action" || !p.flags.pushable) return;
+    const raw = p.raw as any;
+    if (!raw.source_payload) return toast.error("Saknar payload för Ads-push.");
+    setPendingId(p.id);
+    try {
+      const { error } = await supabase.functions.invoke("ads-mutate", {
+        body: {
+          project_id: projectId,
+          source_action_item_id: raw.id,
+          ...(raw.source_payload as any),
+        },
+      });
+      if (error) throw error;
+      await markImplemented(raw.id);
+      toast.success("Pushad till Google Ads.");
+      reload();
+    } catch (e: any) {
+      toast.error(`Push misslyckades: ${e?.message ?? "okänt fel"}`);
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const openProposal = () => {
+    // Befintlig ProposalsTab finns inom GoogleAdsHub — länka till legacy-vyn
+    navigate(`/clients/${projectId}/actions-legacy`);
+  };
+
+  const loading = itemsLoading || proposalsLoading;
+  const error = itemsError || proposalsError;
+
+  return (
+    <div className="mx-auto max-w-4xl px-6 py-10 lg:py-14">
+      <header className="mb-6 flex items-baseline justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-medium tracking-tight">Åtgärder</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {openCount} öppna
+            {openValue > 0 && ` · ${openValue.toLocaleString("sv-SE")} kr/mån att hämta`}
+            {implementedValue > 0 && ` · ${implementedValue.toLocaleString("sv-SE")} kr/mån implementerat`}
+          </p>
+        </div>
+      </header>
+
+      {/* Filter pills */}
+      <div className="mb-6 flex flex-wrap gap-1.5">
+        {STAGES.map((s) => {
+          const active = stage === s;
+          const muted = s === "measured";
+          return (
+            <button
+              key={s}
+              onClick={() => setStage(s)}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs transition-colors",
+                active
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground",
+                !active && muted && "opacity-60",
+              )}
+            >
+              {STAGE_LABEL[s]}
+              <span className={cn("ml-1.5 tabular-nums", active ? "opacity-70" : "opacity-50")}>
+                {counts[s]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="border-b border-border/40 py-4">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="mt-2 h-3 w-1/3" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <p className="text-sm text-muted-foreground">
+          Åtgärder kunde inte laddas. Försök igen.
+        </p>
+      ) : visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {stage === "proposed" && "Inga åtgärder just nu."}
+          {stage === "approved" && "Inga godkända åtgärder väntar."}
+          {stage === "implemented" && "Inga implementerade åtgärder ännu."}
+          {stage === "measured" && "Inga mätta åtgärder ännu."}
+        </p>
+      ) : (
+        <div className="divide-y divide-border/40">
+          {visible.map((p) => (
+            <Row
+              key={p.id}
+              item={p}
+              pending={pendingId === p.id}
+              onApprove={() => approveAction(p)}
+              onMarkDone={() => markDone(p)}
+              onArchive={() => archive(p)}
+              onPushAds={() => pushAds(p)}
+              onOpenProposal={openProposal}
+              registerRef={(el) => (rowRefs.current[p.id] = el)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Row({
+  item,
+  pending,
+  onApprove,
+  onMarkDone,
+  onArchive,
+  onPushAds,
+  onOpenProposal,
+  registerRef,
+}: {
+  item: PipelineItem;
+  pending: boolean;
+  onApprove: () => void;
+  onMarkDone: () => void;
+  onArchive: () => void;
+  onPushAds: () => void;
+  onOpenProposal: () => void;
+  registerRef: (el: HTMLDivElement | null) => void;
+}) {
+  const impact = formatImpact(item.impactSek);
+  const muted = item.stage === "implemented" || item.stage === "measured";
+
+  return (
+    <div
+      ref={registerRef}
+      className={cn(
+        "group flex items-start justify-between gap-6 py-4 transition-colors rounded-md -mx-2 px-2",
+        muted && "opacity-70",
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className={cn("text-sm leading-snug", muted ? "text-muted-foreground" : "text-foreground")}>
+          {item.title}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {categoryLabel(item.category)}
+          {impact && <span> · {impact}</span>}
+          {item.flags.queued && <span> · i kö</span>}
+          {item.flags.failed && <span className="text-destructive"> · misslyckades</span>}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+        {item.origin === "action" && item.stage === "proposed" && (
+          <>
+            {item.flags.pushable ? (
+              <Button size="sm" variant="ghost" disabled={pending} onClick={onPushAds}>
+                Pusha
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" disabled={pending} onClick={onApprove}>
+                Godkänn
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={onArchive}
+              className="text-muted-foreground"
+            >
+              Avvisa
+            </Button>
+          </>
+        )}
+
+        {item.origin === "action" && item.stage === "approved" && (
+          <>
+            {item.flags.pushable && (
+              <Button size="sm" variant="ghost" disabled={pending} onClick={onPushAds}>
+                Pusha
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" disabled={pending} onClick={onMarkDone}>
+              Markera klar
+            </Button>
+          </>
+        )}
+
+        {item.origin === "ads_proposal" && (
+          <Button size="sm" variant="ghost" onClick={onOpenProposal}>
+            Öppna i Ads
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
