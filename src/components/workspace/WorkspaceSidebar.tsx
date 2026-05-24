@@ -37,25 +37,13 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
   const base = `/clients/${workspaceId}`;
   const caps = useProjectCapabilities(workspaceId);
   const settingsTo = `${base}/settings`;
-  const noData = !caps.hasGA4 && !caps.hasGSC && !caps.hasAnalysis && !caps.hasPrelaunch;
-
-  // 6 huvudområden — varje ikon = en hub. Underrutter nås via flikar inuti.
+  // 5 huvudområden — workflow-centric cockpit.
   const items: NavItem[] = [
-    { to: base, label: "Översikt", icon: LayoutDashboard, end: true },
-    {
-      to: `${base}/google-ads`,
-      label: "Google Ads",
-      icon: Megaphone,
-      enabled: caps.hasAds,
-      lockedReason: "Koppla Google Ads under Inställningar.",
-      unlockTo: settingsTo,
-    },
-    { to: `${base}/keywords`, label: "Sökord & innehåll", icon: Search },
+    { to: base, label: "Idag", icon: LayoutDashboard, end: true },
     { to: `${base}/actions`, label: "Åtgärder", icon: ListChecks },
-    { to: `${base}/reports`, label: "Rapporter", icon: FileText },
-    { to: `${base}/data-sources`, label: "Datakällor", icon: Plug },
+    { to: `${base}/performance`, label: "Performance", icon: BarChart3 },
+    { to: `${base}/keywords`, label: "Sökord", icon: Search },
     { to: settingsTo, label: "Inställningar", icon: Settings },
-    { to: `${base}/how-it-works`, label: "Så fungerar det", icon: HelpCircle },
   ];
 
   return (
