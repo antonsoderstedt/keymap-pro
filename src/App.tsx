@@ -16,14 +16,10 @@ import KeywordUniverse from "./pages/KeywordUniverse";
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";
-import ReportsLibrary from "./pages/workspace/ReportsLibrary";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
-import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
-import DataSources from "./pages/workspace/DataSources";
-import HowItWorks from "./pages/workspace/HowItWorks";
 import { useParams } from "react-router-dom";
 
 // Wrapper: läser :id och redirectar till motsvarande nya route.
