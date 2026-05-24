@@ -95,7 +95,7 @@ function usePerformanceData(projectId: string | undefined): PerfData {
       changes.sort((x, y) => new Date(y.ts).getTime() - new Date(x.ts).getTime());
 
       setData({
-        gsc: gscRes.data ? { rows: (gscRes.data.rows as GscRow[]) ?? [], createdAt: gscRes.data.created_at } : null,
+        gsc: gscRes.data ? { rows: (gscRes.data.rows as unknown as GscRow[]) ?? [], createdAt: gscRes.data.created_at } : null,
         ga4: ga4Res.data ? { totals: ga4Res.data.totals, createdAt: ga4Res.data.created_at } : null,
         changes: changes.slice(0, 8),
         loading: false,
