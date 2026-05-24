@@ -27,19 +27,23 @@ export interface ActionItem {
 export function useActionItems(projectId: string | undefined) {
   const [items, setItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
-    const { data } = await supabase
+    setError(null);
+    const { data, error: err } = await supabase
       .from("action_items")
       .select("*")
       .eq("project_id", projectId)
       .order("expected_impact_sek", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
+    if (err) setError(err.message);
     setItems((data as ActionItem[]) ?? []);
     setLoading(false);
   }, [projectId]);
+
 
   useEffect(() => {
     reload();
