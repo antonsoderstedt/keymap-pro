@@ -84,6 +84,11 @@ const App = () => (
 
             {/* Bakåtkompatibilitet — gamla rutter redirectar */}
             <Route path="performance" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="reports-old" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="reports" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="google-ads" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
+            <Route path="data-sources" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
+            <Route path="how-it-works" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
             <Route path="channels" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads`} />} />
             <Route path="keyword-universe" element={<WorkspaceRedirect to={(id) => `/clients/${id}/keywords`} />} />
             <Route path="segments" element={<WorkspaceRedirect to={(id) => `/clients/${id}/keywords`} />} />
