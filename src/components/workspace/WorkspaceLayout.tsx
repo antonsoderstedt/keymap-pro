@@ -10,11 +10,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
 import { DataSourceAlerts } from "@/components/DataSourceAlerts";
 import { useAutoSync } from "@/hooks/useAutoSync";
+import { CommandBar, CommandBarTrigger } from "./CommandBar";
+import { useCommandBar } from "@/hooks/useCommandBar";
 
 export function WorkspaceLayout() {
   const { workspace, loading } = useWorkspace();
   const { user, signOut } = useAuth();
   useAutoSync(workspace?.id);
+  const cmd = useCommandBar(workspace?.id ?? "");
 
   if (loading) {
     return (
@@ -49,7 +52,9 @@ export function WorkspaceLayout() {
             />
             <h1 className="font-serif text-lg truncate">{workspace.name}</h1>
           </div>
-          <div className="flex-1" />
+          <div className="flex-1 flex justify-center px-4">
+            <CommandBarTrigger onOpen={() => cmd.setOpen(true)} />
+          </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <span className="hidden sm:inline text-xs text-muted-foreground">{user?.email}</span>
@@ -58,6 +63,13 @@ export function WorkspaceLayout() {
             </Button>
           </div>
         </header>
+        <CommandBar
+          workspaceId={workspace.id}
+          open={cmd.open}
+          setOpen={cmd.setOpen}
+          recent={cmd.recent}
+          pushRecent={cmd.pushRecent}
+        />
         <GoogleReauthBanner />
         <DataSourceAlerts projectId={workspace.id} />
         <main className="flex-1 overflow-x-hidden">
@@ -69,3 +81,4 @@ export function WorkspaceLayout() {
     </div>
   );
 }
+
