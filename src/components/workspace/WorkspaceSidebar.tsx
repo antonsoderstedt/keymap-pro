@@ -62,11 +62,6 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
             <p className="text-xs text-muted-foreground mt-0.5">{workspaceCompany}</p>
           )}
         </div>
-        {noData && !caps.loading && (
-          <div className="mt-3 text-[11px] text-muted-foreground leading-relaxed">
-            Koppla data för att låsa upp alla områden. Se Översikt.
-          </div>
-        )}
       </div>
 
       <TooltipProvider delayDuration={150}>
