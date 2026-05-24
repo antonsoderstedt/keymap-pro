@@ -6,13 +6,10 @@ import {
   LayoutDashboard,
   Search,
   ListChecks,
-  FileText,
   Settings,
   ArrowLeft,
   Lock,
-  Megaphone,
-  Plug,
-  HelpCircle,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
