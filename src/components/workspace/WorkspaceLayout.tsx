@@ -10,11 +10,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
 import { DataSourceAlerts } from "@/components/DataSourceAlerts";
 import { useAutoSync } from "@/hooks/useAutoSync";
+import { CommandBar, CommandBarTrigger } from "./CommandBar";
+import { useCommandBar } from "@/hooks/useCommandBar";
 
 export function WorkspaceLayout() {
   const { workspace, loading } = useWorkspace();
   const { user, signOut } = useAuth();
   useAutoSync(workspace?.id);
+  const cmd = useCommandBar(workspace?.id ?? "");
 
   if (loading) {
     return (
