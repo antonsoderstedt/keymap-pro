@@ -81,14 +81,4 @@ export function WorkspaceLayout() {
     </div>
   );
 }
-        <GoogleReauthBanner />
-        <DataSourceAlerts projectId={workspace.id} />
-        <main className="flex-1 overflow-x-hidden">
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
-  );
-}
+
