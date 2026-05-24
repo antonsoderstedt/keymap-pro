@@ -16,10 +16,12 @@ import KeywordUniverse from "./pages/KeywordUniverse";
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";
+import Today from "./pages/workspace/Today";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+
 import { useParams } from "react-router-dom";
 
 // Wrapper: läser :id och redirectar till motsvarande nya route.
