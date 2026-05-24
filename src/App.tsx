@@ -21,6 +21,8 @@ import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+import ActionsPipeline from "./pages/workspace/ActionsPipeline";
+
 
 import { useParams } from "react-router-dom";
 
