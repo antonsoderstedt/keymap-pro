@@ -16,10 +16,12 @@ import KeywordUniverse from "./pages/KeywordUniverse";
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";
+import Today from "./pages/workspace/Today";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
+
 import { useParams } from "react-router-dom";
 
 // Wrapper: läser :id och redirectar till motsvarande nya route.
@@ -68,7 +70,9 @@ const App = () => (
 
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
-            <Route index element={<ExecutiveDashboard />} />
+            <Route index element={<Today />} />
+            <Route path="overview-legacy" element={<ExecutiveDashboard />} />
+
             <Route path="keywords" element={<KeywordsHub />} />
             <Route path="actions" element={<ActionHub />} />
             <Route path="settings" element={<WorkspaceSettings />} />
