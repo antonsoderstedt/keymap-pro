@@ -70,7 +70,9 @@ const App = () => (
 
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
-            <Route index element={<ExecutiveDashboard />} />
+            <Route index element={<Today />} />
+            <Route path="overview-legacy" element={<ExecutiveDashboard />} />
+
             <Route path="keywords" element={<KeywordsHub />} />
             <Route path="actions" element={<ActionHub />} />
             <Route path="settings" element={<WorkspaceSettings />} />
