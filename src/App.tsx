@@ -22,6 +22,9 @@ import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionHub from "./pages/workspace/ActionHub";
 import ActionsPipeline from "./pages/workspace/ActionsPipeline";
+import Performance from "./pages/workspace/Performance";
+import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
+
 
 
 import { useParams } from "react-router-dom";
