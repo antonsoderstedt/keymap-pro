@@ -63,8 +63,8 @@
     --sidebar-ring: 239 84% 60%;
 
     /* Effects */
-    --shadow-card: 0 1px 2px 0 hsl(220 43% 11% / 0.04), 0 1px 3px 0 hsl(220 43% 11% / 0.06);
-    --shadow-elevated: 0 4px 6px -1px hsl(220 43% 11% / 0.08), 0 2px 4px -2px hsl(220 43% 11% / 0.06);
+    --shadow-card: none;
+    --shadow-elevated: 0 1px 2px 0 hsl(220 43% 11% / 0.05);
     --gradient-hero: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-glow)) 100%);
     --gradient-subtle: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--background)) 100%);
   }
@@ -121,8 +121,8 @@
     --sidebar-border: 217 33% 17%;
     --sidebar-ring: 239 84% 67%;
 
-    --shadow-card: 0 1px 2px 0 hsl(0 0% 0% / 0.3), 0 1px 3px 0 hsl(0 0% 0% / 0.2);
-    --shadow-elevated: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
+    --shadow-card: none;
+    --shadow-elevated: 0 1px 2px 0 hsl(0 0% 0% / 0.25);
   }
 
   * {
