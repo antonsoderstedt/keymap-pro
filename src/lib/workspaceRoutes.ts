@@ -39,7 +39,7 @@ export const WORKSPACE_ROUTES: WorkspaceRoute[] = [
   // Legacy — endast via command bar
   { sub: "overview-legacy",    label: "Översikt (legacy)",    icon: Sun,       keywords: "overview executive legacy", primary: false, legacy: true },
   { sub: "google-ads-legacy",  label: "Google Ads (legacy)",  icon: Megaphone, keywords: "ads auction audit chat legacy", primary: false, legacy: true },
-  { sub: "actions-legacy",     label: "Actions (legacy)",     icon: Archive,   keywords: "actions hub legacy", primary: false, legacy: true },
+  
   { sub: "prelaunch",          label: "Pre-launch (legacy)",  icon: Archive,   keywords: "prelaunch blueprint brief lansering", primary: false, legacy: true },
 ];
 

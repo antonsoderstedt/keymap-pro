@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useActionItems } from "@/hooks/useActionItems";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
@@ -37,7 +45,10 @@ export default function ActionsPipeline() {
   const [proposalsError, setProposalsError] = useState<string | null>(null);
   const [stage, setStage] = useState<PipelineStage>("proposed");
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [viewProposal, setViewProposal] = useState<PipelineItem | null>(null);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const cameFromToday = params.get("from") === "today" || !!focusId;
 
   const loadProposals = async () => {
     if (!projectId) return;
@@ -154,9 +165,8 @@ export default function ActionsPipeline() {
     }
   };
 
-  const openProposal = () => {
-    // Befintlig ProposalsTab finns inom GoogleAdsHub — länka till legacy-vyn
-    navigate(`/clients/${projectId}/actions-legacy`);
+  const openProposal = (p: PipelineItem) => {
+    setViewProposal(p);
   };
 
   const loading = itemsLoading || proposalsLoading;
@@ -166,6 +176,15 @@ export default function ActionsPipeline() {
     <div className="mx-auto max-w-4xl px-6 py-10 lg:py-14">
       <header className="mb-6 flex items-baseline justify-between gap-4">
         <div>
+          {cameFromToday && (
+            <Link
+              to={`/clients/${projectId}`}
+              className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Tillbaka till Idag
+            </Link>
+          )}
           <h1 className="text-2xl font-medium tracking-tight">Åtgärder</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             {openCount} öppna
@@ -233,13 +252,99 @@ export default function ActionsPipeline() {
               onMarkDone={() => markDone(p)}
               onArchive={() => archive(p)}
               onPushAds={() => pushAds(p)}
-              onOpenProposal={openProposal}
+              onOpenProposal={() => openProposal(p)}
               registerRef={(el) => (rowRefs.current[p.id] = el)}
             />
           ))}
         </div>
       )}
+
+      <ProposalSheet
+        proposal={viewProposal}
+        onClose={() => setViewProposal(null)}
+      />
     </div>
+  );
+}
+
+function ProposalSheet({
+  proposal,
+  onClose,
+}: {
+  proposal: PipelineItem | null;
+  onClose: () => void;
+}) {
+  if (!proposal) return null;
+  const raw = proposal.raw as AdsProposalRow;
+  const impact = proposal.impactSek
+    ? `+${proposal.impactSek.toLocaleString("sv-SE")} kr/mån`
+    : null;
+
+  return (
+    <Sheet open={!!proposal} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-base font-medium">{proposal.title}</SheetTitle>
+          <SheetDescription className="text-xs">
+            {categoryLabel(proposal.category)}
+            {impact && <span> · {impact}</span>}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-5 text-sm">
+          {proposal.description && (
+            <section>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                Motivering
+              </p>
+              <p className="leading-relaxed text-foreground/90">{proposal.description}</p>
+            </section>
+          )}
+
+          <section>
+            <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+              Källa
+            </p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {raw.source} · {raw.action_type}
+            </p>
+          </section>
+
+          {raw.scope_label && (
+            <section>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                Omfattning
+              </p>
+              <p className="text-xs text-muted-foreground">{raw.scope_label}</p>
+            </section>
+          )}
+
+          {raw.payload && (
+            <section>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                Payload
+              </p>
+              <pre className="overflow-x-auto rounded-md border border-border/60 bg-muted/30 p-3 text-[11px] leading-relaxed">
+                {JSON.stringify(raw.payload, null, 2)}
+              </pre>
+            </section>
+          )}
+
+          {raw.error_message && (
+            <section>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-destructive">
+                Fel
+              </p>
+              <p className="text-xs text-destructive">{raw.error_message}</p>
+            </section>
+          )}
+
+          <p className="pt-4 text-[11px] text-muted-foreground">
+            Push/godkänn av Ads-förslag sker via befintliga regler i ads-pipelinen.
+          </p>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -324,7 +429,7 @@ function Row({
 
         {item.origin === "ads_proposal" && (
           <Button size="sm" variant="ghost" onClick={onOpenProposal}>
-            Öppna i Ads
+            Visa detaljer
           </Button>
         )}
       </div>
