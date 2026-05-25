@@ -194,6 +194,7 @@ export default function WorkspaceSettings() {
         <GoogleAdsConnection projectId={id!} />
         <Ga4Filters projectId={id!} />
         <Ga4ConversionFilters projectId={id!} />
+        <KeywordPlannerPanel projectId={id!} />
         <Card>
           <CardHeader>
             <CardTitle className="font-serif text-lg">Övriga kopplingar</CardTitle>
