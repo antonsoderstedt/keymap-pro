@@ -33,7 +33,7 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
     };
   }).sort((a, b) => b.volume - a.volume);
 
-  const selectedStats = clusterStats.find((c) => c.cluster === (clusterStats[0]?.cluster || ""));
+  
 
   const [selected, setSelected] = useState<string>(clusterStats[0]?.cluster || "");
   const [brief, setBrief] = useState<ContentBrief | null>(null);
