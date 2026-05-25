@@ -23,7 +23,7 @@ import KeywordsHub from "./pages/workspace/KeywordsHub";
 // ActionHub removed Sprint 2 — actions-legacy route eliminated.
 import ActionsPipeline from "./pages/workspace/ActionsPipeline";
 import Performance from "./pages/workspace/Performance";
-import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
+import AdsHistory from "./pages/workspace/AdsHistory";
 
 
 
@@ -87,19 +87,22 @@ const App = () => (
 
             {/* Performance */}
             <Route path="performance" element={<Performance />} />
-            <Route path="google-ads-legacy" element={<GoogleAdsHub />} />
+
+            {/* Situationsspecifikt — endast via command bar */}
+            <Route path="ads-history" element={<AdsHistory />} />
 
             {/* Bakåtkompatibilitet — gamla rutter redirectar */}
             <Route path="reports" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
             <Route path="google-ads" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
+            <Route path="google-ads-legacy" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
             <Route path="data-sources" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
             <Route path="how-it-works" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
             <Route path="channels" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
             <Route path="keyword-universe" element={<WorkspaceRedirect to={(id) => `/clients/${id}/keywords`} />} />
             <Route path="segments" element={<WorkspaceRedirect to={(id) => `/clients/${id}/keywords`} />} />
-            <Route path="auction-insights" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads-legacy`} />} />
-            <Route path="ads-audit" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads-legacy`} />} />
-            <Route path="ads-chat" element={<WorkspaceRedirect to={(id) => `/clients/${id}/google-ads-legacy`} />} />
+            <Route path="auction-insights" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
+            <Route path="ads-audit" element={<WorkspaceRedirect to={(id) => `/clients/${id}/actions`} />} />
+            <Route path="ads-chat" element={<WorkspaceRedirect to={(id) => `/clients/${id}/actions`} />} />
             <Route path="ga4" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
             <Route path="paid-vs-organic" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
             <Route path="seo" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />

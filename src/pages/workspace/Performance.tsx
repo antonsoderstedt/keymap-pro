@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
 } from "recharts";
 import { buildDailyTrend, summarizePeriod, lastNDays, type GscRow } from "@/lib/performance";
+import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
+import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
+import AuctionInsights from "./AuctionInsights";
+import { CampaignTree } from "@/components/workspace/CampaignTree";
+import { AdsResultsTab } from "@/components/workspace/AdsResultsTab";
 
 type Range = "7" | "28" | "90";
 
@@ -154,10 +160,34 @@ function MutedNote({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-muted-foreground">{children}</p>;
 }
 
+/** Collapsible underavdelning — håller Performance läsbar när Ads är aktivt. */
+function SubSection({
+  title, defaultOpen = false, children,
+}: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="border-t border-border/40 pt-4">
+      <CollapsibleTrigger className="flex w-full items-center justify-between text-left group">
+        <span className="text-sm font-medium text-foreground/90 group-hover:text-foreground">
+          {title}
+        </span>
+        <ChevronRight
+          className={cn(
+            "h-4 w-4 text-muted-foreground transition-transform",
+            open && "rotate-90",
+          )}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-4">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export default function Performance() {
   const { id: projectId } = useParams<{ id: string }>();
   const [range, setRange] = useState<Range>("28");
   const { gsc, ga4, changes, loading, error } = usePerformanceData(projectId);
+  const caps = useProjectCapabilities(projectId);
 
   const seo = useMemo(() => {
     if (!gsc) return null;
@@ -258,20 +288,28 @@ export default function Performance() {
         )}
       </section>
 
-      {/* Ads */}
-      <section className="space-y-5 border-b border-border/40 pb-10">
-        <SectionHeader title="Google Ads" />
-        {loading ? (
-          <Skeleton className="h-12 w-full" />
-        ) : (
-          <MutedNote>
-            Aktuella nyckeltal hämtas direkt från Google Ads i{" "}
-            <Link to={`/clients/${projectId}/google-ads-legacy`} className="underline-offset-4 hover:underline text-foreground">
-              Ads-arbetsytan
+      {/* Ads — konsoliderad i Performance (Sprint 3) */}
+      {caps.hasAds && projectId && (
+        <section className="space-y-6 border-b border-border/40 pb-10">
+          <SectionHeader title="Google Ads" />
+          <DiagnosisPanel projectId={projectId} />
+          <SubSection title="Auction Insights">
+            <AuctionInsights />
+          </SubSection>
+          <SubSection title="Kampanjstruktur">
+            <CampaignTree projectId={projectId} />
+          </SubSection>
+          <SubSection title="Senaste ändringars effekt">
+            <AdsResultsTab projectId={projectId} />
+          </SubSection>
+          <p className="text-xs text-muted-foreground">
+            Förslag och audit hanteras i{" "}
+            <Link to={`/clients/${projectId}/actions`} className="underline-offset-4 hover:underline text-foreground">
+              Åtgärder
             </Link>.
-          </MutedNote>
-        )}
-      </section>
+          </p>
+        </section>
+      )}
 
       {/* GA4 */}
       <section className="space-y-5 border-b border-border/40 pb-10">

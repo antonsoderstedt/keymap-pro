@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useActionItems } from "@/hooks/useActionItems";
+import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -11,8 +12,9 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldCheck, GitPullRequest } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
@@ -23,8 +25,19 @@ import {
   type PipelineItem,
   type PipelineStage,
 } from "@/lib/actionsPipeline";
+import AdsAudit from "./AdsAudit";
+import AdsAuditPlan from "./AdsAuditPlan";
+import { ProposalsTab } from "@/components/workspace/ProposalsTab";
+
+type Origin = "all" | "action" | "ads_proposal";
+const ORIGIN_LABEL: Record<Origin, string> = {
+  all: "Alla",
+  action: "Manuella",
+  ads_proposal: "Förslag",
+};
 
 const STAGES: PipelineStage[] = ["proposed", "approved", "implemented", "measured"];
+
 
 function formatImpact(n: number | null): string | null {
   if (!n) return null;
@@ -33,7 +46,7 @@ function formatImpact(n: number | null): string | null {
 
 export default function ActionsPipeline() {
   const { id: projectId = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  
   const [params] = useSearchParams();
   const focusId = params.get("focus");
 
@@ -44,9 +57,13 @@ export default function ActionsPipeline() {
   const [proposalsLoading, setProposalsLoading] = useState(true);
   const [proposalsError, setProposalsError] = useState<string | null>(null);
   const [stage, setStage] = useState<PipelineStage>("proposed");
+  const [origin, setOrigin] = useState<Origin>("all");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [viewProposal, setViewProposal] = useState<PipelineItem | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [proposalsOpen, setProposalsOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const caps = useProjectCapabilities(projectId || null);
 
   const cameFromToday = params.get("from") === "today" || !!focusId;
 
@@ -86,7 +103,9 @@ export default function ActionsPipeline() {
 
   const pipeline = useMemo(() => mergeIntoPipeline(items, proposals), [items, proposals]);
   const counts = useMemo(() => countByStage(pipeline), [pipeline]);
-  const visible = pipeline.filter((p) => p.stage === stage);
+  const visible = pipeline.filter(
+    (p) => p.stage === stage && (origin === "all" || p.origin === origin),
+  );
 
   // Focus handling: scroll + transient ring
   useEffect(() => {
@@ -174,7 +193,7 @@ export default function ActionsPipeline() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10 lg:py-14">
-      <header className="mb-6 flex items-baseline justify-between gap-4">
+      <header className="mb-6 flex items-start justify-between gap-4">
         <div>
           {cameFromToday && (
             <Link
@@ -192,10 +211,32 @@ export default function ActionsPipeline() {
             {implementedValue > 0 && ` · ${implementedValue.toLocaleString("sv-SE")} kr/mån implementerat`}
           </p>
         </div>
+        {caps.hasAds && (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAuditOpen(true)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+              Kör Ads-audit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setProposalsOpen(true)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <GitPullRequest className="mr-1.5 h-3.5 w-3.5" />
+              Alla förslag
+            </Button>
+          </div>
+        )}
       </header>
 
-      {/* Filter pills */}
-      <div className="mb-6 flex flex-wrap gap-1.5">
+      {/* Stage pills */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
         {STAGES.map((s) => {
           const active = stage === s;
           const muted = s === "measured";
@@ -219,6 +260,25 @@ export default function ActionsPipeline() {
           );
         })}
       </div>
+
+      {/* Source filter */}
+      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Källa:</span>
+        {(Object.keys(ORIGIN_LABEL) as Origin[]).map((o) => (
+          <button
+            key={o}
+            onClick={() => setOrigin(o)}
+            className={cn(
+              "transition-colors hover:text-foreground",
+              origin === o ? "text-foreground underline underline-offset-4" : "",
+            )}
+          >
+            {ORIGIN_LABEL[o]}
+          </button>
+        ))}
+      </div>
+
+
 
       {/* List */}
       {loading ? (
@@ -263,6 +323,41 @@ export default function ActionsPipeline() {
         proposal={viewProposal}
         onClose={() => setViewProposal(null)}
       />
+
+      {/* Ads-audit — situational deep tool, opens inline */}
+      <Sheet open={auditOpen} onOpenChange={setAuditOpen}>
+        <SheetContent className="w-full sm:max-w-3xl overflow-y-auto p-0">
+          <SheetHeader className="border-b border-border/40 p-4">
+            <SheetTitle className="text-base font-medium">Ads-audit</SheetTitle>
+            <SheetDescription className="text-xs">
+              Resultatet skapar förslag som hamnar här i Åtgärder.
+            </SheetDescription>
+          </SheetHeader>
+          <Tabs defaultValue="audit" className="p-4">
+            <TabsList className="mb-4">
+              <TabsTrigger value="audit" className="text-xs">Audit</TabsTrigger>
+              <TabsTrigger value="plan" className="text-xs">Plan</TabsTrigger>
+            </TabsList>
+            <TabsContent value="audit"><AdsAudit /></TabsContent>
+            <TabsContent value="plan"><AdsAuditPlan /></TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
+
+      {/* Alla förslag — avancerad kö (bulk, push, CSV) */}
+      <Sheet open={proposalsOpen} onOpenChange={setProposalsOpen}>
+        <SheetContent className="w-full sm:max-w-3xl overflow-y-auto p-0">
+          <SheetHeader className="border-b border-border/40 p-4">
+            <SheetTitle className="text-base font-medium">Alla Ads-förslag</SheetTitle>
+            <SheetDescription className="text-xs">
+              Avancerad vy för bulk-godkännande och push.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="p-4">
+            <ProposalsTab projectId={projectId} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
