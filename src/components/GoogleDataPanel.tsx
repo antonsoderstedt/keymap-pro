@@ -112,24 +112,34 @@ export default function GoogleDataPanel({ projectId }: Props) {
     setGscLoading(true);
     const { startDate, endDate } = rangeDates(range);
     const { data, error } = await supabase.functions.invoke("gsc-fetch", {
-      body: { action: "query", siteUrl: selectedSite, startDate, endDate, dimensions: ["query"], rowLimit: 1000 },
+      body: { action: "query", siteUrl: selectedSite, startDate, endDate, dimensions: ["date", "query"], rowLimit: 5000 },
     });
     setGscLoading(false);
     if (error) { toast({ title: "GSC-fel", description: error.message, variant: "destructive" }); return; }
-    const rows: GscRow[] = (data as any)?.rows || [];
-    setGscRows(rows);
+    const rawRows: GscRow[] = (data as any)?.rows || [];
+    setGscRows(rawRows);
 
-    if (projectId && rows.length) {
-      const totals = rows.reduce((acc, r) => ({
-        clicks: acc.clicks + (r.clicks || 0),
-        impressions: acc.impressions + (r.impressions || 0),
+    if (projectId && rawRows.length) {
+      // Normalisera för Performance-trend: spara date + query som egna fält.
+      const normalized = rawRows.map((r) => ({
+        date: r.keys?.[0],
+        query: r.keys?.[1],
+        keys: r.keys,
+        clicks: r.clicks || 0,
+        impressions: r.impressions || 0,
+        ctr: r.ctr || 0,
+        position: r.position || 0,
+      }));
+      const totals = normalized.reduce((acc, r) => ({
+        clicks: acc.clicks + r.clicks,
+        impressions: acc.impressions + r.impressions,
       }), { clicks: 0, impressions: 0 });
       await supabase.from("gsc_snapshots").insert({
         project_id: projectId,
         site_url: selectedSite,
         start_date: startDate,
         end_date: endDate,
-        rows: rows as any,
+        rows: normalized as any,
         totals: totals as any,
       });
     }
