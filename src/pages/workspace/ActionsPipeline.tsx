@@ -422,7 +422,26 @@ export default function ActionsPipeline() {
         ))}
       </div>
 
-
+      {/* Group-by toggle */}
+      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Gruppera:</span>
+        {([
+          ["none", "Ingen"],
+          ["rule_id", "Regel"],
+          ["action_type", "Åtgärdstyp"],
+        ] as const).map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setGroupBy(val)}
+            className={cn(
+              "transition-colors hover:text-foreground",
+              groupBy === val ? "text-foreground underline underline-offset-4" : "",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* List */}
       {loading ? (
@@ -445,13 +464,15 @@ export default function ActionsPipeline() {
           {stage === "implemented" && "Inga implementerade åtgärder ännu."}
           {stage === "measured" && "Inga mätta åtgärder ännu."}
         </p>
-      ) : (
-        <div className="divide-y divide-border/40">
+      ) : groupBy === "none" ? (
+        <div className="divide-y divide-border/40 pb-24">
           {visible.map((p) => (
             <Row
               key={p.id}
               item={p}
               pending={pendingId === p.id}
+              selected={selected.has(p.id)}
+              onToggleSelect={() => toggleSelect(p.id)}
               onApprove={() => approveAction(p)}
               onMarkDone={() => markDone(p)}
               onArchive={() => archive(p)}
@@ -462,7 +483,132 @@ export default function ActionsPipeline() {
             />
           ))}
         </div>
+      ) : (
+        <div className="space-y-2 pb-24">
+          {Object.entries(groupItemsBy(visible, groupBy as GroupKey)).map(([gKey, gItems]) => {
+            const ids = gItems.map((i) => i.id);
+            const allSelected = ids.every((id) => selected.has(id));
+            const someSelected = ids.some((id) => selected.has(id));
+            const gImpact = sumImpact(gItems);
+            return (
+              <Collapsible key={gKey} defaultOpen>
+                <div className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-3 py-2">
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={(v) => toggleGroup(ids, v === true)}
+                    aria-label="Välj grupp"
+                  />
+                  <CollapsibleTrigger asChild>
+                    <button className="group flex flex-1 items-center gap-2 text-left">
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                      <span className="text-sm font-medium">{groupKeyLabel(gKey, groupBy as GroupKey)}</span>
+                      <span className="text-xs text-muted-foreground">· {gItems.length}</span>
+                      {gImpact > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          · Σ {gImpact.toLocaleString("sv-SE")} kr/mån
+                        </span>
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs"
+                    disabled={bulkRunning}
+                    onClick={() => {
+                      toggleGroup(ids, true);
+                      // small delay so selected state updates before bulk runs
+                      setTimeout(() => requestBulk("approve"), 0);
+                    }}
+                  >
+                    Godkänn alla
+                  </Button>
+                </div>
+                <CollapsibleContent>
+                  <div className="divide-y divide-border/40 pl-6">
+                    {gItems.map((p) => (
+                      <Row
+                        key={p.id}
+                        item={p}
+                        pending={pendingId === p.id}
+                        selected={selected.has(p.id)}
+                        onToggleSelect={() => toggleSelect(p.id)}
+                        onApprove={() => approveAction(p)}
+                        onMarkDone={() => markDone(p)}
+                        onArchive={() => archive(p)}
+                        onPushAds={() => pushAds(p)}
+                        onOpenProposal={() => openProposal(p)}
+                        onOpenContext={() => openContext(p)}
+                        registerRef={(el) => (rowRefs.current[p.id] = el)}
+                      />
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+        </div>
       )}
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div
+          data-testid="bulk-action-bar"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        >
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
+            <p className="text-xs text-muted-foreground">
+              <span className="text-foreground">{selected.size} valda</span>
+              {selectedImpact > 0 && (
+                <> · Σ impact: <span className="text-foreground">{selectedImpact.toLocaleString("sv-SE")} kr/mån</span></>
+              )}
+            </p>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={clearSelection}>
+                Avmarkera
+              </Button>
+              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("reject")}>
+                Avvisa alla
+              </Button>
+              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("approve")}>
+                Godkänn alla
+              </Button>
+              <Button size="sm" disabled={bulkRunning} onClick={() => requestBulk("push")}>
+                Pusha alla
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog
+        open={!!confirmLargeBatch}
+        onOpenChange={(v) => !v && setConfirmLargeBatch(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stor batch — granskat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Du är på väg att {confirmLargeBatch === "push" ? "pusha" : confirmLargeBatch === "approve" ? "godkänna" : "avvisa"}{" "}
+              {selected.size} förslag med ett summerat estimat på{" "}
+              {selectedImpact.toLocaleString("sv-SE")} kr/mån. Säker?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const k = confirmLargeBatch;
+                setConfirmLargeBatch(null);
+                if (k) runBulk(k);
+              }}
+            >
+              Fortsätt
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <ProposalSheet
         proposal={viewProposal}
