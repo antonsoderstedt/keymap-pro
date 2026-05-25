@@ -715,14 +715,23 @@ function ProposalSheet({
             </p>
           </section>
 
-          {raw.scope_label && (
-            <section>
-              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                Omfattning
-              </p>
-              <p className="text-xs text-muted-foreground">{raw.scope_label}</p>
-            </section>
-          )}
+          {raw.scope_label && (() => {
+            // Försök matcha sista segmentet (ofta sökord) mot universe.
+            const segments = raw.scope_label.split("›").map((s) => s.trim()).filter(Boolean);
+            const tail = segments[segments.length - 1] || raw.scope_label;
+            const status = lookupIdeaStatus(universe, tail);
+            return (
+              <section>
+                <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Omfattning
+                </p>
+                <p className="text-xs text-muted-foreground inline-flex items-center gap-1 flex-wrap">
+                  <span>{raw.scope_label}</span>
+                  {status === "unverified_idea" && <UnverifiedIdeaBadge status={status} />}
+                </p>
+              </section>
+            );
+          })()}
 
           {raw.payload && (
             <section>
