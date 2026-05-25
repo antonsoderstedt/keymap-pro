@@ -116,6 +116,7 @@ export function KeywordPlannerPanel({ projectId, onAddToUniverse }: Props) {
       return;
     }
     setReauth(false);
+    setTokenNotApproved(false);
     const result = await fetchIdeas({
       customer_id: customerId,
       seed_keywords: seeds,
@@ -126,6 +127,10 @@ export function KeywordPlannerPanel({ projectId, onAddToUniverse }: Props) {
     });
     if (result.reason === "reauth_required") {
       setReauth(true);
+      return;
+    }
+    if (result.reason === "developer_token_not_approved") {
+      setTokenNotApproved(true);
       return;
     }
     if (!result.ok) {
