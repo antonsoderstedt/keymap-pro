@@ -103,7 +103,9 @@ export default function ActionsPipeline() {
 
   const pipeline = useMemo(() => mergeIntoPipeline(items, proposals), [items, proposals]);
   const counts = useMemo(() => countByStage(pipeline), [pipeline]);
-  const visible = pipeline.filter((p) => p.stage === stage);
+  const visible = pipeline.filter(
+    (p) => p.stage === stage && (origin === "all" || p.origin === origin),
+  );
 
   // Focus handling: scroll + transient ring
   useEffect(() => {
