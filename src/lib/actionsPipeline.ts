@@ -136,6 +136,8 @@ export function mergeIntoPipeline(
         failed: p.status === "failed",
         queued: p.status === "queued",
       },
+      ruleId: p.rule_id ?? null,
+      actionType: p.action_type,
     });
   }
 
