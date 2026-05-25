@@ -18,6 +18,7 @@ import GoalsCard from "@/components/workspace/GoalsCard";
 import MembersCard from "@/components/workspace/MembersCard";
 import ClientInfoCard from "@/components/workspace/ClientInfoCard";
 import BrandKit from "./BrandKit";
+import { OnboardingChecklist } from "@/components/workspace/OnboardingChecklist";
 
 interface KpiTarget {
   id: string;
@@ -86,6 +87,8 @@ export default function WorkspaceSettings() {
           Kunduppgifter, mål, kopplingar, brand och automation.
         </p>
       </div>
+
+      {id && <OnboardingChecklist projectId={id} />}
 
       <Section title="Konto" description="Kunduppgifter och teammedlemmar.">
         <ClientInfoCard projectId={id!} />
@@ -382,9 +385,8 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Gå till Översikt och klicka Återanslut Google.
+          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Klicka Återanslut Google i toppbannern eller via Inställningar.
         </p>
-        <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${projectId}/overview`)}>Gå till Översikt</Button>
       </CardContent>
     </Card>
   );
