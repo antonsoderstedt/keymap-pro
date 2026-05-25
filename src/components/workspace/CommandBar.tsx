@@ -4,7 +4,6 @@ import {
   ListChecks,
   LineChart,
   Search,
-  Rocket,
   Settings,
   LayoutDashboard,
   Megaphone,
@@ -36,11 +35,11 @@ const ROUTES: Route[] = [
   { label: "Åtgärder", sub: "actions", keywords: "actions pipeline queue todo förslag", icon: ListChecks },
   { label: "Performance", sub: "performance", keywords: "performance kpi seo ads ga4 trafik", icon: LineChart },
   { label: "Sökord", sub: "keywords", keywords: "keywords sökord universe segment", icon: Search },
-  { label: "Pre-launch", sub: "prelaunch", keywords: "prelaunch blueprint brief lansering", icon: Rocket },
   { label: "Inställningar", sub: "settings", keywords: "settings källor data sources brand", icon: Settings },
   { label: "Översikt (legacy)", sub: "overview-legacy", keywords: "overview executive legacy", icon: LayoutDashboard, legacy: true },
   { label: "Google Ads (legacy)", sub: "google-ads-legacy", keywords: "ads auction audit chat legacy", icon: Megaphone, legacy: true },
   { label: "Actions (legacy)", sub: "actions-legacy", keywords: "actions hub legacy", icon: Archive, legacy: true },
+  { label: "Pre-launch (legacy)", sub: "prelaunch", keywords: "prelaunch blueprint brief lansering", icon: Archive, legacy: true },
 ];
 
 interface CommandBarProps {
@@ -146,3 +145,17 @@ export function CommandBarTrigger({ onOpen }: { onOpen: () => void }) {
     </button>
   );
 }
+
+export function CommandBarMobileTrigger({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Öppna kommandopalett"
+      className="inline-flex md:hidden items-center justify-center rounded-md border border-border bg-background/60 p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+    >
+      <Search className="h-4 w-4" />
+    </button>
+  );
+}
+
