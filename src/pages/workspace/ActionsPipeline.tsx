@@ -87,6 +87,21 @@ export default function ActionsPipeline() {
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const caps = useProjectCapabilities(projectId || null);
 
+  // Group-by (URL-bound) + selection state for bulk actions
+  const groupByParam = params.get("groupBy");
+  const groupBy: "none" | GroupKey =
+    groupByParam === "rule_id" || groupByParam === "action_type" ? groupByParam : "none";
+  const setGroupBy = (g: "none" | GroupKey) => {
+    const next = new URLSearchParams(params);
+    if (g === "none") next.delete("groupBy");
+    else next.set("groupBy", g);
+    setParams(next, { replace: true });
+    setSelected(new Set());
+  };
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [confirmLargeBatch, setConfirmLargeBatch] = useState<null | "approve" | "push" | "reject">(null);
+
   const cameFromToday = params.get("from") === "today" || !!focusId;
 
   const loadProposals = async () => {
