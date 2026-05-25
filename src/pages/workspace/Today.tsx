@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
+import RoiOverview from "@/components/workspace/RoiOverview";
 
 function greeting() {
   const h = new Date().getHours();
