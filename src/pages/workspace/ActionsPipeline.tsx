@@ -36,6 +36,8 @@ const ORIGIN_LABEL: Record<Origin, string> = {
   ads_proposal: "Förslag",
 };
 
+const STAGES: PipelineStage[] = ["proposed", "approved", "implemented", "measured"];
+
 
 function formatImpact(n: number | null): string | null {
   if (!n) return null;
