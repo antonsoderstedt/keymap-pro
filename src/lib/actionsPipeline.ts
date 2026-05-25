@@ -113,6 +113,8 @@ export function mergeIntoPipeline(
       flags: {
         pushable: ADS_PUSHABLE_SOURCES.has(a.source_type || ""),
       },
+      ruleId: a.source_type || null,
+      actionType: a.source_type || a.category || "manual",
     });
   }
 
