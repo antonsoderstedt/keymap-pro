@@ -90,7 +90,7 @@ export default function KeywordUniversePage() {
       if (channel !== "all" && k.channel !== channel) return false;
       if (priority !== "all" && k.priority !== priority) return false;
       if (onlyReal && k.dataSource !== "real") return false;
-      if (hideZeroVolume && k.dataSource === "real" && (k.searchVolume ?? 0) === 0) return false;
+      if (hideZeroVolume && (k.searchVolume ?? 0) === 0) return false;
       if (onlyGap && !k.competitorGap) return false;
       if (k.kd != null && k.kd > kdLimit) return false;
       return true;
