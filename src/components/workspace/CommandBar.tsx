@@ -1,16 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import {
-  Sun,
-  ListChecks,
-  LineChart,
-  Search,
-  Settings,
-  LayoutDashboard,
-  Megaphone,
-  Archive,
-  Clock,
-  type LucideIcon,
-} from "lucide-react";
+import { Search, Clock } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -21,26 +10,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { useCommandBar } from "@/hooks/useCommandBar";
-
-type Route = {
-  label: string;
-  sub: string; // relative under /clients/:id, "" = index
-  keywords: string;
-  icon: LucideIcon;
-  legacy?: boolean;
-};
-
-const ROUTES: Route[] = [
-  { label: "Idag", sub: "", keywords: "today start hem dashboard", icon: Sun },
-  { label: "Åtgärder", sub: "actions", keywords: "actions pipeline queue todo förslag", icon: ListChecks },
-  { label: "Performance", sub: "performance", keywords: "performance kpi seo ads ga4 trafik", icon: LineChart },
-  { label: "Sökord", sub: "keywords", keywords: "keywords sökord universe segment", icon: Search },
-  { label: "Inställningar", sub: "settings", keywords: "settings källor data sources brand", icon: Settings },
-  { label: "Översikt (legacy)", sub: "overview-legacy", keywords: "overview executive legacy", icon: LayoutDashboard, legacy: true },
-  { label: "Google Ads (legacy)", sub: "google-ads-legacy", keywords: "ads auction audit chat legacy", icon: Megaphone, legacy: true },
-  { label: "Actions (legacy)", sub: "actions-legacy", keywords: "actions hub legacy", icon: Archive, legacy: true },
-  { label: "Pre-launch (legacy)", sub: "prelaunch", keywords: "prelaunch blueprint brief lansering", icon: Archive, legacy: true },
-];
+import { PRIMARY_ROUTES, LEGACY_ROUTES, pathForRoute } from "@/lib/workspaceRoutes";
 
 interface CommandBarProps {
   workspaceId: string;
