@@ -86,6 +86,7 @@ export default function ActionsPipeline() {
   const [proposalsOpen, setProposalsOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const caps = useProjectCapabilities(projectId || null);
+  const { universe } = useWorkspaceAnalysis(projectId || null);
 
   // Group-by (URL-bound) + selection state for bulk actions
   const groupByParam = params.get("groupBy");
