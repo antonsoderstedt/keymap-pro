@@ -79,7 +79,7 @@ describe("ActionsPipeline grouping + bulk actions", () => {
     renderPage();
     // Group headers
     expect(await screen.findByText(/Bortkastad annonsbudget/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Negativt sökord/i)).toBeInTheDocument();
+    expect(await screen.findByText("Negativt sökord (kandidat)")).toBeInTheDocument();
   });
 
   it("selecting a group toggles its rows and shows bulk bar with summed impact", async () => {
