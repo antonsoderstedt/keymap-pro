@@ -32,6 +32,8 @@ export interface PipelineItem {
   createdAt: string;
   raw: ActionItem | AdsProposalRow;
   flags: { failed?: boolean; queued?: boolean; pushable?: boolean; hidden?: boolean };
+  ruleId: string | null;
+  actionType: string;
 }
 
 const STAGE_ORDER: Record<PipelineStage, number> = {
