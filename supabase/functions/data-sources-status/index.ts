@@ -45,25 +45,33 @@ Deno.serve(async (req) => {
     const { data: project } = await sbUser.from("projects").select("id").eq("id", project_id).maybeSingle();
     if (!project) return json({ error: "project not found" }, 404);
 
-    const [{ data: token }, { data: settings }, { data: statusRows }] = await Promise.all([
+    const [{ data: token }, { data: settings }, { data: statusRows }, { data: latestKpi }] = await Promise.all([
       sbAdmin.from("google_tokens").select("scope, expires_at").eq("user_id", user.id).maybeSingle(),
       sbAdmin.from("project_google_settings")
         .select("ga4_property_id, ga4_property_name, gsc_site_url, ads_customer_id, ads_customer_name")
         .eq("project_id", project_id).maybeSingle(),
       sbAdmin.from("data_source_status").select("*").eq("project_id", project_id),
+      sbAdmin.from("keyword_planner_ideas")
+        .select("fetched_at")
+        .eq("project_id", project_id)
+        .order("fetched_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     const tokenScope = (token as any)?.scope as string | undefined;
     const tokenExpired = token ? new Date((token as any).expires_at).getTime() < Date.now() - 5 * 60_000 : true;
     const hasToken = !!token;
 
-    const sources = (["ga4", "gsc", "ads"] as const).map((source) => {
+    const sources = (["ga4", "gsc", "ads", "keyword_planner"] as const).map((source) => {
       const required = SCOPE_REQS[source];
       const scopeOk = hasAnyScope(tokenScope, required);
       const selection = pickSelection(source, settings);
       const stored = (statusRows || []).find((r: any) => r.source === source);
       const ttlSec = stored?.ttl_seconds ?? TTL[source];
-      const lastSyncedAt = stored?.last_synced_at as string | null | undefined;
+      const lastSyncedAt = source === "keyword_planner"
+        ? ((latestKpi as any)?.fetched_at ?? null)
+        : (stored?.last_synced_at as string | null | undefined ?? null);
       const ageSec = lastSyncedAt ? (Date.now() - new Date(lastSyncedAt).getTime()) / 1000 : null;
 
       let status: string = "not_connected";
