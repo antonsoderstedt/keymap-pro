@@ -752,6 +752,8 @@ function ProposalSheet({
 function Row({
   item,
   pending,
+  selected,
+  onToggleSelect,
   onApprove,
   onMarkDone,
   onArchive,
@@ -762,6 +764,8 @@ function Row({
 }: {
   item: PipelineItem;
   pending: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onApprove: () => void;
   onMarkDone: () => void;
   onArchive: () => void;
@@ -777,10 +781,16 @@ function Row({
     <div
       ref={registerRef}
       className={cn(
-        "group flex items-start justify-between gap-6 py-4 transition-colors rounded-md -mx-2 px-2",
+        "group flex items-start justify-between gap-4 py-4 transition-colors rounded-md -mx-2 px-2",
         muted && "opacity-70",
       )}
     >
+      <Checkbox
+        checked={selected}
+        onCheckedChange={onToggleSelect}
+        aria-label={`Välj ${item.title}`}
+        className="mt-1"
+      />
       <div className="min-w-0 flex-1">
         <p className={cn("text-sm leading-snug", muted ? "text-muted-foreground" : "text-foreground")}>
           {item.title}
@@ -792,6 +802,7 @@ function Row({
           {item.flags.failed && <span className="text-destructive"> · misslyckades</span>}
         </p>
       </div>
+
 
       <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
         {item.origin === "action" && (
