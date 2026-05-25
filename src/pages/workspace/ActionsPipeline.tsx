@@ -323,6 +323,41 @@ export default function ActionsPipeline() {
         proposal={viewProposal}
         onClose={() => setViewProposal(null)}
       />
+
+      {/* Ads-audit — situational deep tool, opens inline */}
+      <Sheet open={auditOpen} onOpenChange={setAuditOpen}>
+        <SheetContent className="w-full sm:max-w-3xl overflow-y-auto p-0">
+          <SheetHeader className="border-b border-border/40 p-4">
+            <SheetTitle className="text-base font-medium">Ads-audit</SheetTitle>
+            <SheetDescription className="text-xs">
+              Resultatet skapar förslag som hamnar här i Åtgärder.
+            </SheetDescription>
+          </SheetHeader>
+          <Tabs defaultValue="audit" className="p-4">
+            <TabsList className="mb-4">
+              <TabsTrigger value="audit" className="text-xs">Audit</TabsTrigger>
+              <TabsTrigger value="plan" className="text-xs">Plan</TabsTrigger>
+            </TabsList>
+            <TabsContent value="audit"><AdsAudit /></TabsContent>
+            <TabsContent value="plan"><AdsAuditPlan /></TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
+
+      {/* Alla förslag — avancerad kö (bulk, push, CSV) */}
+      <Sheet open={proposalsOpen} onOpenChange={setProposalsOpen}>
+        <SheetContent className="w-full sm:max-w-3xl overflow-y-auto p-0">
+          <SheetHeader className="border-b border-border/40 p-4">
+            <SheetTitle className="text-base font-medium">Alla Ads-förslag</SheetTitle>
+            <SheetDescription className="text-xs">
+              Avancerad vy för bulk-godkännande och push.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="p-4">
+            <ProposalsTab projectId={projectId} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
