@@ -179,3 +179,61 @@ export function categoryLabel(c: string): string {
     default: return "Övrigt";
   }
 }
+
+export const RULE_LABELS: Record<string, string> = {
+  wasted_keyword_no_conversions: "Bortkastat sökord (inga konverteringar)",
+  negative_keyword_candidate: "Negativt sökord (kandidat)",
+  ad_strength_poor: "Svag annonsstyrka",
+  rsa_draft: "RSA-utkast",
+  ads_wasted: "Bortkastad annonsbudget",
+  ads_negatives: "Negativ sökordsmining",
+  ads_pacing: "Budget-pacing",
+  ads_rsa: "RSA-optimering",
+};
+
+export const ACTION_TYPE_LABELS: Record<string, string> = {
+  pause_keyword: "Pausa sökord",
+  resume_keyword: "Återuppta sökord",
+  pause_ad: "Pausa annons",
+  add_negative_keyword: "Lägg till negativt sökord",
+  replace_rsa_asset: "Ersätt RSA-text",
+  rsa_batch: "RSA-batchändring",
+  create_rsa: "Skapa RSA-annons",
+  create_rsa_pending_adgroup: "Nytt RSA-utkast",
+  create_ad_group: "Skapa annonsgrupp",
+  add_keyword: "Lägg till sökord",
+};
+
+export function ruleLabel(id: string | null | undefined): string {
+  if (!id) return "Övrigt";
+  return RULE_LABELS[id] ?? id;
+}
+
+export function actionTypeLabel(t: string | null | undefined): string {
+  if (!t) return "Övrigt";
+  return ACTION_TYPE_LABELS[t] ?? t;
+}
+
+export type GroupKey = "rule_id" | "action_type";
+
+export function groupItemsBy(
+  items: PipelineItem[],
+  by: GroupKey,
+): Record<string, PipelineItem[]> {
+  const out: Record<string, PipelineItem[]> = {};
+  for (const it of items) {
+    const key = by === "rule_id" ? (it.ruleId ?? "_none") : (it.actionType ?? "_none");
+    if (!out[key]) out[key] = [];
+    out[key].push(it);
+  }
+  return out;
+}
+
+export function sumImpact(items: PipelineItem[]): number {
+  return items.reduce((s, i) => s + (i.impactSek ?? 0), 0);
+}
+
+export function groupKeyLabel(key: string, by: GroupKey): string {
+  if (key === "_none") return "Övrigt";
+  return by === "rule_id" ? ruleLabel(key) : actionTypeLabel(key);
+}
