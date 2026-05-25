@@ -177,7 +177,20 @@ export function KeywordPlannerPanel({ projectId, onAddToUniverse }: Props) {
               </div>
             )}
 
-            {error && !reauth && (
+            {tokenNotApproved && (
+              <div className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-medium">Google Ads developer token är inte godkänd</p>
+                  <p className="text-muted-foreground">
+                    Tokenen har bara test/explorer-åtkomst. Keyword Planner kräver <strong>Basic</strong> eller <strong>Standard access</strong>.
+                    Ansök via <a className="underline" href="https://ads.google.com/aw/apicenter" target="_blank" rel="noreferrer">Google Ads API Center</a> — godkännandet kan ta några dagar.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {error && !reauth && !tokenNotApproved && (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
                 {error}
               </div>
