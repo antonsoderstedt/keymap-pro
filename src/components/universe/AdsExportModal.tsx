@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, Sparkles } from "lucide-react";
+import { Loader2, Download, Sparkles, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,6 +17,7 @@ import {
   DEFAULT_EXPORT_CONFIG,
   type ExportConfig,
 } from "@/lib/googleAdsExport";
+import { getIdeaStatus } from "@/lib/ideaStatus";
 import type { KeywordUniverse, AdDraft } from "@/lib/types";
 
 interface Props {
