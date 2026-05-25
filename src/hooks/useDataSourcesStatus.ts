@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type SourceStatus = "ok" | "stale" | "error" | "reauth_required" | "not_connected";
-export type SourceKey = "ga4" | "gsc" | "ads";
+export type SourceKey = "ga4" | "gsc" | "ads" | "keyword_planner";
 
 export interface SourceInfo {
   source: SourceKey;
