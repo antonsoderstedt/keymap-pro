@@ -68,7 +68,7 @@ function formatImpact(n: number | null): string | null {
 export default function ActionsPipeline() {
   const { id: projectId = "" } = useParams<{ id: string }>();
   
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const focusId = params.get("focus");
 
   const { items, loading: itemsLoading, error: itemsError, update, markImplemented, reload } =
