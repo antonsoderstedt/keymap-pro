@@ -10,7 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
 import { DataSourceAlerts } from "@/components/DataSourceAlerts";
 import { useAutoSync } from "@/hooks/useAutoSync";
-import { CommandBar, CommandBarTrigger } from "./CommandBar";
+import { CommandBar, CommandBarTrigger, CommandBarMobileTrigger } from "./CommandBar";
 import { useCommandBar } from "@/hooks/useCommandBar";
 
 export function WorkspaceLayout() {
@@ -52,8 +52,9 @@ export function WorkspaceLayout() {
             />
             <h1 className="font-serif text-lg truncate">{workspace.name}</h1>
           </div>
-          <div className="flex-1 flex justify-center px-4">
+          <div className="flex-1 flex justify-center items-center gap-2 px-4">
             <CommandBarTrigger onOpen={() => cmd.setOpen(true)} />
+            <CommandBarMobileTrigger onOpen={() => cmd.setOpen(true)} />
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
