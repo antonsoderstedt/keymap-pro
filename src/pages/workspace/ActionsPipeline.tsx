@@ -57,9 +57,13 @@ export default function ActionsPipeline() {
   const [proposalsLoading, setProposalsLoading] = useState(true);
   const [proposalsError, setProposalsError] = useState<string | null>(null);
   const [stage, setStage] = useState<PipelineStage>("proposed");
+  const [origin, setOrigin] = useState<Origin>("all");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [viewProposal, setViewProposal] = useState<PipelineItem | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [proposalsOpen, setProposalsOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const caps = useProjectCapabilities(projectId || null);
 
   const cameFromToday = params.get("from") === "today" || !!focusId;
 
