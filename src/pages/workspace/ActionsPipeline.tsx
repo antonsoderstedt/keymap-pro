@@ -316,9 +316,11 @@ export default function ActionsPipeline() {
             if (p.origin === "action") {
               await update(p.rawId, { status: "in_progress" });
             } else {
+              const patch: any = { status: "approved" };
+              if (autoRevertPolicy.enabled) patch.auto_revert_policy = autoRevertPolicy;
               await supabase
                 .from("ads_change_proposals")
-                .update({ status: "approved" })
+                .update(patch)
                 .eq("id", p.rawId);
             }
           } else if (kind === "reject") {
@@ -340,6 +342,12 @@ export default function ActionsPipeline() {
               if (error) throw error;
               await markImplemented(raw.id);
             } else if (p.origin === "ads_proposal") {
+              if (autoRevertPolicy.enabled) {
+                await supabase
+                  .from("ads_change_proposals")
+                  .update({ auto_revert_policy: autoRevertPolicy })
+                  .eq("id", p.rawId);
+              }
               const { error } = await supabase.functions.invoke("ads-mutate", {
                 body: { project_id: projectId, proposal_id: p.rawId },
               });
