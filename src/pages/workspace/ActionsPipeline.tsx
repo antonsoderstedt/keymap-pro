@@ -5,6 +5,7 @@ import { useActionItems } from "@/hooks/useActionItems";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -13,17 +14,36 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, ShieldCheck, GitPullRequest } from "lucide-react";
+import { ArrowLeft, ChevronRight, ShieldCheck, GitPullRequest } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
   countByStage,
   categoryLabel,
   STAGE_LABEL,
+  groupItemsBy,
+  sumImpact,
+  groupKeyLabel,
   type AdsProposalRow,
   type PipelineItem,
   type PipelineStage,
+  type GroupKey,
 } from "@/lib/actionsPipeline";
 import AdsAudit from "./AdsAudit";
 import AdsAuditPlan from "./AdsAuditPlan";
