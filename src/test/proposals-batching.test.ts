@@ -26,13 +26,13 @@ describe("groupItemsBy", () => {
 
   it("groups items by rule_id (2 same + 1 unique → 2 groups)", () => {
     const items = [
-      make({ id: "1", ruleId: "wasted_spend" }),
-      make({ id: "2", ruleId: "wasted_spend" }),
+      make({ id: "1", ruleId: "ads_wasted" }),
+      make({ id: "2", ruleId: "ads_wasted" }),
       make({ id: "3", ruleId: "negative_keyword_candidate" }),
     ];
     const groups = groupItemsBy(items, "rule_id");
     expect(Object.keys(groups)).toHaveLength(2);
-    expect(groups["wasted_spend"]).toHaveLength(2);
+    expect(groups["ads_wasted"]).toHaveLength(2);
     expect(groups["negative_keyword_candidate"]).toHaveLength(1);
   });
 

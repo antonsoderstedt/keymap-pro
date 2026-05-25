@@ -7,9 +7,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const { proposals } = vi.hoisted(() => ({
   proposals: [
-    { id: "p1", source: "diagnosis", action_type: "pause_keyword", scope_label: "A › B › kw1", payload: {}, estimated_impact_sek: 100, rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "wasted_spend" },
-    { id: "p2", source: "diagnosis", action_type: "pause_keyword", scope_label: "A › B › kw2", payload: {}, estimated_impact_sek: 200, rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "wasted_spend" },
-    { id: "p3", source: "diagnosis", action_type: "pause_ad",      scope_label: "A › B › ad1", payload: {}, estimated_impact_sek: 50,  rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "wasted_spend" },
+    { id: "p1", source: "diagnosis", action_type: "pause_keyword", scope_label: "A › B › kw1", payload: {}, estimated_impact_sek: 100, rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "ads_wasted" },
+    { id: "p2", source: "diagnosis", action_type: "pause_keyword", scope_label: "A › B › kw2", payload: {}, estimated_impact_sek: 200, rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "ads_wasted" },
+    { id: "p3", source: "diagnosis", action_type: "pause_ad",      scope_label: "A › B › ad1", payload: {}, estimated_impact_sek: 50,  rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "ads_wasted" },
     { id: "p4", source: "diagnosis", action_type: "pause_keyword", scope_label: "X › Y › kw9", payload: {}, estimated_impact_sek: 300, rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "negative_keyword_candidate" },
     { id: "p5", source: "diagnosis", action_type: "add_negative_keyword", scope_label: "X", payload: {}, estimated_impact_sek: 25, rationale: null, status: "draft", error_message: null, created_at: "2026-01-01", rule_id: "negative_keyword_candidate" },
   ],
