@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import GoalsCard from "@/components/workspace/GoalsCard";
 import MembersCard from "@/components/workspace/MembersCard";
 import ClientInfoCard from "@/components/workspace/ClientInfoCard";
 import BrandKit from "./BrandKit";
+import { OnboardingChecklist } from "@/components/workspace/OnboardingChecklist";
 
 interface KpiTarget {
   id: string;
@@ -86,6 +87,8 @@ export default function WorkspaceSettings() {
           Kunduppgifter, mål, kopplingar, brand och automation.
         </p>
       </div>
+
+      {id && <OnboardingChecklist projectId={id} />}
 
       <Section title="Konto" description="Kunduppgifter och teammedlemmar.">
         <ClientInfoCard projectId={id!} />
@@ -244,7 +247,6 @@ function Section({
 interface AdsAccount { id: string; name: string; currency?: string; isManager?: boolean }
 
 function GoogleAdsConnection({ projectId }: { projectId: string }) {
-  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<AdsAccount[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -382,9 +384,8 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Gå till Översikt och klicka Återanslut Google.
+          Kräver att du loggat in med Google på nytt efter Ads-scope lades till. Saknar du konto? Klicka Återanslut Google i toppbannern eller via Inställningar.
         </p>
-        <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${projectId}/overview`)}>Gå till Översikt</Button>
       </CardContent>
     </Card>
   );

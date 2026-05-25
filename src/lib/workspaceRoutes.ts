@@ -8,7 +8,6 @@ import {
   Settings,
   BarChart3,
   Archive,
-  Sun,
   History,
   type LucideIcon,
 } from "lucide-react";
@@ -36,7 +35,6 @@ export const WORKSPACE_ROUTES: WorkspaceRoute[] = [
   { sub: "settings",    label: "Inställningar",  icon: Settings,        keywords: "settings källor data sources brand", primary: true },
 
   // Situationsspecifikt — endast via command bar
-  { sub: "overview-legacy", label: "Översikt (legacy)", icon: Sun,     keywords: "overview executive legacy", primary: false, legacy: true },
   { sub: "ads-history",     label: "Ads-historik",      icon: History, keywords: "ads historik mutations audit trail revert", primary: false, legacy: true },
   { sub: "prelaunch",       label: "Pre-launch",        icon: Archive, keywords: "prelaunch blueprint brief lansering situationsspecifikt", primary: false, legacy: true },
 ];

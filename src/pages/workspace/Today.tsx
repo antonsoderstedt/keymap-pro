@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
+import RoiOverview from "@/components/workspace/RoiOverview";
 
 function greeting() {
   const h = new Date().getHours();
@@ -155,6 +156,12 @@ export default function Today() {
           </div>
         )}
       </section>
+
+      {workspace && !loading && primary && (
+        <div className="mt-16">
+          <RoiOverview projectId={workspace.id} />
+        </div>
+      )}
 
       {(remaining > 0 || sourceIssues.length > 0) && (
         <footer className="mt-12 space-y-2 border-t border-border/40 pt-6 text-xs text-muted-foreground">
