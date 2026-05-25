@@ -57,6 +57,7 @@ export function KeywordPlannerPanel({ projectId, onAddToUniverse }: Props) {
   const [location, setLocation] = useState("2752");
   const [maxIdeas, setMaxIdeas] = useState(200);
   const [reauth, setReauth] = useState(false);
+  const [tokenNotApproved, setTokenNotApproved] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [addingRunId, setAddingRunId] = useState<string | null>(null);
