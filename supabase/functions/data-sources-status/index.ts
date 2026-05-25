@@ -77,7 +77,26 @@ Deno.serve(async (req) => {
       let status: string = "not_connected";
       let reason: string | null = null;
 
-      if (!hasToken) {
+      if (source === "keyword_planner") {
+        if (!hasToken || !scopeOk) {
+          status = "not_connected";
+          reason = "Google Ads är inte ansluten";
+        } else if (!selection.id) {
+          status = "not_connected";
+          reason = "Inget Ads-konto valt";
+        } else if (ageSec === null) {
+          status = "stale";
+          reason = "Inga keyword planner-idéer hämtade ännu";
+        } else if (ageSec > 90 * 24 * 3600) {
+          status = "error";
+          reason = "Senaste hämtning är äldre än 90 dagar";
+        } else if (ageSec > 30 * 24 * 3600) {
+          status = "stale";
+          reason = "Senaste hämtning är äldre än 30 dagar";
+        } else {
+          status = "ok";
+        }
+      } else if (!hasToken) {
         status = "not_connected";
         reason = "Google är inte ansluten";
       } else if (!scopeOk) {
