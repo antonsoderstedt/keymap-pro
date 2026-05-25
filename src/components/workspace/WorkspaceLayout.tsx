@@ -10,7 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GoogleReauthBanner } from "@/components/GoogleReauthBanner";
 import { DataSourceAlerts } from "@/components/DataSourceAlerts";
 import { useAutoSync } from "@/hooks/useAutoSync";
-import { CommandBar, CommandBarTrigger } from "./CommandBar";
+import { CommandBar, CommandBarTrigger, CommandBarMobileTrigger } from "./CommandBar";
 import { useCommandBar } from "@/hooks/useCommandBar";
 
 export function WorkspaceLayout() {
