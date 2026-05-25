@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, FileText, Download, RefreshCw, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { KeywordUniverse } from "@/lib/types";
+import { getIdeaStatus } from "@/lib/ideaStatus";
 import {
   ContentBrief, briefToMarkdown,
   downloadBriefDOCX, downloadBriefJSON, downloadBriefMarkdown, downloadBriefPDF,
