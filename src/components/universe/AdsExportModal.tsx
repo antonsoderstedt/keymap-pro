@@ -49,9 +49,6 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
     if (noVerified) return;
     let ads: AdDraft[] = [];
 
-  const generateAdsAndExport = async () => {
-    let ads: AdDraft[] = [];
-
     if (cfg.includeAds) {
       // Check existing drafts
       const { data: existing } = await supabase
