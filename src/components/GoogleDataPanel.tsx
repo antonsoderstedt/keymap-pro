@@ -112,24 +112,34 @@ export default function GoogleDataPanel({ projectId }: Props) {
     setGscLoading(true);
     const { startDate, endDate } = rangeDates(range);
     const { data, error } = await supabase.functions.invoke("gsc-fetch", {
-      body: { action: "query", siteUrl: selectedSite, startDate, endDate, dimensions: ["query"], rowLimit: 1000 },
+      body: { action: "query", siteUrl: selectedSite, startDate, endDate, dimensions: ["date", "query"], rowLimit: 5000 },
     });
     setGscLoading(false);
     if (error) { toast({ title: "GSC-fel", description: error.message, variant: "destructive" }); return; }
-    const rows: GscRow[] = (data as any)?.rows || [];
-    setGscRows(rows);
+    const rawRows: GscRow[] = (data as any)?.rows || [];
+    setGscRows(rawRows);
 
-    if (projectId && rows.length) {
-      const totals = rows.reduce((acc, r) => ({
-        clicks: acc.clicks + (r.clicks || 0),
-        impressions: acc.impressions + (r.impressions || 0),
+    if (projectId && rawRows.length) {
+      // Normalisera för Performance-trend: spara date + query som egna fält.
+      const normalized = rawRows.map((r) => ({
+        date: r.keys?.[0],
+        query: r.keys?.[1],
+        keys: r.keys,
+        clicks: r.clicks || 0,
+        impressions: r.impressions || 0,
+        ctr: r.ctr || 0,
+        position: r.position || 0,
+      }));
+      const totals = normalized.reduce((acc, r) => ({
+        clicks: acc.clicks + r.clicks,
+        impressions: acc.impressions + r.impressions,
       }), { clicks: 0, impressions: 0 });
       await supabase.from("gsc_snapshots").insert({
         project_id: projectId,
         site_url: selectedSite,
         start_date: startDate,
         end_date: endDate,
-        rows: rows as any,
+        rows: normalized as any,
         totals: totals as any,
       });
     }
@@ -180,10 +190,23 @@ export default function GoogleDataPanel({ projectId }: Props) {
     persistSettings({ ga4_property_id: v, ga4_property_name: name });
   };
 
-  // Sorted + filtered GSC view
+  // Aggregera per query (svaret är per date+query för Performance-trenden) och sortera/filtrera
   const sortedGsc = useMemo(() => {
+    const byQuery = new Map<string, GscRow>();
+    for (const r of gscRows) {
+      const q = (r.keys?.[1] ?? r.keys?.[0] ?? "") as string;
+      if (!q) continue;
+      const cur = byQuery.get(q) ?? { keys: [q], clicks: 0, impressions: 0, ctr: 0, position: 0 } as GscRow;
+      cur.clicks += r.clicks || 0;
+      cur.impressions += r.impressions || 0;
+      // Vägd snittposition på impressions
+      cur.position = ((cur.position * (cur.impressions - (r.impressions || 0))) + (r.position || 0) * (r.impressions || 0)) / Math.max(1, cur.impressions);
+      cur.ctr = cur.impressions ? cur.clicks / cur.impressions : 0;
+      byQuery.set(q, cur);
+    }
+    const aggregated = Array.from(byQuery.values());
     const f = gscFilter.trim().toLowerCase();
-    const filtered = f ? gscRows.filter((r) => (r.keys?.[0] || "").toLowerCase().includes(f)) : gscRows;
+    const filtered = f ? aggregated.filter((r) => (r.keys?.[0] || "").toLowerCase().includes(f)) : aggregated;
     const dir = gscSortDir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
       const va = gscSortKey === "query" ? (a.keys?.[0] || "") : (a as any)[gscSortKey] ?? 0;
@@ -203,7 +226,7 @@ export default function GoogleDataPanel({ projectId }: Props) {
 
   const exportGscCsv = () => {
     const rows: (string | number)[][] = [["query", "clicks", "impressions", "ctr", "position"]];
-    sortedGsc.forEach((r) => rows.push([r.keys?.[0] || "", r.clicks, r.impressions, r.ctr, r.position]));
+    sortedGsc.forEach((r) => rows.push([r.keys?.[0] || "", r.clicks, r.impressions, r.ctr, r.position.toFixed(1)]));
     downloadCsv(`gsc-${selectedSite.replace(/[^a-z0-9]+/gi, "-")}-${range}d.csv`, rows);
   };
 
