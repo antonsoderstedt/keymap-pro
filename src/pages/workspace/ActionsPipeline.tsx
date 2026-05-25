@@ -229,6 +229,109 @@ export default function ActionsPipeline() {
     setViewContext(p);
   };
 
+  // ────────────────────────────────────────────────────────────
+  // Bulk actions
+  // ────────────────────────────────────────────────────────────
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleGroup = (ids: string[], on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+  const clearSelection = () => setSelected(new Set());
+
+  const selectedItems = useMemo(
+    () => pipeline.filter((p) => selected.has(p.id)),
+    [pipeline, selected],
+  );
+  const selectedImpact = sumImpact(selectedItems);
+
+  const runBulk = async (kind: "approve" | "push" | "reject") => {
+    if (selectedItems.length === 0) return;
+    setBulkRunning(true);
+    const toastId = toast.loading(
+      `${kind === "approve" ? "Godkänner" : kind === "push" ? "Pushar" : "Avvisar"} 0/${selectedItems.length}…`,
+    );
+    let done = 0;
+    try {
+      for (const p of selectedItems) {
+        try {
+          if (kind === "approve") {
+            if (p.origin === "action") {
+              await update(p.rawId, { status: "in_progress" });
+            } else {
+              await supabase
+                .from("ads_change_proposals")
+                .update({ status: "approved" })
+                .eq("id", p.rawId);
+            }
+          } else if (kind === "reject") {
+            if (p.origin === "action") {
+              await update(p.rawId, { status: "archived" });
+            } else {
+              await supabase
+                .from("ads_change_proposals")
+                .update({ status: "rejected", rejected_at: new Date().toISOString() })
+                .eq("id", p.rawId);
+            }
+          } else if (kind === "push") {
+            if (p.origin === "action" && p.flags.pushable) {
+              const raw = p.raw as any;
+              if (!raw.source_payload) throw new Error("Saknar payload");
+              const { error } = await supabase.functions.invoke("ads-mutate", {
+                body: { project_id: projectId, source_action_item_id: raw.id, ...(raw.source_payload as any) },
+              });
+              if (error) throw error;
+              await markImplemented(raw.id);
+            } else if (p.origin === "ads_proposal") {
+              const { error } = await supabase.functions.invoke("ads-mutate", {
+                body: { project_id: projectId, proposal_id: p.rawId },
+              });
+              if (error) throw error;
+            }
+          }
+          done++;
+          toast.loading(
+            `${kind === "approve" ? "Godkänner" : kind === "push" ? "Pushar" : "Avvisar"} ${done}/${selectedItems.length}…`,
+            { id: toastId },
+          );
+        } catch (e: any) {
+          toast.error(`Stoppade på "${p.title}": ${e?.message ?? "okänt fel"}`, { id: toastId });
+          setBulkRunning(false);
+          await loadProposals();
+          reload();
+          return;
+        }
+      }
+      toast.success(`Klart — ${done} av ${selectedItems.length}.`, { id: toastId });
+      clearSelection();
+      await loadProposals();
+      reload();
+    } finally {
+      setBulkRunning(false);
+    }
+  };
+
+  const requestBulk = (kind: "approve" | "push" | "reject") => {
+    if (selectedImpact > 50000) {
+      setConfirmLargeBatch(kind);
+      return;
+    }
+    runBulk(kind);
+  };
+
   const loading = itemsLoading || proposalsLoading;
   const error = itemsError || proposalsError;
 
