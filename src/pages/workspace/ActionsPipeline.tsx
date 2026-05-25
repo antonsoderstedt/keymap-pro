@@ -676,9 +676,11 @@ export default function ActionsPipeline() {
 function ProposalSheet({
   proposal,
   onClose,
+  universe,
 }: {
   proposal: PipelineItem | null;
   onClose: () => void;
+  universe: import("@/lib/types").KeywordUniverse | null;
 }) {
   if (!proposal) return null;
   const raw = proposal.raw as AdsProposalRow;
