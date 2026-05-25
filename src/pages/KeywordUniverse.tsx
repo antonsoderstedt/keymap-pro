@@ -17,6 +17,7 @@ import { AdsExportModal } from "@/components/universe/AdsExportModal";
 import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
+import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
 
 const DIMENSION_LABELS: Record<string, string> = {
   produkt: "Produkt", tjanst: "Tjänst", bransch: "Bransch", material: "Material",
@@ -380,7 +381,7 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
               <TableRow key={i} className={k.isNegative ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
-                  {k.dataSource !== "real" && <Badge variant="outline" className="ml-2 text-[10px]">Uppskattad</Badge>}
+                  {k.dataSource !== "real" && <UnverifiedIdeaBadge />}
                   {k.isNegative && <Badge variant="destructive" className="ml-2 text-[10px]">Negativ</Badge>}
                   {k.competitorGap && <Badge className="ml-2 text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30" variant="outline">Gap</Badge>}
                 </TableCell>
