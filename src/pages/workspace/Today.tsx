@@ -157,6 +157,12 @@ export default function Today() {
         )}
       </section>
 
+      {workspace && !loading && primary && (
+        <div className="mt-16">
+          <RoiOverview projectId={workspace.id} />
+        </div>
+      )}
+
       {(remaining > 0 || sourceIssues.length > 0) && (
         <footer className="mt-12 space-y-2 border-t border-border/40 pt-6 text-xs text-muted-foreground">
           {remaining > 0 && workspace && (
