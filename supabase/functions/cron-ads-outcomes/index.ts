@@ -272,8 +272,6 @@ Deno.serve(async (req) => {
       } catch (autoErr) {
         console.error("auto-revert eval failed", autoErr);
       }
-      // silence unused warning
-      void candidateMutation;
     }
 
     return new Response(JSON.stringify({
