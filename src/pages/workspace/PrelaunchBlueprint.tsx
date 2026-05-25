@@ -18,6 +18,7 @@ import { formatMoney } from "@/lib/revenue";
 import { FactCheckCard, type FactCheckPayload } from "@/components/workspace/FactCheckCard";
 import { PrelaunchStepper, type PrelaunchStep } from "@/components/workspace/PrelaunchStepper";
 import { downloadAdsPlanCsv } from "@/lib/adsPlanExport";
+import { lookupIdeaStatus } from "@/lib/ideaStatus";
 
 type Brief = {
   id: string;
