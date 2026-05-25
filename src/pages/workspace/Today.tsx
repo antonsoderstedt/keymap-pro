@@ -149,7 +149,7 @@ export default function Today() {
                 Skjut upp
               </Button>
               <Button size="sm" variant="ghost" onClick={onOpen}>
-                Öppna
+                Visa i åtgärder
               </Button>
             </div>
           </div>
