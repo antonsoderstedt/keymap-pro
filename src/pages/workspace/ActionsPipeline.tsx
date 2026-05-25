@@ -76,7 +76,7 @@ export default function ActionsPipeline() {
     const { data, error } = await supabase
       .from("ads_change_proposals")
       .select(
-        "id,source,action_type,scope_label,payload,estimated_impact_sek,rationale,status,error_message,created_at",
+        "id,source,action_type,scope_label,payload,estimated_impact_sek,rationale,status,error_message,created_at,rule_id",
       )
       .eq("project_id", projectId)
       .order("estimated_impact_sek", { ascending: false, nullsFirst: false })
