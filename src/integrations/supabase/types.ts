@@ -243,6 +243,7 @@ export type Database = {
           baseline_metrics: Json | null
           created_at: string
           created_by: string | null
+          dedupe_key: string | null
           diff: Json
           error_message: string | null
           estimated_impact_sek: number | null
@@ -268,6 +269,7 @@ export type Database = {
           baseline_metrics?: Json | null
           created_at?: string
           created_by?: string | null
+          dedupe_key?: string | null
           diff?: Json
           error_message?: string | null
           estimated_impact_sek?: number | null
@@ -293,6 +295,7 @@ export type Database = {
           baseline_metrics?: Json | null
           created_at?: string
           created_by?: string | null
+          dedupe_key?: string | null
           diff?: Json
           error_message?: string | null
           estimated_impact_sek?: number | null

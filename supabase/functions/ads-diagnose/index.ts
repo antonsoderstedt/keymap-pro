@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
       },
     };
 
-    await admin.from("ads_diagnostics_runs").insert({
+    const { data: runRow } = await admin.from("ads_diagnostics_runs").insert({
       project_id,
       customer_id: customerId,
       scope: scope ?? null,
@@ -401,11 +401,34 @@ Deno.serve(async (req) => {
       cache_hit: cacheHit,
       duration_ms: Date.now() - t0,
       report,
-    });
+    }).select("id").maybeSingle();
 
     await markSourceStatus({ projectId: project_id, source: "ads", status: "ok", meta: { customerId } });
 
-    return new Response(JSON.stringify(report), {
+    // Auto-cascade: build draft proposals from this run (fire-and-forget)
+    let proposalsGenerated = 0;
+    try {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const buildRes = await fetch(`${SUPABASE_URL}/functions/v1/ads-build-proposals`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authHeader ? { Authorization: authHeader } : {}),
+          apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        },
+        body: JSON.stringify({ project_id, diagnostics_run_id: runRow?.id }),
+      });
+      if (buildRes.ok) {
+        const j = await buildRes.json().catch(() => ({}));
+        proposalsGenerated = j?.created?.total ?? 0;
+      } else {
+        console.error("[ads-diagnose] build-proposals returned", buildRes.status);
+      }
+    } catch (e) {
+      console.error("[ads-diagnose] cascade to ads-build-proposals failed", e);
+    }
+
+    return new Response(JSON.stringify({ ...report, proposals_generated: proposalsGenerated }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

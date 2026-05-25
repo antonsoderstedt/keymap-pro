@@ -5,6 +5,7 @@ import { useActionItems } from "@/hooks/useActionItems";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -13,17 +14,36 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, ShieldCheck, GitPullRequest } from "lucide-react";
+import { ArrowLeft, ChevronRight, ShieldCheck, GitPullRequest } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
   countByStage,
   categoryLabel,
   STAGE_LABEL,
+  groupItemsBy,
+  sumImpact,
+  groupKeyLabel,
   type AdsProposalRow,
   type PipelineItem,
   type PipelineStage,
+  type GroupKey,
 } from "@/lib/actionsPipeline";
 import AdsAudit from "./AdsAudit";
 import AdsAuditPlan from "./AdsAuditPlan";
@@ -48,7 +68,7 @@ function formatImpact(n: number | null): string | null {
 export default function ActionsPipeline() {
   const { id: projectId = "" } = useParams<{ id: string }>();
   
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const focusId = params.get("focus");
 
   const { items, loading: itemsLoading, error: itemsError, update, markImplemented, reload } =
@@ -67,6 +87,21 @@ export default function ActionsPipeline() {
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const caps = useProjectCapabilities(projectId || null);
 
+  // Group-by (URL-bound) + selection state for bulk actions
+  const groupByParam = params.get("groupBy");
+  const groupBy: "none" | GroupKey =
+    groupByParam === "rule_id" || groupByParam === "action_type" ? groupByParam : "none";
+  const setGroupBy = (g: "none" | GroupKey) => {
+    const next = new URLSearchParams(params);
+    if (g === "none") next.delete("groupBy");
+    else next.set("groupBy", g);
+    setParams(next, { replace: true });
+    setSelected(new Set());
+  };
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [confirmLargeBatch, setConfirmLargeBatch] = useState<null | "approve" | "push" | "reject">(null);
+
   const cameFromToday = params.get("from") === "today" || !!focusId;
 
   const loadProposals = async () => {
@@ -76,7 +111,7 @@ export default function ActionsPipeline() {
     const { data, error } = await supabase
       .from("ads_change_proposals")
       .select(
-        "id,source,action_type,scope_label,payload,estimated_impact_sek,rationale,status,error_message,created_at",
+        "id,source,action_type,scope_label,payload,estimated_impact_sek,rationale,status,error_message,created_at,rule_id",
       )
       .eq("project_id", projectId)
       .order("estimated_impact_sek", { ascending: false, nullsFirst: false })
@@ -194,6 +229,109 @@ export default function ActionsPipeline() {
     setViewContext(p);
   };
 
+  // ────────────────────────────────────────────────────────────
+  // Bulk actions
+  // ────────────────────────────────────────────────────────────
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleGroup = (ids: string[], on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+  const clearSelection = () => setSelected(new Set());
+
+  const selectedItems = useMemo(
+    () => pipeline.filter((p) => selected.has(p.id)),
+    [pipeline, selected],
+  );
+  const selectedImpact = sumImpact(selectedItems);
+
+  const runBulk = async (kind: "approve" | "push" | "reject") => {
+    if (selectedItems.length === 0) return;
+    setBulkRunning(true);
+    const toastId = toast.loading(
+      `${kind === "approve" ? "Godkänner" : kind === "push" ? "Pushar" : "Avvisar"} 0/${selectedItems.length}…`,
+    );
+    let done = 0;
+    try {
+      for (const p of selectedItems) {
+        try {
+          if (kind === "approve") {
+            if (p.origin === "action") {
+              await update(p.rawId, { status: "in_progress" });
+            } else {
+              await supabase
+                .from("ads_change_proposals")
+                .update({ status: "approved" })
+                .eq("id", p.rawId);
+            }
+          } else if (kind === "reject") {
+            if (p.origin === "action") {
+              await update(p.rawId, { status: "archived" });
+            } else {
+              await supabase
+                .from("ads_change_proposals")
+                .update({ status: "rejected", rejected_at: new Date().toISOString() })
+                .eq("id", p.rawId);
+            }
+          } else if (kind === "push") {
+            if (p.origin === "action" && p.flags.pushable) {
+              const raw = p.raw as any;
+              if (!raw.source_payload) throw new Error("Saknar payload");
+              const { error } = await supabase.functions.invoke("ads-mutate", {
+                body: { project_id: projectId, source_action_item_id: raw.id, ...(raw.source_payload as any) },
+              });
+              if (error) throw error;
+              await markImplemented(raw.id);
+            } else if (p.origin === "ads_proposal") {
+              const { error } = await supabase.functions.invoke("ads-mutate", {
+                body: { project_id: projectId, proposal_id: p.rawId },
+              });
+              if (error) throw error;
+            }
+          }
+          done++;
+          toast.loading(
+            `${kind === "approve" ? "Godkänner" : kind === "push" ? "Pushar" : "Avvisar"} ${done}/${selectedItems.length}…`,
+            { id: toastId },
+          );
+        } catch (e: any) {
+          toast.error(`Stoppade på "${p.title}": ${e?.message ?? "okänt fel"}`, { id: toastId });
+          setBulkRunning(false);
+          await loadProposals();
+          reload();
+          return;
+        }
+      }
+      toast.success(`Klart — ${done} av ${selectedItems.length}.`, { id: toastId });
+      clearSelection();
+      await loadProposals();
+      reload();
+    } finally {
+      setBulkRunning(false);
+    }
+  };
+
+  const requestBulk = (kind: "approve" | "push" | "reject") => {
+    if (selectedImpact > 50000) {
+      setConfirmLargeBatch(kind);
+      return;
+    }
+    runBulk(kind);
+  };
+
   const loading = itemsLoading || proposalsLoading;
   const error = itemsError || proposalsError;
 
@@ -284,7 +422,26 @@ export default function ActionsPipeline() {
         ))}
       </div>
 
-
+      {/* Group-by toggle */}
+      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Gruppera:</span>
+        {([
+          ["none", "Ingen"],
+          ["rule_id", "Regel"],
+          ["action_type", "Åtgärdstyp"],
+        ] as const).map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setGroupBy(val)}
+            className={cn(
+              "transition-colors hover:text-foreground",
+              groupBy === val ? "text-foreground underline underline-offset-4" : "",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* List */}
       {loading ? (
@@ -307,13 +464,15 @@ export default function ActionsPipeline() {
           {stage === "implemented" && "Inga implementerade åtgärder ännu."}
           {stage === "measured" && "Inga mätta åtgärder ännu."}
         </p>
-      ) : (
-        <div className="divide-y divide-border/40">
+      ) : groupBy === "none" ? (
+        <div className="divide-y divide-border/40 pb-24">
           {visible.map((p) => (
             <Row
               key={p.id}
               item={p}
               pending={pendingId === p.id}
+              selected={selected.has(p.id)}
+              onToggleSelect={() => toggleSelect(p.id)}
               onApprove={() => approveAction(p)}
               onMarkDone={() => markDone(p)}
               onArchive={() => archive(p)}
@@ -324,7 +483,132 @@ export default function ActionsPipeline() {
             />
           ))}
         </div>
+      ) : (
+        <div className="space-y-2 pb-24">
+          {Object.entries(groupItemsBy(visible, groupBy as GroupKey)).map(([gKey, gItems]) => {
+            const ids = gItems.map((i) => i.id);
+            const allSelected = ids.every((id) => selected.has(id));
+            const someSelected = ids.some((id) => selected.has(id));
+            const gImpact = sumImpact(gItems);
+            return (
+              <Collapsible key={gKey} defaultOpen>
+                <div className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-3 py-2">
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={(v) => toggleGroup(ids, v === true)}
+                    aria-label="Välj grupp"
+                  />
+                  <CollapsibleTrigger asChild>
+                    <button className="group flex flex-1 items-center gap-2 text-left">
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                      <span className="text-sm font-medium">{groupKeyLabel(gKey, groupBy as GroupKey)}</span>
+                      <span className="text-xs text-muted-foreground">· {gItems.length}</span>
+                      {gImpact > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          · Σ {gImpact.toLocaleString("sv-SE")} kr/mån
+                        </span>
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs"
+                    disabled={bulkRunning}
+                    onClick={() => {
+                      toggleGroup(ids, true);
+                      // small delay so selected state updates before bulk runs
+                      setTimeout(() => requestBulk("approve"), 0);
+                    }}
+                  >
+                    Godkänn alla
+                  </Button>
+                </div>
+                <CollapsibleContent>
+                  <div className="divide-y divide-border/40 pl-6">
+                    {gItems.map((p) => (
+                      <Row
+                        key={p.id}
+                        item={p}
+                        pending={pendingId === p.id}
+                        selected={selected.has(p.id)}
+                        onToggleSelect={() => toggleSelect(p.id)}
+                        onApprove={() => approveAction(p)}
+                        onMarkDone={() => markDone(p)}
+                        onArchive={() => archive(p)}
+                        onPushAds={() => pushAds(p)}
+                        onOpenProposal={() => openProposal(p)}
+                        onOpenContext={() => openContext(p)}
+                        registerRef={(el) => (rowRefs.current[p.id] = el)}
+                      />
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+        </div>
       )}
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div
+          data-testid="bulk-action-bar"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        >
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
+            <p className="text-xs text-muted-foreground">
+              <span className="text-foreground">{selected.size} valda</span>
+              {selectedImpact > 0 && (
+                <> · Σ impact: <span className="text-foreground">{selectedImpact.toLocaleString("sv-SE")} kr/mån</span></>
+              )}
+            </p>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={clearSelection}>
+                Avmarkera
+              </Button>
+              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("reject")}>
+                Avvisa alla
+              </Button>
+              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("approve")}>
+                Godkänn alla
+              </Button>
+              <Button size="sm" disabled={bulkRunning} onClick={() => requestBulk("push")}>
+                Pusha alla
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog
+        open={!!confirmLargeBatch}
+        onOpenChange={(v) => !v && setConfirmLargeBatch(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stor batch — granskat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Du är på väg att {confirmLargeBatch === "push" ? "pusha" : confirmLargeBatch === "approve" ? "godkänna" : "avvisa"}{" "}
+              {selected.size} förslag med ett summerat estimat på{" "}
+              {selectedImpact.toLocaleString("sv-SE")} kr/mån. Säker?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const k = confirmLargeBatch;
+                setConfirmLargeBatch(null);
+                if (k) runBulk(k);
+              }}
+            >
+              Fortsätt
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <ProposalSheet
         proposal={viewProposal}
@@ -468,6 +752,8 @@ function ProposalSheet({
 function Row({
   item,
   pending,
+  selected,
+  onToggleSelect,
   onApprove,
   onMarkDone,
   onArchive,
@@ -478,6 +764,8 @@ function Row({
 }: {
   item: PipelineItem;
   pending: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onApprove: () => void;
   onMarkDone: () => void;
   onArchive: () => void;
@@ -493,10 +781,16 @@ function Row({
     <div
       ref={registerRef}
       className={cn(
-        "group flex items-start justify-between gap-6 py-4 transition-colors rounded-md -mx-2 px-2",
+        "group flex items-start justify-between gap-4 py-4 transition-colors rounded-md -mx-2 px-2",
         muted && "opacity-70",
       )}
     >
+      <Checkbox
+        checked={selected}
+        onCheckedChange={onToggleSelect}
+        aria-label={`Välj ${item.title}`}
+        className="mt-1"
+      />
       <div className="min-w-0 flex-1">
         <p className={cn("text-sm leading-snug", muted ? "text-muted-foreground" : "text-foreground")}>
           {item.title}
@@ -508,6 +802,7 @@ function Row({
           {item.flags.failed && <span className="text-destructive"> · misslyckades</span>}
         </p>
       </div>
+
 
       <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
         {item.origin === "action" && (
