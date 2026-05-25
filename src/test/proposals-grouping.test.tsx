@@ -22,6 +22,7 @@ vi.mock("@/integrations/supabase/client", () => {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
     order: vi.fn(() => chain),
+    not: vi.fn(() => chain),
     limit: vi.fn(() => chain),
     maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
     update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })),
