@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useActionItems } from "@/hooks/useActionItems";
+import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -11,8 +12,9 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldCheck, GitPullRequest } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
@@ -23,8 +25,17 @@ import {
   type PipelineItem,
   type PipelineStage,
 } from "@/lib/actionsPipeline";
+import AdsAudit from "./AdsAudit";
+import AdsAuditPlan from "./AdsAuditPlan";
+import { ProposalsTab } from "@/components/workspace/ProposalsTab";
 
-const STAGES: PipelineStage[] = ["proposed", "approved", "implemented", "measured"];
+type Origin = "all" | "action" | "ads_proposal";
+const ORIGIN_LABEL: Record<Origin, string> = {
+  all: "Alla",
+  action: "Manuella",
+  ads_proposal: "Förslag",
+};
+
 
 function formatImpact(n: number | null): string | null {
   if (!n) return null;
