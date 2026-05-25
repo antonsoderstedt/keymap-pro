@@ -107,8 +107,24 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
         </DialogHeader>
 
         <div className="space-y-4">
+          {unverifiedExcluded > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {unverifiedExcluded} overifierade {unverifiedExcluded === 1 ? "idé exkluderas" : "idéer exkluderas"}. Verifiera via Keyword Planner först.
+              </AlertDescription>
+            </Alert>
+          )}
+          {noVerified && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Inga verifierade sökord att exportera. Verifiera via Keyword Planner.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid gap-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Sökord (Google Ads):</span><Badge variant="outline">{eligibleAds.length}</Badge></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Sökord (Google Ads):</span><Badge variant="outline">{verifiedAds.length}</Badge></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Annonsgrupper:</span><Badge variant="outline">{adGroupCount}</Badge></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Negativa kw:</span><Badge variant="outline">{universe.keywords.filter((k) => k.isNegative).length}</Badge></div>
           </div>
