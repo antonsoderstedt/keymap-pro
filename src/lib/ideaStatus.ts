@@ -93,3 +93,29 @@ export function filterByIdeaTab<T extends WinnerInput>(items: T[], tab: IdeaTab)
   if (tab === "negative") return items.filter((k) => getIdeaStatus(k) === "negative");
   return items.filter(isWinner);
 }
+
+/**
+ * Look up a keyword by name (case-insensitive) in a universe and return its status.
+ * Returns undefined if not found, or if universe/keyword input is missing.
+ */
+export function lookupIdeaStatus(
+  universe:
+    | {
+        keywords: Array<{
+          keyword: string;
+          dataSource?: "real" | "estimated";
+          isNegative?: boolean;
+        }>;
+      }
+    | null
+    | undefined,
+  keyword: string | null | undefined,
+): IdeaStatus | undefined {
+  if (!universe || !keyword) return undefined;
+  const norm = keyword.trim().toLowerCase();
+  if (!norm) return undefined;
+  const found = universe.keywords.find(
+    (k) => k.keyword.trim().toLowerCase() === norm,
+  );
+  return found ? getIdeaStatus(found) : undefined;
+}
