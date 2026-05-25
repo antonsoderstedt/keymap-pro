@@ -14,6 +14,7 @@ import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
 import AuctionInsights from "./AuctionInsights";
 import { CampaignTree } from "@/components/workspace/CampaignTree";
 import { AdsResultsTab } from "@/components/workspace/AdsResultsTab";
+import { useSourceFallback } from "@/components/workspace/SourceFallback";
 
 type Range = "7" | "28" | "90";
 
@@ -205,6 +206,21 @@ export default function Performance() {
     { label: "Sidvisningar", value: fmt(Number(ga4Totals.screenPageViews ?? ga4Totals.pageviews)) },
   ] : null;
 
+  // R2 — degraded-mode awareness per källa.
+  // SEO: "har data" = snapshot + minst en rad.
+  // GA4: "har data" = totals-objekt finns med åtminstone ett positivt fält.
+  // Ads: vi har ingen lokal snapshot här; hasData=true gör att vi bara ersätter
+  //      sektionen vid riktiga problem (not_connected/reauth/error).
+  const seoHasData = !!gsc && (gsc.rows?.length ?? 0) > 0;
+  const ga4HasData = !!ga4Totals && (
+    Number(ga4Totals.sessions) > 0 ||
+    Number(ga4Totals.totalUsers ?? ga4Totals.users) > 0 ||
+    Number(ga4Totals.screenPageViews ?? ga4Totals.pageviews) > 0
+  );
+  const seoFallback = useSourceFallback({ projectId: projectId ?? "", source: "gsc", hasData: seoHasData });
+  const ga4Fallback = useSourceFallback({ projectId: projectId ?? "", source: "ga4", hasData: ga4HasData });
+  const adsFallback = useSourceFallback({ projectId: projectId ?? "", source: "ads", hasData: true });
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 lg:py-14 space-y-12">
       <header className="flex items-baseline justify-between">
@@ -238,21 +254,25 @@ export default function Performance() {
         />
         {loading ? (
           <Skeleton className="h-20 w-full" />
-        ) : !gsc ? (
-          <MutedNote>Google Search Console ej ansluten.</MutedNote>
+        ) : seoFallback.state === "block" ? (
+          seoFallback.node
+        ) : !seo ? (
+          // status säger ok men ingen snapshot finns — bara warn-bannern.
+          seoFallback.node
         ) : (
           <>
+            {seoFallback.node}
             <MetricStrip items={[
-              { label: "Klick", value: fmt(seo!.kpis.clicks) },
-              { label: "Impressions", value: fmt(seo!.kpis.impressions) },
-              { label: "CTR", value: fmt(seo!.kpis.ctr, { pct: true, decimals: 2 }) },
-              { label: "Snittpos.", value: seo!.kpis.position ? seo!.kpis.position.toFixed(1) : "—" },
-              { label: "Topp 10", value: fmt(seo!.kpis.topTenShare, { pct: true, decimals: 0 }) },
+              { label: "Klick", value: fmt(seo.kpis.clicks) },
+              { label: "Impressions", value: fmt(seo.kpis.impressions) },
+              { label: "CTR", value: fmt(seo.kpis.ctr, { pct: true, decimals: 2 }) },
+              { label: "Snittpos.", value: seo.kpis.position ? seo.kpis.position.toFixed(1) : "—" },
+              { label: "Topp 10", value: fmt(seo.kpis.topTenShare, { pct: true, decimals: 0 }) },
             ]} />
-            {seo!.trend.length > 0 && (
+            {seo.trend.length > 0 && (
               <div className="h-32 -mx-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={seo!.trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <AreaChart data={seo.trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="seoArea" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
@@ -292,16 +312,23 @@ export default function Performance() {
       {caps.hasAds && projectId && (
         <section className="space-y-6 border-b border-border/40 pb-10">
           <SectionHeader title="Google Ads" />
-          <DiagnosisPanel projectId={projectId} />
-          <SubSection title="Auction Insights">
-            <AuctionInsights />
-          </SubSection>
-          <SubSection title="Kampanjstruktur">
-            <CampaignTree projectId={projectId} />
-          </SubSection>
-          <SubSection title="Senaste ändringars effekt">
-            <AdsResultsTab projectId={projectId} />
-          </SubSection>
+          {adsFallback.state === "block" ? (
+            adsFallback.node
+          ) : (
+            <>
+              {adsFallback.node}
+              <DiagnosisPanel projectId={projectId} />
+              <SubSection title="Auction Insights">
+                <AuctionInsights />
+              </SubSection>
+              <SubSection title="Kampanjstruktur">
+                <CampaignTree projectId={projectId} />
+              </SubSection>
+              <SubSection title="Senaste ändringars effekt">
+                <AdsResultsTab projectId={projectId} />
+              </SubSection>
+            </>
+          )}
           <p className="text-xs text-muted-foreground">
             Förslag och audit hanteras i{" "}
             <Link to={`/clients/${projectId}/actions`} className="underline-offset-4 hover:underline text-foreground">
@@ -319,10 +346,13 @@ export default function Performance() {
         />
         {loading ? (
           <Skeleton className="h-16 w-full" />
-        ) : !ga4Items ? (
-          <MutedNote>GA4 ej ansluten.</MutedNote>
+        ) : ga4Fallback.state === "block" ? (
+          ga4Fallback.node
         ) : (
-          <MetricStrip items={ga4Items} />
+          <>
+            {ga4Fallback.node}
+            {ga4Items && <MetricStrip items={ga4Items} />}
+          </>
         )}
       </section>
 
