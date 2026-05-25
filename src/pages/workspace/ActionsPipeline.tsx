@@ -897,6 +897,7 @@ function Row({
   onPushAds,
   onOpenProposal,
   onOpenContext,
+  autoRevertInfo,
   registerRef,
 }: {
   item: PipelineItem;
@@ -909,6 +910,7 @@ function Row({
   onPushAds: () => void;
   onOpenProposal: () => void;
   onOpenContext: () => void;
+  autoRevertInfo?: { auto_reverted_at: string | null; auto_revert_reason: string | null };
   registerRef: (el: HTMLDivElement | null) => void;
 }) {
   const impact = formatImpact(item.impactSek);
