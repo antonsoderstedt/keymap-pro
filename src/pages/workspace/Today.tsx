@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useActionItems } from "@/hooks/useActionItems";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 import RoiOverview from "@/components/workspace/RoiOverview";
+import { ContextSheet } from "@/components/context";
 
 function greeting() {
   const h = new Date().getHours();
@@ -41,6 +42,7 @@ export default function Today() {
   const navigate = useNavigate();
   const { items, loading, error, update, markImplemented } = useActionItems(workspace?.id);
   const { data: sources } = useDataSourcesStatus(workspace?.id);
+  const [contextOpen, setContextOpen] = useState(false);
 
   const open = useMemo(
     () => items.filter((i) => i.status === "todo" || i.status === "in_progress"),
@@ -149,6 +151,9 @@ export default function Today() {
               <Button size="sm" variant="outline" onClick={onDefer}>
                 Skjut upp
               </Button>
+              <Button size="sm" variant="ghost" onClick={() => setContextOpen(true)}>
+                Visa kontext
+              </Button>
               <Button size="sm" variant="ghost" onClick={onOpen}>
                 Visa i åtgärder
               </Button>
@@ -156,6 +161,26 @@ export default function Today() {
           </div>
         )}
       </section>
+
+      {primary && workspace && (
+        <ContextSheet
+          open={contextOpen}
+          onOpenChange={setContextOpen}
+          projectId={workspace.id}
+          actionItemId={primary.id}
+          title={primary.title}
+          subtitle={
+            (primary.expected_impact_sek
+              ? `+${primary.expected_impact_sek.toLocaleString("sv-SE")} kr/mån · `
+              : "") + categoryLabel(primary.category)
+          }
+          actions={[
+            { id: "approve", label: "Godkänn", onClick: async () => { setContextOpen(false); await onApprove(); }, variant: "primary" },
+            { id: "defer", label: "Skjut upp", onClick: async () => { setContextOpen(false); await onDefer(); } },
+            { id: "open", label: "Visa i åtgärder", onClick: () => { setContextOpen(false); onOpen(); }, variant: "ghost" },
+          ]}
+        />
+      )}
 
       {workspace && !loading && primary && (
         <div className="mt-16">

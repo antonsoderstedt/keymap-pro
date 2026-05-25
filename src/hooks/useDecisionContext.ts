@@ -1,0 +1,89 @@
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { DecisionContext } from "@/lib/types";
+
+type DcScopeRef =
+  | { kind: "action_item"; id: string }
+  | { kind: "ads_change_proposal"; id: string };
+
+type FetchState = {
+  data: DecisionContext | null;
+  loading: boolean;
+  error: string | null;
+};
+
+// Reads decision_context for a single action item OR ads change proposal.
+// Returns null data (not error) when no row exists yet — caller renders an
+// "empty" state with the build CTA.
+export function useDecisionContext(
+  projectId: string | undefined,
+  ref: DcScopeRef | null,
+) {
+  const [state, setState] = useState<FetchState>({
+    data: null,
+    loading: false,
+    error: null,
+  });
+  const [building, setBuilding] = useState(false);
+
+  const fetchOnce = useCallback(async () => {
+    if (!projectId || !ref) {
+      setState({ data: null, loading: false, error: null });
+      return;
+    }
+    setState((s) => ({ ...s, loading: true, error: null }));
+    const column =
+      ref.kind === "action_item" ? "action_item_id" : "ads_change_proposal_id";
+    const { data, error } = await (supabase as any)
+      .from("decision_context")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq(column, ref.id)
+      .maybeSingle();
+    if (error && error.code !== "PGRST116") {
+      setState({ data: null, loading: false, error: error.message });
+      return;
+    }
+    setState({ data: (data as DecisionContext | null) ?? null, loading: false, error: null });
+  }, [projectId, ref?.kind, ref?.id]);
+
+  useEffect(() => {
+    fetchOnce();
+  }, [fetchOnce]);
+
+  const build = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (!projectId || !ref) return { ok: false, error: "missing_scope" as const };
+      setBuilding(true);
+      try {
+        const { error } = await supabase.functions.invoke("decision-context-build", {
+          body: {
+            project_id: projectId,
+            scopes: [{ kind: ref.kind, id: ref.id }],
+            force: opts?.force === true,
+          },
+        });
+        if (error) {
+          setBuilding(false);
+          return { ok: false as const, error: error.message };
+        }
+        await fetchOnce();
+        setBuilding(false);
+        return { ok: true as const };
+      } catch (e: any) {
+        setBuilding(false);
+        return { ok: false as const, error: e?.message ?? "unknown" };
+      }
+    },
+    [projectId, ref?.kind, ref?.id, fetchOnce],
+  );
+
+  return {
+    data: state.data,
+    loading: state.loading,
+    error: state.error,
+    building,
+    refresh: fetchOnce,
+    build,
+  };
+}

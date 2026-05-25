@@ -28,6 +28,7 @@ import {
 import AdsAudit from "./AdsAudit";
 import AdsAuditPlan from "./AdsAuditPlan";
 import { ProposalsTab } from "@/components/workspace/ProposalsTab";
+import { ContextSheet } from "@/components/context";
 
 type Origin = "all" | "action" | "ads_proposal";
 const ORIGIN_LABEL: Record<Origin, string> = {
@@ -60,6 +61,7 @@ export default function ActionsPipeline() {
   const [origin, setOrigin] = useState<Origin>("all");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [viewProposal, setViewProposal] = useState<PipelineItem | null>(null);
+  const [viewContext, setViewContext] = useState<PipelineItem | null>(null);
   const [auditOpen, setAuditOpen] = useState(false);
   const [proposalsOpen, setProposalsOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -188,6 +190,10 @@ export default function ActionsPipeline() {
     setViewProposal(p);
   };
 
+  const openContext = (p: PipelineItem) => {
+    setViewContext(p);
+  };
+
   const loading = itemsLoading || proposalsLoading;
   const error = itemsError || proposalsError;
 
@@ -313,6 +319,7 @@ export default function ActionsPipeline() {
               onArchive={() => archive(p)}
               onPushAds={() => pushAds(p)}
               onOpenProposal={() => openProposal(p)}
+              onOpenContext={() => openContext(p)}
               registerRef={(el) => (rowRefs.current[p.id] = el)}
             />
           ))}
@@ -323,6 +330,21 @@ export default function ActionsPipeline() {
         proposal={viewProposal}
         onClose={() => setViewProposal(null)}
       />
+
+      {viewContext && (
+        <ContextSheet
+          open={!!viewContext}
+          onOpenChange={(v) => !v && setViewContext(null)}
+          projectId={projectId}
+          actionItemId={viewContext.origin === "action" ? viewContext.rawId : undefined}
+          adsProposalId={viewContext.origin === "ads_proposal" ? viewContext.rawId : undefined}
+          title={viewContext.title}
+          subtitle={
+            categoryLabel(viewContext.category) +
+            (viewContext.impactSek ? ` · ${formatImpact(viewContext.impactSek)}` : "")
+          }
+        />
+      )}
 
       {/* Ads-audit — situational deep tool, opens inline */}
       <Sheet open={auditOpen} onOpenChange={setAuditOpen}>
@@ -451,6 +473,7 @@ function Row({
   onArchive,
   onPushAds,
   onOpenProposal,
+  onOpenContext,
   registerRef,
 }: {
   item: PipelineItem;
@@ -460,6 +483,7 @@ function Row({
   onArchive: () => void;
   onPushAds: () => void;
   onOpenProposal: () => void;
+  onOpenContext: () => void;
   registerRef: (el: HTMLDivElement | null) => void;
 }) {
   const impact = formatImpact(item.impactSek);
@@ -486,6 +510,16 @@ function Row({
       </div>
 
       <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+        {item.origin === "action" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onOpenContext}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Kontext
+          </Button>
+        )}
         {item.origin === "action" && item.stage === "proposed" && (
           <>
             {item.flags.pushable ? (
