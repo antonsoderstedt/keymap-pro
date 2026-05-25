@@ -592,6 +592,7 @@ export default function ActionsPipeline() {
                         onPushAds={() => pushAds(p)}
                         onOpenProposal={() => openProposal(p)}
                         onOpenContext={() => openContext(p)}
+                        autoRevertInfo={p.origin === "ads_proposal" ? outcomeMap[p.rawId] : undefined}
                         registerRef={(el) => (rowRefs.current[p.id] = el)}
                       />
                     ))}
