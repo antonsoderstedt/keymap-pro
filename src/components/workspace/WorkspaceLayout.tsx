@@ -52,8 +52,9 @@ export function WorkspaceLayout() {
             />
             <h1 className="font-serif text-lg truncate">{workspace.name}</h1>
           </div>
-          <div className="flex-1 flex justify-center px-4">
+          <div className="flex-1 flex justify-center items-center gap-2 px-4">
             <CommandBarTrigger onOpen={() => cmd.setOpen(true)} />
+            <CommandBarMobileTrigger onOpen={() => cmd.setOpen(true)} />
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
