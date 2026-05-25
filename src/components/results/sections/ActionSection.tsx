@@ -43,7 +43,13 @@ export function ActionSection({ result, universe, projectId, analysisId }: Props
                 <Card key={i} className="border-accent/30 bg-card shadow-card">
                   <CardContent className="space-y-2 p-4">
                     <div className="flex items-center justify-between">
-                      <p className="font-mono text-sm">{q.keyword}</p>
+                      <p className="font-mono text-sm inline-flex items-center gap-1">
+                        {q.keyword}
+                        {(() => {
+                          const s = lookupIdeaStatus(universe, q.keyword);
+                          return s === "unverified_idea" ? <UnverifiedIdeaBadge status={s} /> : null;
+                        })()}
+                      </p>
                       <Badge variant="outline" className="border-accent/40 text-accent">{q.channel}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">{q.reason}</p>
