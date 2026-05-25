@@ -54,7 +54,20 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
     });
   }, [selected, analysisId]);
 
+  const currentStats = clusterStats.find((c) => c.cluster === selected);
+  const verifiedInSelected = currentStats?.verifiedCount ?? 0;
+  const totalInSelected = currentStats?.count ?? 0;
+  const blockedNoVerified = !!selected && verifiedInSelected === 0;
+
   const generate = async (force = false) => {
+    if (blockedNoVerified) {
+      toast({
+        title: "Inga verifierade sökord i klustret",
+        description: "Verifiera via Keyword Planner först.",
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-brief", { body: { analysis_id: analysisId, cluster: selected, force } });
@@ -82,22 +95,36 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
                 <SelectContent className="max-h-80">
                   {clusterStats.map((c) => (
                     <SelectItem key={c.cluster} value={c.cluster}>
-                      {savedClusters.has(c.cluster) ? "✓ " : ""}{c.cluster} — {c.count} kw, {c.volume} vol
+                      {savedClusters.has(c.cluster) ? "✓ " : ""}{c.cluster} — {c.verifiedCount}/{c.count} verifierade, {c.volume} vol
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => generate(false)} disabled={!selected || loading} className="gap-2">
+            <Button
+              onClick={() => generate(false)}
+              disabled={!selected || loading || blockedNoVerified}
+              className="gap-2"
+            >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
               {brief ? "Visa brief" : "Generera brief"}
             </Button>
             {brief && (
-              <Button variant="outline" onClick={() => generate(true)} disabled={loading} className="gap-2">
+              <Button variant="outline" onClick={() => generate(true)} disabled={loading || blockedNoVerified} className="gap-2">
                 <RefreshCw className="h-3 w-3" /> Generera om
               </Button>
             )}
           </div>
+          {blockedNoVerified && (
+            <p className="text-xs text-destructive">
+              Inga verifierade sökord i klustret — verifiera via Keyword Planner först.
+            </p>
+          )}
+          {!blockedNoVerified && currentStats && verifiedInSelected < totalInSelected && (
+            <p className="text-xs text-muted-foreground">
+              {verifiedInSelected}/{totalInSelected} verifierade — overifierade idéer inkluderas inte i brief-genereringen.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">{savedClusters.size} av {clusters.length} kluster har briefs sparade</p>
         </CardContent>
       </Card>
