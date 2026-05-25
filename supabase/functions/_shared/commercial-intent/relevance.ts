@@ -30,7 +30,7 @@ export function assessRelevance(inputs: RelevanceInputs): RelevanceAssessment {
   const matched: string[] = [];
 
   // Term-match component (deterministic)
-  const termSets: readonly string[][] = [
+  const termSets: ReadonlyArray<readonly string[]> = [
     inputs.product_terms ?? [],
     inputs.service_terms ?? [],
     inputs.material_terms ?? [],

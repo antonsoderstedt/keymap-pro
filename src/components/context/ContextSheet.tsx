@@ -143,13 +143,19 @@ export function ContextSheet(props: ContextSheetProps) {
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {!ref && <InvariantError />}
           {ref && loading && <LoadingState />}
-          {ref && !loading && error && <ErrorState error={error} onRetry={refresh} />}
+          {ref && !loading && error && error.kind === "schema_missing" && (
+            <SchemaMissingState />
+          )}
+          {ref && !loading && error && error.kind !== "schema_missing" && (
+            <ErrorState error={error.message} code={error.code} onRetry={refresh} />
+          )}
           {ref && !loading && !error && !data && (
             <EmptyState
               building={building}
               onBuild={() => build()}
             />
           )}
+
           {ref && !loading && !error && data && (
             <Body data={data} score={score} onRebuild={() => build({ force: true })} building={building} />
           )}
@@ -231,17 +237,33 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
+function ErrorState({ error, code, onRetry }: { error: string; code: string | null; onRetry: () => void }) {
   return (
     <div className="space-y-3" data-testid="context-error">
       <p className="text-sm text-destructive">Kontexten kunde inte laddas.</p>
-      <p className="text-xs text-muted-foreground">{error}</p>
+      <p className="text-xs text-muted-foreground">
+        {code ? <span className="font-mono mr-1">[{code}]</span> : null}
+        {error}
+      </p>
       <Button size="sm" variant="outline" onClick={onRetry}>
         Försök igen
       </Button>
     </div>
   );
 }
+
+function SchemaMissingState() {
+  return (
+    <div className="space-y-3" data-testid="context-schema-missing">
+      <p className="text-sm text-foreground">Decision-kontext är inte deployad i denna miljö ännu.</p>
+      <p className="text-xs text-muted-foreground">
+        Tabellen <span className="font-mono">decision_context</span> saknas i schemat.
+        Kontakta admin för att deploya migrationen — att bygga kontext fungerar inte förrän tabellen finns.
+      </p>
+    </div>
+  );
+}
+
 
 function EmptyState({
   building,

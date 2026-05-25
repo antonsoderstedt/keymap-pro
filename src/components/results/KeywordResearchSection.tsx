@@ -73,7 +73,7 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
       if (filterIntent !== "all" && k.intent !== filterIntent) return false;
       if (filterCategory !== "all" && k.category !== filterCategory) return false;
       if (filterUsage !== "all" && k.usage !== filterUsage) return false;
-      if (hideZero && k.dataSource === "real" && (k.realVolume || 0) === 0) return false;
+      if (hideZero && (k.realVolume || 0) === 0) return false;
       if (search && !k.keyword.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });

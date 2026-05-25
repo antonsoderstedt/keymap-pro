@@ -6,11 +6,33 @@ type DcScopeRef =
   | { kind: "action_item"; id: string }
   | { kind: "ads_change_proposal"; id: string };
 
+export type DecisionContextErrorKind = "schema_missing" | "other";
+
+export interface DecisionContextError {
+  kind: DecisionContextErrorKind;
+  code: string | null;
+  message: string;
+}
+
 type FetchState = {
   data: DecisionContext | null;
   loading: boolean;
-  error: string | null;
+  error: DecisionContextError | null;
 };
+
+function classifyError(error: { code?: string | null; message?: string | null }): DecisionContextError {
+  const code = error.code ?? null;
+  const message = error.message ?? "Okänt fel";
+  const isSchemaMissing =
+    code === "PGRST205" ||
+    /could not find the table/i.test(message) ||
+    /schema cache/i.test(message);
+  return {
+    kind: isSchemaMissing ? "schema_missing" : "other",
+    code,
+    message,
+  };
+}
 
 // Reads decision_context for a single action item OR ads change proposal.
 // Returns null data (not error) when no row exists yet — caller renders an
@@ -41,11 +63,12 @@ export function useDecisionContext(
       .eq(column, ref.id)
       .maybeSingle();
     if (error && error.code !== "PGRST116") {
-      setState({ data: null, loading: false, error: error.message });
+      setState({ data: null, loading: false, error: classifyError(error) });
       return;
     }
     setState({ data: (data as DecisionContext | null) ?? null, loading: false, error: null });
   }, [projectId, ref?.kind, ref?.id]);
+
 
   useEffect(() => {
     fetchOnce();

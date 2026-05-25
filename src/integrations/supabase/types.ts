@@ -1027,6 +1027,83 @@ export type Database = {
         }
         Relationships: []
       }
+      commercial_intent_labels: {
+        Row: {
+          business_relevance_score: number
+          buyer_stage: string
+          cluster_id: string | null
+          commercial_intent_score: number
+          commoditization_score: number
+          computed_at: string
+          confidence: number
+          conversion_likelihood: number
+          estimated_commercial_value: Json
+          evidence: Json
+          id: string
+          keyword: string
+          lead_quality_proxy: string
+          model_version: string
+          normalized_keyword: string
+          project_id: string
+          search_intent: string
+          serp_competitiveness: number
+          signals_version: string
+          suggested_acquisition_approach: string
+        }
+        Insert: {
+          business_relevance_score: number
+          buyer_stage: string
+          cluster_id?: string | null
+          commercial_intent_score: number
+          commoditization_score: number
+          computed_at?: string
+          confidence: number
+          conversion_likelihood: number
+          estimated_commercial_value: Json
+          evidence?: Json
+          id?: string
+          keyword: string
+          lead_quality_proxy: string
+          model_version: string
+          normalized_keyword: string
+          project_id: string
+          search_intent: string
+          serp_competitiveness: number
+          signals_version: string
+          suggested_acquisition_approach: string
+        }
+        Update: {
+          business_relevance_score?: number
+          buyer_stage?: string
+          cluster_id?: string | null
+          commercial_intent_score?: number
+          commoditization_score?: number
+          computed_at?: string
+          confidence?: number
+          conversion_likelihood?: number
+          estimated_commercial_value?: Json
+          evidence?: Json
+          id?: string
+          keyword?: string
+          lead_quality_proxy?: string
+          model_version?: string
+          normalized_keyword?: string
+          project_id?: string
+          search_intent?: string
+          serp_competitiveness?: number
+          signals_version?: string
+          suggested_acquisition_approach?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_intent_labels_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_clusters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_briefs: {
         Row: {
           analysis_id: string
@@ -1134,6 +1211,78 @@ export type Database = {
           status?: string
           ttl_seconds?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      decision_context: {
+        Row: {
+          action_item_id: string | null
+          ads_change_proposal_id: string | null
+          causal_signals: Json
+          confidence: Json
+          evidence: Json
+          expected_impact: Json | null
+          generated_at: string
+          historical_analogs: Json
+          id: string
+          inputs_hash: string
+          model_version: string
+          project_id: string
+          recent_changes: Json
+          recommended_next_step: string | null
+          related_signals: Json
+          risk: Json | null
+          scope: Json
+          signals_version: string
+          updated_at: string
+          what_changed: Json
+          why_this_matters: string | null
+        }
+        Insert: {
+          action_item_id?: string | null
+          ads_change_proposal_id?: string | null
+          causal_signals?: Json
+          confidence: Json
+          evidence?: Json
+          expected_impact?: Json | null
+          generated_at?: string
+          historical_analogs?: Json
+          id?: string
+          inputs_hash: string
+          model_version: string
+          project_id: string
+          recent_changes?: Json
+          recommended_next_step?: string | null
+          related_signals?: Json
+          risk?: Json | null
+          scope: Json
+          signals_version: string
+          updated_at?: string
+          what_changed?: Json
+          why_this_matters?: string | null
+        }
+        Update: {
+          action_item_id?: string | null
+          ads_change_proposal_id?: string | null
+          causal_signals?: Json
+          confidence?: Json
+          evidence?: Json
+          expected_impact?: Json | null
+          generated_at?: string
+          historical_analogs?: Json
+          id?: string
+          inputs_hash?: string
+          model_version?: string
+          project_id?: string
+          recent_changes?: Json
+          recommended_next_step?: string | null
+          related_signals?: Json
+          risk?: Json | null
+          scope?: Json
+          signals_version?: string
+          updated_at?: string
+          what_changed?: Json
+          why_this_matters?: string | null
         }
         Relationships: []
       }
@@ -1305,6 +1454,42 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_embeddings: {
+        Row: {
+          content_hash: string
+          created_at: string
+          embedding: string
+          id: string
+          keyword: string
+          model_version: string
+          normalized_keyword: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          embedding: string
+          id?: string
+          keyword: string
+          model_version: string
+          normalized_keyword: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          embedding?: string
+          id?: string
+          keyword?: string
+          model_version?: string
+          normalized_keyword?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       keyword_metrics: {
         Row: {
           competition: number | null
@@ -1404,6 +1589,264 @@ export type Database = {
           target_value?: number
           timeframe?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      landing_page_embeddings: {
+        Row: {
+          content_hash: string
+          created_at: string
+          embedding: string
+          id: string
+          last_crawled_at: string
+          meta_description: string | null
+          model_version: string
+          project_id: string
+          title: string | null
+          updated_at: string
+          url: string
+          word_count: number | null
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          embedding: string
+          id?: string
+          last_crawled_at?: string
+          meta_description?: string | null
+          model_version: string
+          project_id: string
+          title?: string | null
+          updated_at?: string
+          url: string
+          word_count?: number | null
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          embedding?: string
+          id?: string
+          last_crawled_at?: string
+          meta_description?: string | null
+          model_version?: string
+          project_id?: string
+          title?: string | null
+          updated_at?: string
+          url?: string
+          word_count?: number | null
+        }
+        Relationships: []
+      }
+      operator_controls: {
+        Row: {
+          active: boolean
+          control_kind: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          project_id: string
+          reason: string | null
+          scope: Json
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          active?: boolean
+          control_kind: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          project_id: string
+          reason?: string | null
+          scope: Json
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          active?: boolean
+          control_kind?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          project_id?: string
+          reason?: string | null
+          scope?: Json
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      opportunity_clusters: {
+        Row: {
+          business_relevance: number | null
+          buyer_stage_distribution: Json
+          commercial_value_band: string | null
+          created_at: string
+          evidence_hash: string | null
+          id: string
+          intent_profile: Json
+          label: string
+          model_version: string
+          project_id: string
+          signals_version: string
+          updated_at: string
+        }
+        Insert: {
+          business_relevance?: number | null
+          buyer_stage_distribution?: Json
+          commercial_value_band?: string | null
+          created_at?: string
+          evidence_hash?: string | null
+          id?: string
+          intent_profile?: Json
+          label: string
+          model_version: string
+          project_id: string
+          signals_version: string
+          updated_at?: string
+        }
+        Update: {
+          business_relevance?: number | null
+          buyer_stage_distribution?: Json
+          commercial_value_band?: string | null
+          created_at?: string
+          evidence_hash?: string | null
+          id?: string
+          intent_profile?: Json
+          label?: string
+          model_version?: string
+          project_id?: string
+          signals_version?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opportunity_scores: {
+        Row: {
+          components: Json
+          computed_at: string
+          confidence: number
+          confidence_band: string
+          contribution_trace: Json
+          expected_impact: Json | null
+          freshness: Json
+          id: string
+          learning_adjustment: Json | null
+          model_version: string
+          multipliers_applied: Json
+          project_id: string
+          risk: Json | null
+          scope_id: string
+          scope_kind: string
+          score: number
+          score_band: string
+          signals_version: string
+          vetoes_triggered: string[]
+          weights_applied: Json
+          workspace_profile: string
+        }
+        Insert: {
+          components: Json
+          computed_at?: string
+          confidence: number
+          confidence_band: string
+          contribution_trace: Json
+          expected_impact?: Json | null
+          freshness?: Json
+          id?: string
+          learning_adjustment?: Json | null
+          model_version: string
+          multipliers_applied?: Json
+          project_id: string
+          risk?: Json | null
+          scope_id: string
+          scope_kind: string
+          score: number
+          score_band: string
+          signals_version: string
+          vetoes_triggered?: string[]
+          weights_applied: Json
+          workspace_profile: string
+        }
+        Update: {
+          components?: Json
+          computed_at?: string
+          confidence?: number
+          confidence_band?: string
+          contribution_trace?: Json
+          expected_impact?: Json | null
+          freshness?: Json
+          id?: string
+          learning_adjustment?: Json | null
+          model_version?: string
+          multipliers_applied?: Json
+          project_id?: string
+          risk?: Json | null
+          scope_id?: string
+          scope_kind?: string
+          score?: number
+          score_band?: string
+          signals_version?: string
+          vetoes_triggered?: string[]
+          weights_applied?: Json
+          workspace_profile?: string
+        }
+        Relationships: []
+      }
+      outcome_learnings: {
+        Row: {
+          action_category: string
+          cluster_family: string
+          created_at: string
+          id: string
+          last_updated: string
+          learning_scope: string
+          mean_uplift_pct: number | null
+          model_version: string
+          n: number
+          project_id: string
+          share_anonymized: boolean
+          signals_version: string
+          suggested_acquisition_approach: string
+          updated_at: string
+          variance: number | null
+        }
+        Insert: {
+          action_category: string
+          cluster_family: string
+          created_at?: string
+          id?: string
+          last_updated?: string
+          learning_scope?: string
+          mean_uplift_pct?: number | null
+          model_version: string
+          n?: number
+          project_id: string
+          share_anonymized?: boolean
+          signals_version: string
+          suggested_acquisition_approach: string
+          updated_at?: string
+          variance?: number | null
+        }
+        Update: {
+          action_category?: string
+          cluster_family?: string
+          created_at?: string
+          id?: string
+          last_updated?: string
+          learning_scope?: string
+          mean_uplift_pct?: number | null
+          model_version?: string
+          n?: number
+          project_id?: string
+          share_anonymized?: boolean
+          signals_version?: string
+          suggested_acquisition_approach?: string
+          updated_at?: string
+          variance?: number | null
         }
         Relationships: []
       }
@@ -1538,6 +1981,54 @@ export type Database = {
           project_id?: string
           snapshot_date?: string
           source?: string
+        }
+        Relationships: []
+      }
+      project_business_model: {
+        Row: {
+          aggressiveness_profile: string
+          close_rate_est: Json
+          created_at: string
+          fulfillment_capacity: Json
+          lead_quality_target: string
+          ltv_multiplier: Json
+          project_id: string
+          service_deal_size_band: Json
+          service_margin_pct: Json
+          service_priority: Json
+          strategic_importance: Json
+          updated_at: string
+          workspace_profile: string
+        }
+        Insert: {
+          aggressiveness_profile?: string
+          close_rate_est?: Json
+          created_at?: string
+          fulfillment_capacity?: Json
+          lead_quality_target?: string
+          ltv_multiplier?: Json
+          project_id: string
+          service_deal_size_band?: Json
+          service_margin_pct?: Json
+          service_priority?: Json
+          strategic_importance?: Json
+          updated_at?: string
+          workspace_profile?: string
+        }
+        Update: {
+          aggressiveness_profile?: string
+          close_rate_est?: Json
+          created_at?: string
+          fulfillment_capacity?: Json
+          lead_quality_target?: string
+          ltv_multiplier?: Json
+          project_id?: string
+          service_deal_size_band?: Json
+          service_margin_pct?: Json
+          service_priority?: Json
+          strategic_importance?: Json
+          updated_at?: string
+          workspace_profile?: string
         }
         Relationships: []
       }
@@ -1935,6 +2426,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shadow_run_results: {
+        Row: {
+          created_at: string
+          errors: Json
+          id: string
+          model_version: string
+          parameters: Json
+          project_id: string
+          run_id: string
+          run_label: string | null
+          samples: Json
+          signals_version: string
+          summary: Json
+          timings: Json
+        }
+        Insert: {
+          created_at?: string
+          errors?: Json
+          id?: string
+          model_version: string
+          parameters?: Json
+          project_id: string
+          run_id?: string
+          run_label?: string | null
+          samples?: Json
+          signals_version: string
+          summary?: Json
+          timings?: Json
+        }
+        Update: {
+          created_at?: string
+          errors?: Json
+          id?: string
+          model_version?: string
+          parameters?: Json
+          project_id?: string
+          run_id?: string
+          run_label?: string | null
+          samples?: Json
+          signals_version?: string
+          summary?: Json
+          timings?: Json
+        }
+        Relationships: []
       }
       share_of_voice_snapshots: {
         Row: {
