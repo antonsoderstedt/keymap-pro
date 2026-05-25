@@ -142,8 +142,26 @@ export default function ActionsPipeline() {
     setProposalsLoading(false);
   };
 
+  const loadOutcomes = async () => {
+    if (!projectId) return;
+    const { data } = await supabase
+      .from("ads_recommendation_outcomes")
+      .select("proposal_id, auto_reverted_at, auto_revert_reason")
+      .eq("project_id", projectId)
+      .not("proposal_id", "is", null);
+    const map: Record<string, { auto_reverted_at: string | null; auto_revert_reason: string | null }> = {};
+    for (const r of (data ?? []) as any[]) {
+      if (r.proposal_id) map[r.proposal_id] = {
+        auto_reverted_at: r.auto_reverted_at,
+        auto_revert_reason: r.auto_revert_reason,
+      };
+    }
+    setOutcomeMap(map);
+  };
+
   useEffect(() => {
     loadProposals();
+    loadOutcomes();
     if (!projectId) return;
     const channel = supabase
       .channel(`pipeline_proposals:${projectId}:${Math.random().toString(36).slice(2, 8)}`)
@@ -151,6 +169,11 @@ export default function ActionsPipeline() {
         "postgres_changes",
         { event: "*", schema: "public", table: "ads_change_proposals", filter: `project_id=eq.${projectId}` },
         () => loadProposals(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ads_recommendation_outcomes", filter: `project_id=eq.${projectId}` },
+        () => loadOutcomes(),
       )
       .subscribe();
     return () => {
