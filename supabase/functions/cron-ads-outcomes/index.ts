@@ -222,20 +222,6 @@ Deno.serve(async (req) => {
 
       // ── Auto-revert evaluation ────────────────────────────────
       try {
-        const { data: mutation } = await admin
-          .from("ads_mutations")
-          .select("id, proposal_id, reverted_at, status")
-          .eq("project_id", o.project_id)
-          .eq("status", "success")
-          .is("reverted_at", null)
-          .not("proposal_id", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(20);
-        const candidateMutation = (mutation ?? []).find((m: any) => {
-          // Match by proposal_id via outcome → already filtered; pick the one with matching outcome
-          return true;
-        });
-        // Tighter: prefer mutation whose proposal_id is on this outcome
         const { data: thisOutcome } = await admin
           .from("ads_recommendation_outcomes")
           .select("proposal_id, mutation_id")
