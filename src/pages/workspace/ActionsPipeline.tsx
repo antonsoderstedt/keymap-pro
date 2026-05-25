@@ -608,30 +608,101 @@ export default function ActionsPipeline() {
           data-testid="bulk-action-bar"
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         >
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
-            <p className="text-xs text-muted-foreground">
-              <span className="text-foreground">{selected.size} valda</span>
-              {selectedImpact > 0 && (
-                <> · Σ impact: <span className="text-foreground">{selectedImpact.toLocaleString("sv-SE")} kr/mån</span></>
-              )}
-            </p>
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={clearSelection}>
-                Avmarkera
-              </Button>
-              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("reject")}>
-                Avvisa alla
-              </Button>
-              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("approve")}>
-                Godkänn alla
-              </Button>
-              <Button size="sm" disabled={bulkRunning} onClick={() => requestBulk("push")}>
-                Pusha alla
-              </Button>
+          <div className="mx-auto max-w-4xl px-6 py-3 space-y-2">
+            {/* Auto-revert collapsible */}
+            <Collapsible open={autoRevertOpen} onOpenChange={setAutoRevertOpen}>
+              <div className="flex items-center justify-between gap-2">
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <RotateCcw className="h-3 w-3" />
+                    Auto-revert
+                    {autoRevertPolicy.enabled && (
+                      <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1.5">
+                        {METRIC_LABEL[autoRevertPolicy.metric]} ≤ {autoRevertPolicy.threshold_pct}% / {autoRevertPolicy.window_days}d
+                      </Badge>
+                    )}
+                    <ChevronRight className={cn("h-3 w-3 transition-transform", autoRevertOpen && "rotate-90")} />
+                  </button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-xs">
+                  <label className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={autoRevertPolicy.enabled}
+                      onCheckedChange={(v) => setAutoRevertPolicy((p) => ({ ...p, enabled: v === true }))}
+                    />
+                    Aktivera
+                  </label>
+                  <span className="text-muted-foreground">Revertera om</span>
+                  <Select
+                    value={autoRevertPolicy.metric}
+                    onValueChange={(v) => setAutoRevertPolicy((p) => ({ ...p, metric: v as AutoRevertMetric }))}
+                  >
+                    <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(["ctr", "clicks", "cost", "conversions"] as AutoRevertMetric[]).map((m) => (
+                        <SelectItem key={m} value={m} className="text-xs">{METRIC_LABEL[m]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">sjunker</span>
+                  <Select
+                    value={String(autoRevertPolicy.threshold_pct)}
+                    onValueChange={(v) => setAutoRevertPolicy((p) => ({ ...p, threshold_pct: Number(v) }))}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[-10, -20, -30, -50].map((t) => (
+                        <SelectItem key={t} value={String(t)} className="text-xs">≥ {Math.abs(t)}%</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">inom</span>
+                  <Select
+                    value={String(autoRevertPolicy.window_days)}
+                    onValueChange={(v) => setAutoRevertPolicy((p) => ({ ...p, window_days: Number(v) as 7 | 14 | 30 }))}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[7, 14, 30].map((d) => (
+                        <SelectItem key={d} value={String(d)} className="text-xs">{d} dagar</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="basis-full text-[11px] text-muted-foreground">
+                    Mätning sker {autoRevertPolicy.window_days}d efter push. Om {METRIC_LABEL[autoRevertPolicy.metric]} sjunker mer än tröskeln, återställs ändringen automatiskt.
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xs text-muted-foreground">
+                <span className="text-foreground">{selected.size} valda</span>
+                {selectedImpact > 0 && (
+                  <> · Σ impact: <span className="text-foreground">{selectedImpact.toLocaleString("sv-SE")} kr/mån</span></>
+                )}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={clearSelection}>
+                  Avmarkera
+                </Button>
+                <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("reject")}>
+                  Avvisa alla
+                </Button>
+                <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("approve")}>
+                  Godkänn alla
+                </Button>
+                <Button size="sm" disabled={bulkRunning} onClick={() => requestBulk("push")}>
+                  Pusha alla
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
 
       <AlertDialog
         open={!!confirmLargeBatch}
