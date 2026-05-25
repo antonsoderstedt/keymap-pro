@@ -61,7 +61,7 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
       } else {
         setGenerating(true);
         try {
-          const adGroups = buildAdGroupsForGeneration(universe);
+          const adGroups = buildAdGroupsForGeneration(verifiedUniverse);
           if (adGroups.length === 0) {
             toast({ title: "Inga annonsgrupper", description: "Inga sökord med Google Ads-kanal och volym > 0.", variant: "destructive" });
             setGenerating(false);
