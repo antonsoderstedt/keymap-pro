@@ -77,159 +77,167 @@ export default function WorkspaceSettings() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-10">
       <div>
         <h1 className="font-serif text-3xl flex items-center gap-2">
           <SettingsIcon className="h-7 w-7 text-primary" /> Inställningar
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          KPI-mål, automation-regler, kopplingar.
+          Kunduppgifter, mål, kopplingar, brand och automation.
         </p>
       </div>
 
-      {/* Guide-länk */}
-      <a
-        href={`/clients/${id}/how-it-works`}
-        className="group flex items-center gap-4 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-colors p-4"
-      >
-        <div className="h-10 w-10 rounded-lg bg-primary/15 border border-primary/40 flex items-center justify-center shrink-0">
-          <SettingsIcon className="h-4 w-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm">Ny här? Läs guiden "Så fungerar Slay Station"</div>
-          <div className="text-xs text-muted-foreground">5 min · flowchart, steg-för-steg, datamatris och FAQ</div>
-        </div>
-        <span className="text-primary text-sm shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
-      </a>
+      <Section title="Konto" description="Kunduppgifter och teammedlemmar.">
+        <ClientInfoCard projectId={id!} />
+        <MembersCard projectId={id!} />
+      </Section>
 
-      {/* Kunduppgifter */}
-      <ClientInfoCard projectId={id!} />
+      <Section title="Mål" description="KPI-mål, intäktsmodell och måluppföljning.">
+        <GoalsCard projectId={id!} />
 
-      {/* Goals & kundtyp (Fas 3) */}
-      <GoalsCard projectId={id!} />
-
-      {/* KPI Targets */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="font-serif text-lg flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" /> KPI-mål
-            </CardTitle>
-            <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
-              <Plus className="h-3 w-3" /> Lägg till
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {showForm && (
-            <div className="p-4 rounded-lg border border-border space-y-3">
-              <div className="grid md:grid-cols-2 gap-3">
-                <div>
-                  <Label>Metric</Label>
-                  <Select
-                    value={form.metric}
-                    onValueChange={(v) => {
-                      const p = METRIC_PRESETS.find(x => x.metric === v);
-                      if (p) setForm({ ...form, metric: v, label: p.label, direction: p.direction, timeframe: p.timeframe });
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {METRIC_PRESETS.map(p => <SelectItem key={p.metric} value={p.metric}>{p.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Mål-värde</Label>
-                  <Input type="number" value={form.target_value} onChange={(e) => setForm({ ...form, target_value: e.target.value })} placeholder="t.ex. 5000" />
-                </div>
-                <div>
-                  <Label>Riktning</Label>
-                  <Select value={form.direction} onValueChange={(v) => setForm({ ...form, direction: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="increase">Öka mot</SelectItem>
-                      <SelectItem value="decrease">Minska till</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Tidsfönster</Label>
-                  <Select value={form.timeframe} onValueChange={(v) => setForm({ ...form, timeframe: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="week">Vecka</SelectItem>
-                      <SelectItem value="month">Månad</SelectItem>
-                      <SelectItem value="quarter">Kvartal</SelectItem>
-                      <SelectItem value="year">År</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={addTarget}>Spara mål</Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Avbryt</Button>
-              </div>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="font-serif text-lg flex items-center gap-2">
+                <Target className="h-4 w-4 text-primary" /> KPI-mål
+              </CardTitle>
+              <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
+                <Plus className="h-3 w-3" /> Lägg till
+              </Button>
             </div>
-          )}
-          {targets.length === 0 && !showForm ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
-              Inga KPI-mål satta. Sätt mål för att få avvikelse-alerts.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {targets.map(t => (
-                <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{t.label}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t.direction === "increase" ? "Öka mot" : "Minska till"} <span className="font-medium">{t.target_value}</span> per {t.timeframe}
-                    </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {showForm && (
+              <div className="p-4 rounded-lg border border-border space-y-3">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Metric</Label>
+                    <Select
+                      value={form.metric}
+                      onValueChange={(v) => {
+                        const p = METRIC_PRESETS.find(x => x.metric === v);
+                        if (p) setForm({ ...form, metric: v, label: p.label, direction: p.direction, timeframe: p.timeframe });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {METRIC_PRESETS.map(p => <SelectItem key={p.metric} value={p.metric}>{p.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Badge variant={t.is_active ? "default" : "outline"} className="text-[10px]">{t.is_active ? "aktiv" : "pausad"}</Badge>
-                  <Button size="icon" variant="ghost" onClick={() => deleteTarget(t.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div>
+                    <Label>Mål-värde</Label>
+                    <Input type="number" value={form.target_value} onChange={(e) => setForm({ ...form, target_value: e.target.value })} placeholder="t.ex. 5000" />
+                  </div>
+                  <div>
+                    <Label>Riktning</Label>
+                    <Select value={form.direction} onValueChange={(v) => setForm({ ...form, direction: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="increase">Öka mot</SelectItem>
+                        <SelectItem value="decrease">Minska till</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Tidsfönster</Label>
+                    <Select value={form.timeframe} onValueChange={(v) => setForm({ ...form, timeframe: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="week">Vecka</SelectItem>
+                        <SelectItem value="month">Månad</SelectItem>
+                        <SelectItem value="quarter">Kvartal</SelectItem>
+                        <SelectItem value="year">År</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={addTarget}>Spara mål</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Avbryt</Button>
+                </div>
+              </div>
+            )}
+            {targets.length === 0 && !showForm ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Inga KPI-mål satta. Sätt mål för att få avvikelse-alerts.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {targets.map(t => (
+                  <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{t.label}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {t.direction === "increase" ? "Öka mot" : "Minska till"} <span className="font-medium">{t.target_value}</span> per {t.timeframe}
+                      </div>
+                    </div>
+                    <Badge variant={t.is_active ? "default" : "outline"} className="text-[10px]">{t.is_active ? "aktiv" : "pausad"}</Badge>
+                    <Button size="icon" variant="ghost" onClick={() => deleteTarget(t.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <RevenueSettings projectId={id!} />
+        <RevenueSettings projectId={id!} />
+      </Section>
 
-      <Ga4Filters projectId={id!} />
+      <Section title="Kopplingar" description="Google Ads, GA4 och övriga datakällor.">
+        <GoogleAdsConnection projectId={id!} />
+        <Ga4Filters projectId={id!} />
+        <Ga4ConversionFilters projectId={id!} />
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-serif text-lg">Övriga kopplingar</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <ConnectionRow name="Google Search Console" status="hanteras via Google-inloggning" />
+            <ConnectionRow name="Google Analytics 4" status="hanteras via Google-inloggning" />
+            <ConnectionRow name="Semrush" status="aktiv (global)" />
+            <ConnectionRow name="DataForSEO" status="aktiv (global)" />
+          </CardContent>
+        </Card>
+      </Section>
 
-      <Ga4ConversionFilters projectId={id!} />
+      <Section title="Brand" description="Logotyp, färger och tonläge för rapporter.">
+        <div>
+          <h3 className="font-serif text-base mb-3 flex items-center gap-2 text-muted-foreground">
+            <Palette className="h-4 w-4 text-primary" /> Brand Kit
+          </h3>
+          <BrandKit />
+        </div>
+      </Section>
 
-      <AutomationRules projectId={id!} />
-
-      <GoogleAdsConnection projectId={id!} />
-
-      <MembersCard projectId={id!} />
-
-      {/* Övriga kopplingar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-serif text-lg">Övriga kopplingar</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <ConnectionRow name="Google Search Console" status="hanteras via Google-inloggning" />
-          <ConnectionRow name="Google Analytics 4" status="hanteras via Google-inloggning" />
-          <ConnectionRow name="Semrush" status="aktiv (global)" />
-          <ConnectionRow name="DataForSEO" status="aktiv (global)" />
-        </CardContent>
-      </Card>
-
-      {/* Brand Kit */}
-      <div>
-        <h2 className="font-serif text-xl mb-4 flex items-center gap-2">
-          <Palette className="h-5 w-5 text-primary" /> Brand Kit
-        </h2>
-        <BrandKit />
-      </div>
+      <Section title="Automation" description="Regler för automatiska åtgärder och alerts.">
+        <AutomationRules projectId={id!} />
+      </Section>
     </div>
+  );
+}
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="border-b border-border/50 pb-2">
+        <h2 className="font-serif text-xl">{title}</h2>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        )}
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }
 
