@@ -8,6 +8,8 @@ import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
 import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import type { AnalysisResult, KeywordUniverse } from "@/lib/types";
+import { lookupIdeaStatus } from "@/lib/ideaStatus";
+import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
 
 interface Props {
   result: AnalysisResult;
