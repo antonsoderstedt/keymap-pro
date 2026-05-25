@@ -156,7 +156,12 @@ export default function GoogleDataPanel({ projectId }: Props) {
         propertyId: id,
         startDate, endDate,
         dimensions: [{ name: "date" }],
-        metrics: [{ name: "sessions" }, { name: "totalUsers" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "totalUsers" },
+          { name: "screenPageViews" },
+          { name: "conversions" },
+        ],
         limit: 365,
       },
     });
@@ -166,7 +171,9 @@ export default function GoogleDataPanel({ projectId }: Props) {
     setGa4Rows(rows);
     const sessions = rows.reduce((s, r) => s + Number(r.metricValues?.[0]?.value || 0), 0);
     const users = rows.reduce((s, r) => s + Number(r.metricValues?.[1]?.value || 0), 0);
-    const totals = { sessions, users };
+    const pageviews = rows.reduce((s, r) => s + Number(r.metricValues?.[2]?.value || 0), 0);
+    const conversions = rows.reduce((s, r) => s + Number(r.metricValues?.[3]?.value || 0), 0);
+    const totals = { sessions, users, screenPageViews: pageviews, pageviews, conversions };
     setGa4Totals(totals);
 
     if (projectId && rows.length) {
