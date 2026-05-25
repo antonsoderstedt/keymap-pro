@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -247,7 +247,6 @@ function Section({
 interface AdsAccount { id: string; name: string; currency?: string; isManager?: boolean }
 
 function GoogleAdsConnection({ projectId }: { projectId: string }) {
-  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<AdsAccount[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [loading, setLoading] = useState(false);
