@@ -149,11 +149,12 @@ function pickSelection(source: string, s: any): { id: string | null; name: strin
   if (source === "ga4") return { id: s.ga4_property_id || null, name: s.ga4_property_name || null, label: "GA4-property" };
   if (source === "gsc") return { id: s.gsc_site_url || null, name: s.gsc_site_url || null, label: "Search Console-sajt" };
   if (source === "ads") return { id: s.ads_customer_id || null, name: s.ads_customer_name || null, label: "Ads-konto" };
+  if (source === "keyword_planner") return { id: s.ads_customer_id || null, name: s.ads_customer_name || null, label: "Keyword Planner-konto" };
   return { id: null, name: null, label: labelOf(source) };
 }
 
 function labelOf(s: string) {
-  return s === "ga4" ? "GA4" : s === "gsc" ? "Search Console" : s === "ads" ? "Google Ads" : s;
+  return s === "ga4" ? "GA4" : s === "gsc" ? "Search Console" : s === "ads" ? "Google Ads" : s === "keyword_planner" ? "Keyword Planner" : s;
 }
 
 function json(b: unknown, status = 200) {
