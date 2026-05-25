@@ -36,11 +36,11 @@ export const WORKSPACE_ROUTES: WorkspaceRoute[] = [
   { sub: "keywords",    label: "Sökord",         icon: Search,          keywords: "keywords sökord universe segment", primary: true },
   { sub: "settings",    label: "Inställningar",  icon: Settings,        keywords: "settings källor data sources brand", primary: true },
 
-  // Legacy — endast via command bar
+  // Situationsspecifikt / avancerat — endast via command bar
   { sub: "overview-legacy",    label: "Översikt (legacy)",    icon: Sun,       keywords: "overview executive legacy", primary: false, legacy: true },
   { sub: "google-ads-legacy",  label: "Google Ads (legacy)",  icon: Megaphone, keywords: "ads auction audit chat legacy", primary: false, legacy: true },
-  
-  { sub: "prelaunch",          label: "Pre-launch (legacy)",  icon: Archive,   keywords: "prelaunch blueprint brief lansering", primary: false, legacy: true },
+
+  { sub: "prelaunch",          label: "Pre-launch",           icon: Archive,   keywords: "prelaunch blueprint brief lansering situationsspecifikt", primary: false, legacy: true },
 ];
 
 export function pathForRoute(workspaceId: string, sub: string): string {
