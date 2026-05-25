@@ -193,7 +193,7 @@ export default function ActionsPipeline() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10 lg:py-14">
-      <header className="mb-6 flex items-baseline justify-between gap-4">
+      <header className="mb-6 flex items-start justify-between gap-4">
         <div>
           {cameFromToday && (
             <Link
@@ -211,10 +211,32 @@ export default function ActionsPipeline() {
             {implementedValue > 0 && ` · ${implementedValue.toLocaleString("sv-SE")} kr/mån implementerat`}
           </p>
         </div>
+        {caps.hasAds && (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAuditOpen(true)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+              Kör Ads-audit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setProposalsOpen(true)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <GitPullRequest className="mr-1.5 h-3.5 w-3.5" />
+              Alla förslag
+            </Button>
+          </div>
+        )}
       </header>
 
-      {/* Filter pills */}
-      <div className="mb-6 flex flex-wrap gap-1.5">
+      {/* Stage pills */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
         {STAGES.map((s) => {
           const active = stage === s;
           const muted = s === "measured";
@@ -238,6 +260,25 @@ export default function ActionsPipeline() {
           );
         })}
       </div>
+
+      {/* Source filter */}
+      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Källa:</span>
+        {(Object.keys(ORIGIN_LABEL) as Origin[]).map((o) => (
+          <button
+            key={o}
+            onClick={() => setOrigin(o)}
+            className={cn(
+              "transition-colors hover:text-foreground",
+              origin === o ? "text-foreground underline underline-offset-4" : "",
+            )}
+          >
+            {ORIGIN_LABEL[o]}
+          </button>
+        ))}
+      </div>
+
+
 
       {/* List */}
       {loading ? (
