@@ -19,6 +19,7 @@ import MembersCard from "@/components/workspace/MembersCard";
 import ClientInfoCard from "@/components/workspace/ClientInfoCard";
 import BrandKit from "./BrandKit";
 import { OnboardingChecklist } from "@/components/workspace/OnboardingChecklist";
+import { KeywordPlannerPanel } from "@/components/universe/KeywordPlannerPanel";
 
 interface KpiTarget {
   id: string;
