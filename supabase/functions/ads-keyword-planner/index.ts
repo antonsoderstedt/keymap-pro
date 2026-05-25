@@ -121,6 +121,13 @@ Deno.serve(async (req) => {
       if (apiRes.status === 401) {
         return json({ ok: false, reason: "reauth_required", error: text.slice(0, 400) }, 200);
       }
+      if (apiRes.status === 403 && /DEVELOPER_TOKEN_NOT_APPROVED/i.test(text)) {
+        return json({
+          ok: false,
+          reason: "developer_token_not_approved",
+          error: "Google Ads developer token har bara test-/explorer-åtkomst. Keyword Planner kräver Basic eller Standard access — ansök via Google Ads API Center.",
+        }, 200);
+      }
       console.error("generateKeywordIdeas failed", { status: apiRes.status, body: text.slice(0, 500) });
       return json({ ok: false, error: `ADS_API_ERROR [${apiRes.status}]: ${text.slice(0, 400)}` }, 502);
     }
