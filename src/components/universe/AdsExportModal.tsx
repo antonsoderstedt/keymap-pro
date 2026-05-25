@@ -84,7 +84,7 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
 
     setExporting(true);
     try {
-      const blob = await buildGoogleAdsEditorZip(universe, cfg, ads);
+      const blob = await buildGoogleAdsEditorZip(verifiedUniverse, cfg, ads);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
