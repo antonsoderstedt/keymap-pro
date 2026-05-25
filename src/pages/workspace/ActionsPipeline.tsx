@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronRight, ShieldCheck, GitPullRequest } from "lucide-react";
+import { ArrowLeft, ChevronRight, ShieldCheck, GitPullRequest, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
@@ -52,6 +52,20 @@ import AdsAudit from "./AdsAudit";
 import AdsAuditPlan from "./AdsAuditPlan";
 import { ProposalsTab } from "@/components/workspace/ProposalsTab";
 import { ContextSheet } from "@/components/context";
+import {
+  DEFAULT_AUTO_REVERT_POLICY,
+  METRIC_LABEL,
+  type AutoRevertMetric,
+  type AutoRevertPolicy,
+} from "@/lib/autoRevert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 type Origin = "all" | "action" | "ads_proposal";
 const ORIGIN_LABEL: Record<Origin, string> = {
