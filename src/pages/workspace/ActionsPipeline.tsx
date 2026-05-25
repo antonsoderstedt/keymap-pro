@@ -119,6 +119,9 @@ export default function ActionsPipeline() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
   const [confirmLargeBatch, setConfirmLargeBatch] = useState<null | "approve" | "push" | "reject">(null);
+  const [autoRevertOpen, setAutoRevertOpen] = useState(false);
+  const [autoRevertPolicy, setAutoRevertPolicy] = useState<AutoRevertPolicy>(DEFAULT_AUTO_REVERT_POLICY);
+  const [outcomeMap, setOutcomeMap] = useState<Record<string, { auto_reverted_at: string | null; auto_revert_reason: string | null }>>({});
 
   const cameFromToday = params.get("from") === "today" || !!focusId;
 
