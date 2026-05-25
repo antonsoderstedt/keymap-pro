@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useActionItems } from "@/hooks/useActionItems";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
@@ -46,7 +46,7 @@ function formatImpact(n: number | null): string | null {
 
 export default function ActionsPipeline() {
   const { id: projectId = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  
   const [params] = useSearchParams();
   const focusId = params.get("focus");
 
