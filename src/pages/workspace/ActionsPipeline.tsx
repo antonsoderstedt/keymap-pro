@@ -429,7 +429,7 @@ function Row({
 
         {item.origin === "ads_proposal" && (
           <Button size="sm" variant="ghost" onClick={onOpenProposal}>
-            Öppna i Ads
+            Visa detaljer
           </Button>
         )}
       </div>
