@@ -23,8 +23,7 @@ interface CommandBarProps {
 export function CommandBar({ workspaceId, open, setOpen, recent, pushRecent }: CommandBarProps) {
   const navigate = useNavigate();
 
-  const pathFor = (sub: string) =>
-    sub ? `/clients/${workspaceId}/${sub}` : `/clients/${workspaceId}`;
+  const pathFor = (sub: string) => pathForRoute(workspaceId, sub);
 
   const go = (label: string, path: string) => {
     pushRecent({ label, path });
@@ -32,8 +31,8 @@ export function CommandBar({ workspaceId, open, setOpen, recent, pushRecent }: C
     navigate(path);
   };
 
-  const primary = ROUTES.filter((r) => !r.legacy);
-  const legacy = ROUTES.filter((r) => r.legacy);
+  const primary = PRIMARY_ROUTES;
+  const legacy = LEGACY_ROUTES;
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
