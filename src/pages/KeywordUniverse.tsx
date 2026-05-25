@@ -20,6 +20,8 @@ import { TechSeoTab } from "@/components/universe/TechSeoTab";
 import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
 import { KeywordPlannerPanel } from "@/components/universe/KeywordPlannerPanel";
 import { getIdeaStatus, filterByIdeaTab, isWinner, type IdeaTab } from "@/lib/ideaStatus";
+import { mergeIdeasIntoUniverse } from "@/lib/plannerToUniverse";
+import type { KeywordPlannerIdea } from "@/lib/types";
 
 const DIMENSION_LABELS: Record<string, string> = {
   produkt: "Produkt", tjanst: "Tjänst", bransch: "Bransch", material: "Material",
@@ -81,6 +83,34 @@ export default function KeywordUniversePage() {
     setAnalysisId((data as any).id);
     setUniverse((data as any).keyword_universe_json as KeywordUniverse | null);
     setLoading(false);
+  };
+
+  const handleAddToUniverse = async (
+    ideas: KeywordPlannerIdea[],
+  ): Promise<{ added: number; skipped: number }> => {
+    if (!universe || !analysisId) {
+      toast({ title: "Inget universe laddat", variant: "destructive" });
+      return { added: 0, skipped: ideas.length };
+    }
+    const { universe: next, added, skipped } = mergeIdeasIntoUniverse(universe, ideas);
+    if (added === 0) {
+      toast({ title: "Inget nytt", description: `${skipped} fanns redan i universe.` });
+      return { added, skipped };
+    }
+    const { error } = await supabase
+      .from("analyses")
+      .update({ keyword_universe_json: next as any })
+      .eq("id", analysisId);
+    if (error) {
+      toast({ title: "Kunde inte spara", description: error.message, variant: "destructive" });
+      return { added: 0, skipped: ideas.length };
+    }
+    setUniverse(next);
+    toast({
+      title: `${added} tillagda i universe`,
+      description: skipped > 0 ? `${skipped} fanns redan.` : undefined,
+    });
+    return { added, skipped };
   };
 
   const baseFiltered = useMemo<UniverseKeyword[]>(() => {
@@ -288,7 +318,7 @@ export default function KeywordUniversePage() {
 
           {/* Universe — full filtered table */}
           <TabsContent value="universe" className="space-y-4">
-            <KeywordPlannerPanel projectId={id!} />
+            <KeywordPlannerPanel projectId={id!} onAddToUniverse={handleAddToUniverse} />
             <Card className="border-border bg-card">
               <CardContent className="p-4 grid gap-3 md:grid-cols-4 lg:grid-cols-6">
                 <div className="md:col-span-2">

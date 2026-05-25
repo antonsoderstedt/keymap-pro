@@ -18,6 +18,7 @@ import type { KeywordPlannerIdea } from "@/lib/types";
 
 interface Props {
   projectId: string;
+  onAddToUniverse?: (ideas: KeywordPlannerIdea[]) => Promise<{ added: number; skipped: number }>;
 }
 
 const LANGUAGES: [string, string][] = [
@@ -45,7 +46,7 @@ function competitionVariant(c: KeywordPlannerIdea["competition"]): "default" | "
   return "outline";
 }
 
-export function KeywordPlannerPanel({ projectId }: Props) {
+export function KeywordPlannerPanel({ projectId, onAddToUniverse }: Props) {
   const { toast } = useToast();
   const { runs, loading, error, fetch: fetchIdeas } = useKeywordPlannerIdeas(projectId);
   const [open, setOpen] = useState(false);
@@ -58,6 +59,25 @@ export function KeywordPlannerPanel({ projectId }: Props) {
   const [reauth, setReauth] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
+  const [addingRunId, setAddingRunId] = useState<string | null>(null);
+
+  const handleAddOne = async (idea: KeywordPlannerIdea) => {
+    if (!onAddToUniverse) return;
+    const r = await onAddToUniverse([idea]);
+    if (r.added === 0 && r.skipped > 0) {
+      // toast already raised by parent
+    }
+  };
+
+  const handleAddRun = async (runId: string, ideas: KeywordPlannerIdea[]) => {
+    if (!onAddToUniverse || ideas.length === 0) return;
+    setAddingRunId(runId);
+    try {
+      await onAddToUniverse(ideas);
+    } finally {
+      setAddingRunId(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -238,23 +258,37 @@ export function KeywordPlannerPanel({ projectId }: Props) {
                 <p className="text-xs font-medium text-muted-foreground">Senaste runs</p>
                 {runs.slice(0, 5).map((run) => {
                   const isOpen = expandedRun === run.run_id;
+                  const isAdding = addingRunId === run.run_id;
                   return (
                     <Card key={run.run_id} className="border-border bg-muted/20">
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between px-3 py-2 text-left"
-                        onClick={() => setExpandedRun(isOpen ? null : run.run_id)}
-                      >
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="font-mono">{new Date(run.fetched_at).toLocaleString("sv-SE")}</span>
-                          <Badge variant="outline" className="text-[10px]">{run.count} idéer</Badge>
-                          {run.seed_keywords.length > 0 && (
-                            <span className="text-muted-foreground">seeds: {run.seed_keywords.slice(0, 3).join(", ")}{run.seed_keywords.length > 3 ? "…" : ""}</span>
-                          )}
-                          {run.seed_url && <span className="text-muted-foreground">url: {run.seed_url}</span>}
-                        </div>
-                        <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                      </button>
+                      <div className="flex items-stretch">
+                        <button
+                          type="button"
+                          className="flex-1 flex items-center justify-between px-3 py-2 text-left"
+                          onClick={() => setExpandedRun(isOpen ? null : run.run_id)}
+                        >
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="font-mono">{new Date(run.fetched_at).toLocaleString("sv-SE")}</span>
+                            <Badge variant="outline" className="text-[10px]">{run.count} idéer</Badge>
+                            {run.seed_keywords.length > 0 && (
+                              <span className="text-muted-foreground">seeds: {run.seed_keywords.slice(0, 3).join(", ")}{run.seed_keywords.length > 3 ? "…" : ""}</span>
+                            )}
+                            {run.seed_url && <span className="text-muted-foreground">url: {run.seed_url}</span>}
+                          </div>
+                          <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {onAddToUniverse && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-[10px] h-auto px-3 rounded-none border-l border-border"
+                            disabled={isAdding}
+                            onClick={(e) => { e.stopPropagation(); handleAddRun(run.run_id, run.ideas); }}
+                          >
+                            {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : `Lägg till alla (${run.ideas.length})`}
+                          </Button>
+                        )}
+                      </div>
                       {isOpen && (
                         <div className="overflow-x-auto">
                           <Table>
@@ -285,9 +319,9 @@ export function KeywordPlannerPanel({ projectId }: Props) {
                                       size="sm"
                                       variant="ghost"
                                       className="text-[10px] h-7"
-                                      onClick={() => toast({ title: "Kommer i nästa sprint" })}
+                                      disabled={!onAddToUniverse}
+                                      onClick={() => handleAddOne(idea)}
                                     >
-                                      {/* TODO R3c-followup: merge into keyword_universe_json */}
                                       Lägg till i universe
                                     </Button>
                                   </TableCell>
