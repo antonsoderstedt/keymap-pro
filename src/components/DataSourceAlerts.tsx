@@ -10,6 +10,7 @@ const LABEL: Record<SourceKey, string> = {
   ga4: "Google Analytics 4",
   gsc: "Search Console",
   ads: "Google Ads",
+  keyword_planner: "Keyword Planner",
 };
 
 const SEVERITY_ORDER = ["reauth_required", "error", "stale", "not_connected"] as const;
