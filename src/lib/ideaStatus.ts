@@ -117,5 +117,9 @@ export function lookupIdeaStatus(
   const found = universe.keywords.find(
     (k) => k.keyword.trim().toLowerCase() === norm,
   );
-  return found ? getIdeaStatus(found) : undefined;
+  if (!found) return undefined;
+  return getIdeaStatus({
+    dataSource: (found.dataSource ?? "estimated") as "real" | "estimated",
+    isNegative: found.isNegative,
+  });
 }
