@@ -23,13 +23,17 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
   const clusters = Array.from(new Set(universe.keywords.filter((k) => !k.isNegative).map((k) => k.cluster)));
   const clusterStats = clusters.map((c) => {
     const kws = universe.keywords.filter((k) => k.cluster === c && !k.isNegative);
+    const verifiedCount = kws.filter((k) => getIdeaStatus(k) === "verified").length;
     return {
       cluster: c,
       count: kws.length,
+      verifiedCount,
       volume: kws.reduce((s, k) => s + (k.searchVolume ?? 0), 0),
       avgKd: kws.filter((k) => k.kd != null).reduce((s, k, _, arr) => s + (k.kd! / arr.length), 0),
     };
   }).sort((a, b) => b.volume - a.volume);
+
+  const selectedStats = clusterStats.find((c) => c.cluster === (clusterStats[0]?.cluster || ""));
 
   const [selected, setSelected] = useState<string>(clusterStats[0]?.cluster || "");
   const [brief, setBrief] = useState<ContentBrief | null>(null);
