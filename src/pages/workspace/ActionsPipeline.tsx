@@ -45,7 +45,10 @@ export default function ActionsPipeline() {
   const [proposalsError, setProposalsError] = useState<string | null>(null);
   const [stage, setStage] = useState<PipelineStage>("proposed");
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [viewProposal, setViewProposal] = useState<PipelineItem | null>(null);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const cameFromToday = params.get("from") === "today" || !!focusId;
 
   const loadProposals = async () => {
     if (!projectId) return;
