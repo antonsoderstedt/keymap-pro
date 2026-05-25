@@ -17,7 +17,7 @@ export interface KeywordPlannerFetchResult {
   ok: boolean;
   run_id?: string;
   count?: number;
-  reason?: "reauth_required";
+  reason?: "reauth_required" | "developer_token_not_approved";
   error?: string;
 }
 
