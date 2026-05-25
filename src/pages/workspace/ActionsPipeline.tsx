@@ -934,11 +934,16 @@ function Row({
         <p className={cn("text-sm leading-snug", muted ? "text-muted-foreground" : "text-foreground")}>
           {item.title}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {categoryLabel(item.category)}
-          {impact && <span> · {impact}</span>}
-          {item.flags.queued && <span> · i kö</span>}
-          {item.flags.failed && <span className="text-destructive"> · misslyckades</span>}
+        <p className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <span>{categoryLabel(item.category)}</span>
+          {impact && <span>· {impact}</span>}
+          {item.flags.queued && <span>· i kö</span>}
+          {item.flags.failed && <span className="text-destructive">· misslyckades</span>}
+          {autoRevertInfo?.auto_reverted_at && (
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5" title={autoRevertInfo.auto_revert_reason ?? undefined}>
+              Auto-reverterad
+            </Badge>
+          )}
         </p>
       </div>
 
