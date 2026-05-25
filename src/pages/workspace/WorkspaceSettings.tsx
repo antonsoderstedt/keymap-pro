@@ -198,11 +198,17 @@ export default function WorkspaceSettings() {
         <KeywordPlannerPanel projectId={id!} />
         <Card>
           <CardHeader>
+            <CardTitle className="font-serif text-lg">GA4 & Search Console</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <GoogleDataPanel projectId={id!} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle className="font-serif text-lg">Övriga kopplingar</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <ConnectionRow name="Google Search Console" status="hanteras via Google-inloggning" />
-            <ConnectionRow name="Google Analytics 4" status="hanteras via Google-inloggning" />
             <ConnectionRow name="Semrush" status="aktiv (global)" />
             <ConnectionRow name="DataForSEO" status="aktiv (global)" />
           </CardContent>
