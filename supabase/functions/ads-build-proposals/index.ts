@@ -67,7 +67,7 @@ function buildPayloadFromDiagnosis(d: Diagnosis): { action_type: string; payload
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { project_id } = await req.json();
+    const { project_id, diagnostics_run_id } = await req.json();
     if (!project_id) {
       return new Response(JSON.stringify({ error: "project_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -86,14 +86,26 @@ Deno.serve(async (req) => {
       createdBy = data?.user?.id ?? null;
     }
 
-    // Fetch latest diagnosis run
-    const { data: diagRun } = await admin
-      .from("ads_diagnostics_runs")
-      .select("report, created_at, customer_id")
-      .eq("project_id", project_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Use the specific diagnostics run if provided, otherwise the latest
+    let diagRun: any = null;
+    if (diagnostics_run_id) {
+      const { data } = await admin
+        .from("ads_diagnostics_runs")
+        .select("report, created_at, customer_id")
+        .eq("project_id", project_id)
+        .eq("id", diagnostics_run_id)
+        .maybeSingle();
+      diagRun = data;
+    } else {
+      const { data } = await admin
+        .from("ads_diagnostics_runs")
+        .select("report, created_at, customer_id")
+        .eq("project_id", project_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      diagRun = data;
+    }
 
     let diagProposals = 0;
     if (diagRun?.report?.diagnoses) {
@@ -102,18 +114,19 @@ Deno.serve(async (req) => {
         const built = buildPayloadFromDiagnosis(d);
         if (!built) continue;
 
-        // Skip if already exists with same rule + scope (avoid duplicates)
-        const { data: existing } = await admin
+        const dedupeKey = `${project_id}::${d.rule_id}::${built.scope_label}::${built.action_type}`;
+
+        // Skip if an active proposal already exists for this dedupe key
+        const { data: active } = await admin
           .from("ads_change_proposals")
           .select("id")
           .eq("project_id", project_id)
-          .eq("rule_id", d.rule_id)
-          .eq("scope_label", built.scope_label)
-          .in("status", ["draft", "approved"])
+          .eq("dedupe_key", dedupeKey)
+          .in("status", ["draft", "approved", "queued"])
           .maybeSingle();
-        if (existing) continue;
+        if (active) continue;
 
-        await admin.from("ads_change_proposals").insert({
+        const { error: insErr } = await admin.from("ads_change_proposals").insert({
           project_id,
           source: "diagnosis",
           action_type: built.action_type,
@@ -124,9 +137,16 @@ Deno.serve(async (req) => {
           rationale: d.why || d.title || null,
           evidence: d.evidence || [],
           rule_id: d.rule_id,
+          dedupe_key: dedupeKey,
           created_by: createdBy,
         });
-        diagProposals++;
+        if (insErr) {
+          if ((insErr as any).code !== "23505") {
+            console.error("[ads-build-proposals] insert diag error", insErr);
+          }
+        } else {
+          diagProposals++;
+        }
       }
     }
 
