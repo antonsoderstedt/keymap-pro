@@ -165,9 +165,8 @@ export default function ActionsPipeline() {
     }
   };
 
-  const openProposal = () => {
-    // Befintlig ProposalsTab finns inom GoogleAdsHub — länka till legacy-vyn
-    navigate(`/clients/${projectId}/actions-legacy`);
+  const openProposal = (p: PipelineItem) => {
+    setViewProposal(p);
   };
 
   const loading = itemsLoading || proposalsLoading;
