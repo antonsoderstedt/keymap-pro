@@ -80,7 +80,7 @@ const App = () => (
 
             <Route path="keywords" element={<KeywordsHub />} />
             <Route path="actions" element={<ActionsPipeline />} />
-            <Route path="actions-legacy" element={<ActionHub />} />
+            {/* actions-legacy route removed Sprint 2 Day 2 */}
 
             <Route path="settings" element={<WorkspaceSettings />} />
             <Route path="prelaunch" element={<PrelaunchBlueprint />} />
