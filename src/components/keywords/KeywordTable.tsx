@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
 import type { UniverseKeyword } from "@/lib/types";
 
 export const DIMENSION_LABELS: Record<string, string> = {
@@ -67,9 +68,7 @@ export function KeywordTable({ items, limit = 500 }: Props) {
               <TableRow key={i} className={k.isNegative ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
-                  {k.dataSource !== "real" && (
-                    <Badge variant="outline" className="ml-2 text-[10px]">Uppskattad</Badge>
-                  )}
+                  {k.dataSource !== "real" && <UnverifiedIdeaBadge />}
                   {k.isNegative && (
                     <Badge variant="destructive" className="ml-2 text-[10px]">Negativ</Badge>
                   )}

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, ChevronsUpDown, ArrowUp, ArrowDown, Sparkles, X } from "lucide-react";
+import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
 import type { ResearchCluster, ResearchKeyword } from "@/lib/types";
 
 type FlatKeyword = ResearchKeyword & { cluster: string; segment: string; clusterIdx: number; rowIdx: number };
@@ -335,9 +336,7 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                                   <TableCell className="font-mono text-xs">
                                     <div className="flex items-center gap-2">
                                       <span>{k.keyword}</span>
-                                      {!isReal && hasRealData && (
-                                        <Badge variant="outline" className="text-[10px] py-0 px-1 opacity-60">Uppskattad</Badge>
-                                      )}
+                                      {!isReal && hasRealData && <UnverifiedIdeaBadge />}
                                     </div>
                                   </TableCell>
                                   <TableCell className="font-mono text-xs">{volDisplay}</TableCell>
