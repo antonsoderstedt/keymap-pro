@@ -34,10 +34,20 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const eligibleAds = universe.keywords.filter((k) =>
+  const verifiedAds = universe.keywords.filter((k) =>
     !k.isNegative && (k.searchVolume ?? 0) > 0 && k.channel === "Google Ads"
+    && getIdeaStatus(k) === "verified"
   );
-  const adGroupCount = new Set(eligibleAds.map((k) => k.recommendedAdGroup || k.cluster)).size;
+  const unverifiedExcluded = universe.keywords.filter((k) =>
+    !k.isNegative && k.channel === "Google Ads" && getIdeaStatus(k) === "unverified_idea"
+  ).length;
+  const verifiedUniverse: KeywordUniverse = { ...universe, keywords: verifiedAds };
+  const adGroupCount = new Set(verifiedAds.map((k) => k.recommendedAdGroup || k.cluster)).size;
+  const noVerified = verifiedAds.length === 0;
+
+  const generateAdsAndExport = async () => {
+    if (noVerified) return;
+    let ads: AdDraft[] = [];
 
   const generateAdsAndExport = async () => {
     let ads: AdDraft[] = [];
