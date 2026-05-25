@@ -223,7 +223,54 @@ describe("ContextSheet — states", () => {
     await flush();
     expect(mockMaybeSingle).not.toHaveBeenCalled();
   });
+
+  it("renders schema-missing notice on PGRST205 and hides Bygg-CTA", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: null,
+      error: {
+        code: "PGRST205",
+        message: "Could not find the table public.decision_context in the schema cache",
+      },
+    });
+
+    render(
+      <ContextSheet
+        open
+        onOpenChange={() => {}}
+        projectId="p1"
+        actionItemId="a1"
+        title="Test"
+      />,
+    );
+
+    await flush();
+    expect(screen.getByTestId("context-schema-missing")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /bygg kontext/i })).not.toBeInTheDocument();
+  });
+
+  it("renders retry button with error code on other postgres errors", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { code: "42P01", message: "network blip" },
+    });
+
+    render(
+      <ContextSheet
+        open
+        onOpenChange={() => {}}
+        projectId="p1"
+        actionItemId="a1"
+        title="Test"
+      />,
+    );
+
+    await flush();
+    expect(screen.getByTestId("context-error")).toBeInTheDocument();
+    expect(screen.getByText(/\[42P01\]/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /försök igen/i })).toBeInTheDocument();
+  });
 });
+
 
 describe("ContextSheet — body", () => {
   it("renders all populated sections in deterministic order", async () => {
