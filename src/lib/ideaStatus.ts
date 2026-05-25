@@ -64,3 +64,32 @@ export function isNegativeKeyword(k: Pick<UniverseKeyword, "dataSource" | "isNeg
 export function filterVerifiedOnly<T extends Pick<UniverseKeyword, "dataSource" | "isNegative">>(items: T[]): T[] {
   return items.filter((k) => getIdeaStatus(k) !== "unverified_idea");
 }
+
+// R3b — tab-segmentering för Keyword Universe.
+
+export type IdeaTab = "all" | "verified" | "unverified" | "negative" | "winners";
+
+type WinnerInput = Pick<UniverseKeyword, "dataSource" | "isNegative" | "priority" | "searchVolume">;
+
+/**
+ * Predikat för "Winner": verifierad demand + non-negative + mätbar volym +
+ * operatör-prioriterad som hög. Definitionen använder bara befintliga fält —
+ * ingen DB-ändring, ingen scoring-ändring. Den är medvetet konservativ:
+ * operatören har redan höjt prioriteten OCH datakällan har bekräftat existens
+ * OCH volymen är > 0.
+ */
+export function isWinner(k: WinnerInput): boolean {
+  if (k.isNegative) return false;
+  if (k.dataSource !== "real") return false;
+  if ((k.searchVolume ?? 0) <= 0) return false;
+  return k.priority === "high";
+}
+
+/** Filtrera en lista enligt aktiv tab. "all" returnerar listan oförändrad. */
+export function filterByIdeaTab<T extends WinnerInput>(items: T[], tab: IdeaTab): T[] {
+  if (tab === "all") return items;
+  if (tab === "verified") return items.filter((k) => getIdeaStatus(k) === "verified");
+  if (tab === "unverified") return items.filter((k) => getIdeaStatus(k) === "unverified_idea");
+  if (tab === "negative") return items.filter((k) => getIdeaStatus(k) === "negative");
+  return items.filter(isWinner);
+}

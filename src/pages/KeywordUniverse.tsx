@@ -18,7 +18,7 @@ import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
 import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
-import { getIdeaStatus } from "@/lib/ideaStatus";
+import { getIdeaStatus, filterByIdeaTab, isWinner, type IdeaTab } from "@/lib/ideaStatus";
 
 const DIMENSION_LABELS: Record<string, string> = {
   produkt: "Produkt", tjanst: "Tjänst", bransch: "Bransch", material: "Material",
@@ -55,6 +55,7 @@ export default function KeywordUniversePage() {
   const [onlyReal, setOnlyReal] = useState(false);
   const [onlyGap, setOnlyGap] = useState(false);
   const [maxKd, setMaxKd] = useState<string>("100");
+  const [ideaTab, setIdeaTab] = useState<IdeaTab>("all");
 
   useEffect(() => {
     load();
@@ -81,7 +82,7 @@ export default function KeywordUniversePage() {
     setLoading(false);
   };
 
-  const filtered = useMemo<UniverseKeyword[]>(() => {
+  const baseFiltered = useMemo<UniverseKeyword[]>(() => {
     if (!universe) return [];
     const kdLimit = Number(maxKd) || 100;
     return universe.keywords.filter((k) => {
@@ -98,6 +99,19 @@ export default function KeywordUniversePage() {
       return true;
     }).sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1));
   }, [universe, search, intent, funnel, dimension, channel, priority, hideZeroVolume, onlyReal, onlyGap, maxKd]);
+
+  const filtered = useMemo<UniverseKeyword[]>(
+    () => filterByIdeaTab(baseFiltered, ideaTab),
+    [baseFiltered, ideaTab],
+  );
+
+  const ideaTabCounts = useMemo(() => ({
+    all: baseFiltered.length,
+    verified: baseFiltered.filter((k) => getIdeaStatus(k) === "verified").length,
+    unverified: baseFiltered.filter((k) => getIdeaStatus(k) === "unverified_idea").length,
+    negative: baseFiltered.filter((k) => getIdeaStatus(k) === "negative").length,
+    winners: baseFiltered.filter(isWinner).length,
+  }), [baseFiltered]);
 
   const downloadCSV = (rows: string[][], filename: string) => {
     const csv = rows.map((r) => r.map((c) => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -305,6 +319,28 @@ export default function KeywordUniversePage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Tabs value={ideaTab} onValueChange={(v) => setIdeaTab(v as IdeaTab)}>
+              <TabsList className="h-auto flex-wrap">
+                <TabsTrigger value="all">Alla ({ideaTabCounts.all})</TabsTrigger>
+                <TabsTrigger value="verified" className="gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Verifierade ({ideaTabCounts.verified})
+                </TabsTrigger>
+                <TabsTrigger value="unverified" className="gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Overifierade idéer ({ideaTabCounts.unverified})
+                </TabsTrigger>
+                <TabsTrigger value="negative" className="gap-1.5">
+                  <Ban className="h-3.5 w-3.5" />
+                  Negativa ({ideaTabCounts.negative})
+                </TabsTrigger>
+                <TabsTrigger value="winners" className="gap-1.5">
+                  <Target className="h-3.5 w-3.5" />
+                  Winners ({ideaTabCounts.winners})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
             <KeywordTable items={filtered} />
           </TabsContent>
