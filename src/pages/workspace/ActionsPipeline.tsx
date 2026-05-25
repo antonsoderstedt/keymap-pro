@@ -617,6 +617,7 @@ export default function ActionsPipeline() {
       <ProposalSheet
         proposal={viewProposal}
         onClose={() => setViewProposal(null)}
+        universe={universe}
       />
 
       {viewContext && (
