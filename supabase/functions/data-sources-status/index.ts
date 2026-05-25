@@ -12,9 +12,10 @@ const SCOPE_REQS: Record<string, string[]> = {
   ga4: ["https://www.googleapis.com/auth/analytics.readonly"],
   gsc: ["https://www.googleapis.com/auth/webmasters.readonly", "https://www.googleapis.com/auth/webmasters"],
   ads: ["https://www.googleapis.com/auth/adwords"],
+  keyword_planner: ["https://www.googleapis.com/auth/adwords"],
 };
 
-const TTL: Record<string, number> = { ga4: 1800, gsc: 1800, ads: 3600 };
+const TTL: Record<string, number> = { ga4: 1800, gsc: 1800, ads: 3600, keyword_planner: 30 * 24 * 3600 };
 
 function hasAnyScope(scopeStr: string | null | undefined, required: string[]): boolean {
   if (!scopeStr) return false;
