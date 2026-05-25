@@ -23,7 +23,7 @@ import KeywordsHub from "./pages/workspace/KeywordsHub";
 // ActionHub removed Sprint 2 — actions-legacy route eliminated.
 import ActionsPipeline from "./pages/workspace/ActionsPipeline";
 import Performance from "./pages/workspace/Performance";
-import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
+import AdsHistory from "./pages/workspace/AdsHistory";
 
 
 
