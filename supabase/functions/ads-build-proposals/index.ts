@@ -167,21 +167,22 @@ Deno.serve(async (req) => {
         .eq("analysis_id", latestAnalysis.id);
       for (const d of drafts || []) {
         const scope_label = `Ny RSA › ${d.ad_group}`;
-        const { data: existing } = await admin
+        const dedupeKey = `${project_id}::rsa_draft::${scope_label}::create_rsa_pending_adgroup`;
+        const { data: active } = await admin
           .from("ads_change_proposals")
           .select("id")
           .eq("project_id", project_id)
-          .eq("scope_label", scope_label)
-          .in("status", ["draft", "approved"])
+          .eq("dedupe_key", dedupeKey)
+          .in("status", ["draft", "approved", "queued"])
           .maybeSingle();
-        if (existing) continue;
+        if (active) continue;
 
         const p: any = d.payload || {};
-        await admin.from("ads_change_proposals").insert({
+        const { error: insErr } = await admin.from("ads_change_proposals").insert({
           project_id,
           analysis_id: latestAnalysis.id,
           source: "ai_generation",
-          action_type: "create_rsa_pending_adgroup", // requires user to choose target ad_group
+          action_type: "create_rsa_pending_adgroup",
           scope_label,
           payload: {
             ad_group_name: d.ad_group,
@@ -194,9 +195,17 @@ Deno.serve(async (req) => {
           diff: { rsa: p },
           rationale: `AI-genererat RSA-utkast för annonsgruppen "${d.ad_group}". Välj mål-annonsgrupp i kontot för att pusha pausat.`,
           evidence: [],
+          rule_id: "rsa_draft",
+          dedupe_key: dedupeKey,
           created_by: createdBy,
         });
-        rsaProposals++;
+        if (insErr) {
+          if ((insErr as any).code !== "23505") {
+            console.error("[ads-build-proposals] insert rsa error", insErr);
+          }
+        } else {
+          rsaProposals++;
+        }
       }
     }
 
