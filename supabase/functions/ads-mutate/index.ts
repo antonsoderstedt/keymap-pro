@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
       action_type,
       payload,
       source_action_item_id: source_action_item_id || null,
+      proposal_id: proposal_id || null,
       status: "pending",
       created_by: ctx.userId,
     }).select().single();

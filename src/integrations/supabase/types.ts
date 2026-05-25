@@ -240,6 +240,7 @@ export type Database = {
         Row: {
           action_type: string
           analysis_id: string | null
+          auto_revert_policy: Json | null
           baseline_metrics: Json | null
           created_at: string
           created_by: string | null
@@ -266,6 +267,7 @@ export type Database = {
         Insert: {
           action_type: string
           analysis_id?: string | null
+          auto_revert_policy?: Json | null
           baseline_metrics?: Json | null
           created_at?: string
           created_by?: string | null
@@ -292,6 +294,7 @@ export type Database = {
         Update: {
           action_type?: string
           analysis_id?: string | null
+          auto_revert_policy?: Json | null
           baseline_metrics?: Json | null
           created_at?: string
           created_by?: string | null
@@ -409,6 +412,7 @@ export type Database = {
           id: string
           payload: Json
           project_id: string
+          proposal_id: string | null
           response: Json | null
           revert_payload: Json | null
           reverted_at: string | null
@@ -425,6 +429,7 @@ export type Database = {
           id?: string
           payload?: Json
           project_id: string
+          proposal_id?: string | null
           response?: Json | null
           revert_payload?: Json | null
           reverted_at?: string | null
@@ -441,6 +446,7 @@ export type Database = {
           id?: string
           payload?: Json
           project_id?: string
+          proposal_id?: string | null
           response?: Json | null
           revert_payload?: Json | null
           reverted_at?: string | null
@@ -448,11 +454,21 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ads_mutations_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ads_change_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ads_recommendation_outcomes: {
         Row: {
           applied_at: string | null
+          auto_revert_reason: string | null
+          auto_reverted_at: string | null
           campaign_id: string | null
           created_at: string
           diagnosis_id: string | null
@@ -460,6 +476,7 @@ export type Database = {
           id: string
           measured_14d: Json | null
           measured_30d: Json | null
+          measured_7d: Json | null
           mutation_id: string | null
           notes: string | null
           predicted: Json
@@ -470,6 +487,8 @@ export type Database = {
         }
         Insert: {
           applied_at?: string | null
+          auto_revert_reason?: string | null
+          auto_reverted_at?: string | null
           campaign_id?: string | null
           created_at?: string
           diagnosis_id?: string | null
@@ -477,6 +496,7 @@ export type Database = {
           id?: string
           measured_14d?: Json | null
           measured_30d?: Json | null
+          measured_7d?: Json | null
           mutation_id?: string | null
           notes?: string | null
           predicted: Json
@@ -487,6 +507,8 @@ export type Database = {
         }
         Update: {
           applied_at?: string | null
+          auto_revert_reason?: string | null
+          auto_reverted_at?: string | null
           campaign_id?: string | null
           created_at?: string
           diagnosis_id?: string | null
@@ -494,6 +516,7 @@ export type Database = {
           id?: string
           measured_14d?: Json | null
           measured_30d?: Json | null
+          measured_7d?: Json | null
           mutation_id?: string | null
           notes?: string | null
           predicted?: Json

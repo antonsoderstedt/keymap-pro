@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronRight, ShieldCheck, GitPullRequest } from "lucide-react";
+import { ArrowLeft, ChevronRight, ShieldCheck, GitPullRequest, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   mergeIntoPipeline,
@@ -52,6 +52,20 @@ import AdsAudit from "./AdsAudit";
 import AdsAuditPlan from "./AdsAuditPlan";
 import { ProposalsTab } from "@/components/workspace/ProposalsTab";
 import { ContextSheet } from "@/components/context";
+import {
+  DEFAULT_AUTO_REVERT_POLICY,
+  METRIC_LABEL,
+  type AutoRevertMetric,
+  type AutoRevertPolicy,
+} from "@/lib/autoRevert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 type Origin = "all" | "action" | "ads_proposal";
 const ORIGIN_LABEL: Record<Origin, string> = {
@@ -105,6 +119,9 @@ export default function ActionsPipeline() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
   const [confirmLargeBatch, setConfirmLargeBatch] = useState<null | "approve" | "push" | "reject">(null);
+  const [autoRevertOpen, setAutoRevertOpen] = useState(false);
+  const [autoRevertPolicy, setAutoRevertPolicy] = useState<AutoRevertPolicy>(DEFAULT_AUTO_REVERT_POLICY);
+  const [outcomeMap, setOutcomeMap] = useState<Record<string, { auto_reverted_at: string | null; auto_revert_reason: string | null }>>({});
 
   const cameFromToday = params.get("from") === "today" || !!focusId;
 
@@ -125,8 +142,26 @@ export default function ActionsPipeline() {
     setProposalsLoading(false);
   };
 
+  const loadOutcomes = async () => {
+    if (!projectId) return;
+    const { data } = await supabase
+      .from("ads_recommendation_outcomes")
+      .select("proposal_id, auto_reverted_at, auto_revert_reason")
+      .eq("project_id", projectId)
+      .not("proposal_id", "is", null);
+    const map: Record<string, { auto_reverted_at: string | null; auto_revert_reason: string | null }> = {};
+    for (const r of (data ?? []) as any[]) {
+      if (r.proposal_id) map[r.proposal_id] = {
+        auto_reverted_at: r.auto_reverted_at,
+        auto_revert_reason: r.auto_revert_reason,
+      };
+    }
+    setOutcomeMap(map);
+  };
+
   useEffect(() => {
     loadProposals();
+    loadOutcomes();
     if (!projectId) return;
     const channel = supabase
       .channel(`pipeline_proposals:${projectId}:${Math.random().toString(36).slice(2, 8)}`)
@@ -134,6 +169,11 @@ export default function ActionsPipeline() {
         "postgres_changes",
         { event: "*", schema: "public", table: "ads_change_proposals", filter: `project_id=eq.${projectId}` },
         () => loadProposals(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ads_recommendation_outcomes", filter: `project_id=eq.${projectId}` },
+        () => loadOutcomes(),
       )
       .subscribe();
     return () => {
@@ -276,9 +316,11 @@ export default function ActionsPipeline() {
             if (p.origin === "action") {
               await update(p.rawId, { status: "in_progress" });
             } else {
+              const patch: any = { status: "approved" };
+              if (autoRevertPolicy.enabled) patch.auto_revert_policy = autoRevertPolicy;
               await supabase
                 .from("ads_change_proposals")
-                .update({ status: "approved" })
+                .update(patch)
                 .eq("id", p.rawId);
             }
           } else if (kind === "reject") {
@@ -300,6 +342,12 @@ export default function ActionsPipeline() {
               if (error) throw error;
               await markImplemented(raw.id);
             } else if (p.origin === "ads_proposal") {
+              if (autoRevertPolicy.enabled) {
+                await supabase
+                  .from("ads_change_proposals")
+                  .update({ auto_revert_policy: autoRevertPolicy })
+                  .eq("id", p.rawId);
+              }
               const { error } = await supabase.functions.invoke("ads-mutate", {
                 body: { project_id: projectId, proposal_id: p.rawId },
               });
@@ -483,6 +531,7 @@ export default function ActionsPipeline() {
               onPushAds={() => pushAds(p)}
               onOpenProposal={() => openProposal(p)}
               onOpenContext={() => openContext(p)}
+              autoRevertInfo={p.origin === "ads_proposal" ? outcomeMap[p.rawId] : undefined}
               registerRef={(el) => (rowRefs.current[p.id] = el)}
             />
           ))}
@@ -543,6 +592,7 @@ export default function ActionsPipeline() {
                         onPushAds={() => pushAds(p)}
                         onOpenProposal={() => openProposal(p)}
                         onOpenContext={() => openContext(p)}
+                        autoRevertInfo={p.origin === "ads_proposal" ? outcomeMap[p.rawId] : undefined}
                         registerRef={(el) => (rowRefs.current[p.id] = el)}
                       />
                     ))}
@@ -560,30 +610,101 @@ export default function ActionsPipeline() {
           data-testid="bulk-action-bar"
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         >
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
-            <p className="text-xs text-muted-foreground">
-              <span className="text-foreground">{selected.size} valda</span>
-              {selectedImpact > 0 && (
-                <> · Σ impact: <span className="text-foreground">{selectedImpact.toLocaleString("sv-SE")} kr/mån</span></>
-              )}
-            </p>
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={clearSelection}>
-                Avmarkera
-              </Button>
-              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("reject")}>
-                Avvisa alla
-              </Button>
-              <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("approve")}>
-                Godkänn alla
-              </Button>
-              <Button size="sm" disabled={bulkRunning} onClick={() => requestBulk("push")}>
-                Pusha alla
-              </Button>
+          <div className="mx-auto max-w-4xl px-6 py-3 space-y-2">
+            {/* Auto-revert collapsible */}
+            <Collapsible open={autoRevertOpen} onOpenChange={setAutoRevertOpen}>
+              <div className="flex items-center justify-between gap-2">
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <RotateCcw className="h-3 w-3" />
+                    Auto-revert
+                    {autoRevertPolicy.enabled && (
+                      <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1.5">
+                        {METRIC_LABEL[autoRevertPolicy.metric]} ≤ {autoRevertPolicy.threshold_pct}% / {autoRevertPolicy.window_days}d
+                      </Badge>
+                    )}
+                    <ChevronRight className={cn("h-3 w-3 transition-transform", autoRevertOpen && "rotate-90")} />
+                  </button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-xs">
+                  <label className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={autoRevertPolicy.enabled}
+                      onCheckedChange={(v) => setAutoRevertPolicy((p) => ({ ...p, enabled: v === true }))}
+                    />
+                    Aktivera
+                  </label>
+                  <span className="text-muted-foreground">Revertera om</span>
+                  <Select
+                    value={autoRevertPolicy.metric}
+                    onValueChange={(v) => setAutoRevertPolicy((p) => ({ ...p, metric: v as AutoRevertMetric }))}
+                  >
+                    <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(["ctr", "clicks", "cost", "conversions"] as AutoRevertMetric[]).map((m) => (
+                        <SelectItem key={m} value={m} className="text-xs">{METRIC_LABEL[m]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">sjunker</span>
+                  <Select
+                    value={String(autoRevertPolicy.threshold_pct)}
+                    onValueChange={(v) => setAutoRevertPolicy((p) => ({ ...p, threshold_pct: Number(v) }))}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[-10, -20, -30, -50].map((t) => (
+                        <SelectItem key={t} value={String(t)} className="text-xs">≥ {Math.abs(t)}%</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">inom</span>
+                  <Select
+                    value={String(autoRevertPolicy.window_days)}
+                    onValueChange={(v) => setAutoRevertPolicy((p) => ({ ...p, window_days: Number(v) as 7 | 14 | 30 }))}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[7, 14, 30].map((d) => (
+                        <SelectItem key={d} value={String(d)} className="text-xs">{d} dagar</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="basis-full text-[11px] text-muted-foreground">
+                    Mätning sker {autoRevertPolicy.window_days}d efter push. Om {METRIC_LABEL[autoRevertPolicy.metric]} sjunker mer än tröskeln, återställs ändringen automatiskt.
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xs text-muted-foreground">
+                <span className="text-foreground">{selected.size} valda</span>
+                {selectedImpact > 0 && (
+                  <> · Σ impact: <span className="text-foreground">{selectedImpact.toLocaleString("sv-SE")} kr/mån</span></>
+                )}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={clearSelection}>
+                  Avmarkera
+                </Button>
+                <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("reject")}>
+                  Avvisa alla
+                </Button>
+                <Button size="sm" variant="ghost" disabled={bulkRunning} onClick={() => requestBulk("approve")}>
+                  Godkänn alla
+                </Button>
+                <Button size="sm" disabled={bulkRunning} onClick={() => requestBulk("push")}>
+                  Pusha alla
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
 
       <AlertDialog
         open={!!confirmLargeBatch}
@@ -776,6 +897,7 @@ function Row({
   onPushAds,
   onOpenProposal,
   onOpenContext,
+  autoRevertInfo,
   registerRef,
 }: {
   item: PipelineItem;
@@ -788,6 +910,7 @@ function Row({
   onPushAds: () => void;
   onOpenProposal: () => void;
   onOpenContext: () => void;
+  autoRevertInfo?: { auto_reverted_at: string | null; auto_revert_reason: string | null };
   registerRef: (el: HTMLDivElement | null) => void;
 }) {
   const impact = formatImpact(item.impactSek);
@@ -811,11 +934,16 @@ function Row({
         <p className={cn("text-sm leading-snug", muted ? "text-muted-foreground" : "text-foreground")}>
           {item.title}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {categoryLabel(item.category)}
-          {impact && <span> · {impact}</span>}
-          {item.flags.queued && <span> · i kö</span>}
-          {item.flags.failed && <span className="text-destructive"> · misslyckades</span>}
+        <p className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <span>{categoryLabel(item.category)}</span>
+          {impact && <span>· {impact}</span>}
+          {item.flags.queued && <span>· i kö</span>}
+          {item.flags.failed && <span className="text-destructive">· misslyckades</span>}
+          {autoRevertInfo?.auto_reverted_at && (
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5" title={autoRevertInfo.auto_revert_reason ?? undefined}>
+              Auto-reverterad
+            </Badge>
+          )}
         </p>
       </div>
 
