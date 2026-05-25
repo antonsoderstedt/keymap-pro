@@ -143,13 +143,19 @@ export function ContextSheet(props: ContextSheetProps) {
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {!ref && <InvariantError />}
           {ref && loading && <LoadingState />}
-          {ref && !loading && error && <ErrorState error={error} onRetry={refresh} />}
+          {ref && !loading && error && error.kind === "schema_missing" && (
+            <SchemaMissingState />
+          )}
+          {ref && !loading && error && error.kind !== "schema_missing" && (
+            <ErrorState error={error.message} code={error.code} onRetry={refresh} />
+          )}
           {ref && !loading && !error && !data && (
             <EmptyState
               building={building}
               onBuild={() => build()}
             />
           )}
+
           {ref && !loading && !error && data && (
             <Body data={data} score={score} onRebuild={() => build({ force: true })} building={building} />
           )}
