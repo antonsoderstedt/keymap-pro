@@ -15,7 +15,7 @@ import KeywordUniverse from "./pages/KeywordUniverse";
 // WorkspaceSegments is now redirected to KeywordsHub via WorkspaceRedirect — no direct import needed
 import NotFound from "./pages/NotFound";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
-import ExecutiveDashboard from "./pages/workspace/ExecutiveDashboard";
+// ExecutiveDashboard removed Sprint 4 — overview-legacy folded into Today + Settings.
 import Today from "./pages/workspace/Today";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
@@ -76,7 +76,7 @@ const App = () => (
           {/* Workspace per kund */}
           <Route path="/clients/:id" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
             <Route index element={<Today />} />
-            <Route path="overview-legacy" element={<ExecutiveDashboard />} />
+            <Route path="overview-legacy" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
 
             <Route path="keywords" element={<KeywordsHub />} />
             <Route path="actions" element={<ActionsPipeline />} />

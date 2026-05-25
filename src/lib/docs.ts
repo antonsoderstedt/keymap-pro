@@ -107,7 +107,7 @@ export const DOCS: DocSection[] = [
       {
         heading: "Hur den är byggd",
         bullets: [
-          "Frontend: src/pages/workspace/ExecutiveDashboard.tsx",
+          "Frontend: src/pages/workspace/Today.tsx",
           "Data: läses live från projects + analyses-tabellerna och cachat GSC/GA4-snapshot",
           "KPI-beräkningar: src/lib/performance.ts + src/lib/roi.ts",
           "Inga AI-anrop — ren aggregering, snabb laddning",
@@ -204,7 +204,7 @@ export const DOCS: DocSection[] = [
       {
         heading: "Hur den är byggd",
         bullets: [
-          "Frontend: src/pages/workspace/ExecutiveDashboard.tsx + komponenter under src/components/workspace/",
+          "Frontend: src/pages/workspace/Today.tsx + src/components/workspace/RoiOverview.tsx",
           "GSC: gsc-fetch + gsc-fetch-history edge functions (Search Analytics API)",
           "GA4: ga4-fetch + ga4-revenue-fetch edge functions (Analytics Data API v1beta)",
           "ROI: src/lib/roi.ts beräknar intäkt = sessions × CR × AOV × marginal",
