@@ -76,7 +76,7 @@ export function CommandBar({ workspaceId, open, setOpen, recent, pushRecent }: C
 
         <CommandSeparator />
 
-        <CommandGroup heading="Legacy">
+        <CommandGroup heading="Situationsspecifikt">
           {legacy.map((r) => {
             const Icon = r.icon;
             return (
