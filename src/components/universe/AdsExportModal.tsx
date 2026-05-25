@@ -183,10 +183,21 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={generating || exporting}>Avbryt</Button>
-          <Button onClick={generateAdsAndExport} disabled={generating || exporting} className="gap-2">
-            {(generating || exporting) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-            {generating ? "Genererar annonser..." : exporting ? "Bygger ZIP..." : "Exportera ZIP"}
-          </Button>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={noVerified ? 0 : -1}>
+                  <Button onClick={generateAdsAndExport} disabled={generating || exporting || noVerified} className="gap-2">
+                    {(generating || exporting) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    {generating ? "Genererar annonser..." : exporting ? "Bygger ZIP..." : "Exportera ZIP"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {noVerified && (
+                <TooltipContent>Verifiera via Keyword Planner</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </DialogFooter>
       </DialogContent>
     </Dialog>
