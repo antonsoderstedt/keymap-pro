@@ -20,7 +20,7 @@ import Today from "./pages/workspace/Today";
 import WorkspaceSettings from "./pages/workspace/WorkspaceSettings";
 import PrelaunchBlueprint from "./pages/workspace/PrelaunchBlueprint";
 import KeywordsHub from "./pages/workspace/KeywordsHub";
-import ActionHub from "./pages/workspace/ActionHub";
+// ActionHub removed Sprint 2 — actions-legacy route eliminated.
 import ActionsPipeline from "./pages/workspace/ActionsPipeline";
 import Performance from "./pages/workspace/Performance";
 import GoogleAdsHub from "./pages/workspace/GoogleAdsHub";
