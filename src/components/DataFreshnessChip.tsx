@@ -11,7 +11,7 @@ interface Props {
   refreshing?: boolean;
 }
 
-const LABEL: Record<SourceKey, string> = { ga4: "GA4", gsc: "Search Console", ads: "Google Ads" };
+const LABEL: Record<SourceKey, string> = { ga4: "GA4", gsc: "Search Console", ads: "Google Ads", keyword_planner: "Keyword Planner" };
 
 function formatAge(sec: number | null): string {
   if (sec === null) return "aldrig";

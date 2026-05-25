@@ -113,6 +113,35 @@ export interface KeywordUniverse {
   engineVersion?: string;
 }
 
+// Google Ads Keyword Planner — raw ideas fetched per project.
+export interface KeywordPlannerIdea {
+  id: string;
+  project_id: string;
+  run_id: string;
+  seed_keyword: string | null;
+  seed_url: string | null;
+  keyword: string;
+  language_code: string;
+  location_code: string;
+  avg_monthly_searches: number | null;
+  competition: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN" | null;
+  competition_index: number | null;
+  low_top_of_page_bid_micros: number | null;
+  high_top_of_page_bid_micros: number | null;
+  fetched_at: string;
+  created_at: string;
+}
+
+export interface KeywordPlannerRun {
+  run_id: string;
+  fetched_at: string;
+  seed_keywords: string[];
+  seed_url: string | null;
+  count: number;
+  ideas: KeywordPlannerIdea[];
+}
+
+
 export interface Customer {
   id: string;
   project_id: string;

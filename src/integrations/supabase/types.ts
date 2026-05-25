@@ -1523,6 +1523,68 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_planner_ideas: {
+        Row: {
+          avg_monthly_searches: number | null
+          competition: string | null
+          competition_index: number | null
+          created_at: string
+          fetched_at: string
+          high_top_of_page_bid_micros: number | null
+          id: string
+          keyword: string
+          language_code: string
+          location_code: string
+          low_top_of_page_bid_micros: number | null
+          project_id: string
+          run_id: string
+          seed_keyword: string | null
+          seed_url: string | null
+        }
+        Insert: {
+          avg_monthly_searches?: number | null
+          competition?: string | null
+          competition_index?: number | null
+          created_at?: string
+          fetched_at?: string
+          high_top_of_page_bid_micros?: number | null
+          id?: string
+          keyword: string
+          language_code: string
+          location_code: string
+          low_top_of_page_bid_micros?: number | null
+          project_id: string
+          run_id: string
+          seed_keyword?: string | null
+          seed_url?: string | null
+        }
+        Update: {
+          avg_monthly_searches?: number | null
+          competition?: string | null
+          competition_index?: number | null
+          created_at?: string
+          fetched_at?: string
+          high_top_of_page_bid_micros?: number | null
+          id?: string
+          keyword?: string
+          language_code?: string
+          location_code?: string
+          low_top_of_page_bid_micros?: number | null
+          project_id?: string
+          run_id?: string
+          seed_keyword?: string | null
+          seed_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_planner_ideas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keyword_serp_cache: {
         Row: {
           expires_at: string

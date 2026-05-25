@@ -18,6 +18,7 @@ import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ContentBriefsTab } from "@/components/universe/ContentBriefsTab";
 import { TechSeoTab } from "@/components/universe/TechSeoTab";
 import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
+import { KeywordPlannerPanel } from "@/components/universe/KeywordPlannerPanel";
 import { getIdeaStatus, filterByIdeaTab, isWinner, type IdeaTab } from "@/lib/ideaStatus";
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -287,6 +288,7 @@ export default function KeywordUniversePage() {
 
           {/* Universe — full filtered table */}
           <TabsContent value="universe" className="space-y-4">
+            <KeywordPlannerPanel projectId={id!} />
             <Card className="border-border bg-card">
               <CardContent className="p-4 grid gap-3 md:grid-cols-4 lg:grid-cols-6">
                 <div className="md:col-span-2">

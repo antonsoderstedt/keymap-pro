@@ -12,9 +12,10 @@ const SCOPE_REQS: Record<string, string[]> = {
   ga4: ["https://www.googleapis.com/auth/analytics.readonly"],
   gsc: ["https://www.googleapis.com/auth/webmasters.readonly", "https://www.googleapis.com/auth/webmasters"],
   ads: ["https://www.googleapis.com/auth/adwords"],
+  keyword_planner: ["https://www.googleapis.com/auth/adwords"],
 };
 
-const TTL: Record<string, number> = { ga4: 1800, gsc: 1800, ads: 3600 };
+const TTL: Record<string, number> = { ga4: 1800, gsc: 1800, ads: 3600, keyword_planner: 30 * 24 * 3600 };
 
 function hasAnyScope(scopeStr: string | null | undefined, required: string[]): boolean {
   if (!scopeStr) return false;
@@ -44,31 +45,58 @@ Deno.serve(async (req) => {
     const { data: project } = await sbUser.from("projects").select("id").eq("id", project_id).maybeSingle();
     if (!project) return json({ error: "project not found" }, 404);
 
-    const [{ data: token }, { data: settings }, { data: statusRows }] = await Promise.all([
+    const [{ data: token }, { data: settings }, { data: statusRows }, { data: latestKpi }] = await Promise.all([
       sbAdmin.from("google_tokens").select("scope, expires_at").eq("user_id", user.id).maybeSingle(),
       sbAdmin.from("project_google_settings")
         .select("ga4_property_id, ga4_property_name, gsc_site_url, ads_customer_id, ads_customer_name")
         .eq("project_id", project_id).maybeSingle(),
       sbAdmin.from("data_source_status").select("*").eq("project_id", project_id),
+      sbAdmin.from("keyword_planner_ideas")
+        .select("fetched_at")
+        .eq("project_id", project_id)
+        .order("fetched_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     const tokenScope = (token as any)?.scope as string | undefined;
     const tokenExpired = token ? new Date((token as any).expires_at).getTime() < Date.now() - 5 * 60_000 : true;
     const hasToken = !!token;
 
-    const sources = (["ga4", "gsc", "ads"] as const).map((source) => {
+    const sources = (["ga4", "gsc", "ads", "keyword_planner"] as const).map((source) => {
       const required = SCOPE_REQS[source];
       const scopeOk = hasAnyScope(tokenScope, required);
       const selection = pickSelection(source, settings);
       const stored = (statusRows || []).find((r: any) => r.source === source);
       const ttlSec = stored?.ttl_seconds ?? TTL[source];
-      const lastSyncedAt = stored?.last_synced_at as string | null | undefined;
+      const lastSyncedAt = source === "keyword_planner"
+        ? ((latestKpi as any)?.fetched_at ?? null)
+        : (stored?.last_synced_at as string | null | undefined ?? null);
       const ageSec = lastSyncedAt ? (Date.now() - new Date(lastSyncedAt).getTime()) / 1000 : null;
 
       let status: string = "not_connected";
       let reason: string | null = null;
 
-      if (!hasToken) {
+      if (source === "keyword_planner") {
+        if (!hasToken || !scopeOk) {
+          status = "not_connected";
+          reason = "Google Ads är inte ansluten";
+        } else if (!selection.id) {
+          status = "not_connected";
+          reason = "Inget Ads-konto valt";
+        } else if (ageSec === null) {
+          status = "stale";
+          reason = "Inga keyword planner-idéer hämtade ännu";
+        } else if (ageSec > 90 * 24 * 3600) {
+          status = "error";
+          reason = "Senaste hämtning är äldre än 90 dagar";
+        } else if (ageSec > 30 * 24 * 3600) {
+          status = "stale";
+          reason = "Senaste hämtning är äldre än 30 dagar";
+        } else {
+          status = "ok";
+        }
+      } else if (!hasToken) {
         status = "not_connected";
         reason = "Google är inte ansluten";
       } else if (!scopeOk) {
@@ -121,11 +149,12 @@ function pickSelection(source: string, s: any): { id: string | null; name: strin
   if (source === "ga4") return { id: s.ga4_property_id || null, name: s.ga4_property_name || null, label: "GA4-property" };
   if (source === "gsc") return { id: s.gsc_site_url || null, name: s.gsc_site_url || null, label: "Search Console-sajt" };
   if (source === "ads") return { id: s.ads_customer_id || null, name: s.ads_customer_name || null, label: "Ads-konto" };
+  if (source === "keyword_planner") return { id: s.ads_customer_id || null, name: s.ads_customer_name || null, label: "Keyword Planner-konto" };
   return { id: null, name: null, label: labelOf(source) };
 }
 
 function labelOf(s: string) {
-  return s === "ga4" ? "GA4" : s === "gsc" ? "Search Console" : s === "ads" ? "Google Ads" : s;
+  return s === "ga4" ? "GA4" : s === "gsc" ? "Search Console" : s === "ads" ? "Google Ads" : s === "keyword_planner" ? "Keyword Planner" : s;
 }
 
 function json(b: unknown, status = 200) {
