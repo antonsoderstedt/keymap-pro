@@ -613,7 +613,7 @@ function BlueprintResult({ blueprint, currency, projectId, onRecompute }: { blue
 
       {adsPlan && (
         <TabsContent value="ads">
-          <AdsPlanView adsPlan={adsPlan} currency={currency} />
+          <AdsPlanView adsPlan={adsPlan} currency={currency} universeKeywords={kws} />
         </TabsContent>
       )}
 
