@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, Sparkles } from "lucide-react";
+import { Loader2, Download, Sparkles, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,6 +17,7 @@ import {
   DEFAULT_EXPORT_CONFIG,
   type ExportConfig,
 } from "@/lib/googleAdsExport";
+import { getIdeaStatus } from "@/lib/ideaStatus";
 import type { KeywordUniverse, AdDraft } from "@/lib/types";
 
 interface Props {
@@ -31,12 +34,19 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const eligibleAds = universe.keywords.filter((k) =>
+  const verifiedAds = universe.keywords.filter((k) =>
     !k.isNegative && (k.searchVolume ?? 0) > 0 && k.channel === "Google Ads"
+    && getIdeaStatus(k) === "verified"
   );
-  const adGroupCount = new Set(eligibleAds.map((k) => k.recommendedAdGroup || k.cluster)).size;
+  const unverifiedExcluded = universe.keywords.filter((k) =>
+    !k.isNegative && k.channel === "Google Ads" && getIdeaStatus(k) === "unverified_idea"
+  ).length;
+  const verifiedUniverse: KeywordUniverse = { ...universe, keywords: verifiedAds };
+  const adGroupCount = new Set(verifiedAds.map((k) => k.recommendedAdGroup || k.cluster)).size;
+  const noVerified = verifiedAds.length === 0;
 
   const generateAdsAndExport = async () => {
+    if (noVerified) return;
     let ads: AdDraft[] = [];
 
     if (cfg.includeAds) {
@@ -51,7 +61,7 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
       } else {
         setGenerating(true);
         try {
-          const adGroups = buildAdGroupsForGeneration(universe);
+          const adGroups = buildAdGroupsForGeneration(verifiedUniverse);
           if (adGroups.length === 0) {
             toast({ title: "Inga annonsgrupper", description: "Inga sökord med Google Ads-kanal och volym > 0.", variant: "destructive" });
             setGenerating(false);
@@ -74,7 +84,7 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
 
     setExporting(true);
     try {
-      const blob = await buildGoogleAdsEditorZip(universe, cfg, ads);
+      const blob = await buildGoogleAdsEditorZip(verifiedUniverse, cfg, ads);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -97,8 +107,24 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
         </DialogHeader>
 
         <div className="space-y-4">
+          {unverifiedExcluded > 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {unverifiedExcluded} overifierade {unverifiedExcluded === 1 ? "idé exkluderas" : "idéer exkluderas"}. Verifiera via Keyword Planner först.
+              </AlertDescription>
+            </Alert>
+          )}
+          {noVerified && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Inga verifierade sökord att exportera. Verifiera via Keyword Planner.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid gap-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Sökord (Google Ads):</span><Badge variant="outline">{eligibleAds.length}</Badge></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Sökord (Google Ads):</span><Badge variant="outline">{verifiedAds.length}</Badge></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Annonsgrupper:</span><Badge variant="outline">{adGroupCount}</Badge></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Negativa kw:</span><Badge variant="outline">{universe.keywords.filter((k) => k.isNegative).length}</Badge></div>
           </div>
@@ -157,10 +183,21 @@ export function AdsExportModal({ open, onClose, universe, projectId, analysisId 
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={generating || exporting}>Avbryt</Button>
-          <Button onClick={generateAdsAndExport} disabled={generating || exporting} className="gap-2">
-            {(generating || exporting) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-            {generating ? "Genererar annonser..." : exporting ? "Bygger ZIP..." : "Exportera ZIP"}
-          </Button>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={noVerified ? 0 : -1}>
+                  <Button onClick={generateAdsAndExport} disabled={generating || exporting || noVerified} className="gap-2">
+                    {(generating || exporting) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    {generating ? "Genererar annonser..." : exporting ? "Bygger ZIP..." : "Exportera ZIP"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {noVerified && (
+                <TooltipContent>Verifiera via Keyword Planner</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </DialogFooter>
       </DialogContent>
     </Dialog>

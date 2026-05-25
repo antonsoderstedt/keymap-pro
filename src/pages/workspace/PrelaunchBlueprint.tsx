@@ -18,6 +18,7 @@ import { formatMoney } from "@/lib/revenue";
 import { FactCheckCard, type FactCheckPayload } from "@/components/workspace/FactCheckCard";
 import { PrelaunchStepper, type PrelaunchStep } from "@/components/workspace/PrelaunchStepper";
 import { downloadAdsPlanCsv } from "@/lib/adsPlanExport";
+import { lookupIdeaStatus } from "@/lib/ideaStatus";
 
 type Brief = {
   id: string;
@@ -613,7 +614,7 @@ function BlueprintResult({ blueprint, currency, projectId, onRecompute }: { blue
 
       {adsPlan && (
         <TabsContent value="ads">
-          <AdsPlanView adsPlan={adsPlan} currency={currency} />
+          <AdsPlanView adsPlan={adsPlan} currency={currency} universeKeywords={kws} />
         </TabsContent>
       )}
 
@@ -833,7 +834,32 @@ function KeywordSelectorTab({ keywords, initialSelected, onRecompute }: { keywor
   );
 }
 
-function AdsPlanView({ adsPlan, currency }: { adsPlan: any; currency: any }) {
+function AdsPlanView({ adsPlan, currency, universeKeywords }: { adsPlan: any; currency: any; universeKeywords: any[] }) {
+  const universe = { keywords: universeKeywords || [] };
+  // Filtrera ad-plan-keywords mot verifierad demand. Overifierade idéer (eller saknade i universe) exkluderas.
+  const isVerifiedText = (text: string): boolean => {
+    const status = lookupIdeaStatus(universe as any, text);
+    return status === "verified";
+  };
+  const extractText = (kw: any): string => (typeof kw === "string" ? kw : kw?.text || "");
+  let excludedCount = 0;
+  const filteredCampaigns = (adsPlan?.campaigns || []).map((c: any) => {
+    const ad_groups = (c.ad_groups || []).map((ag: any) => {
+      const kept: any[] = [];
+      for (const kw of ag.keywords || []) {
+        if (isVerifiedText(extractText(kw))) kept.push(kw);
+        else excludedCount++;
+      }
+      return { ...ag, keywords: kept };
+    }).filter((ag: any) => (ag.keywords || []).length > 0);
+    return { ...c, ad_groups };
+  }).filter((c: any) => (c.ad_groups || []).length > 0);
+  const filteredPlan = { ...adsPlan, campaigns: filteredCampaigns };
+  const verifiedKwCount = filteredCampaigns.reduce(
+    (s: number, c: any) => s + c.ad_groups.reduce((s2: number, ag: any) => s2 + (ag.keywords?.length || 0), 0),
+    0,
+  );
+  const noVerified = verifiedKwCount === 0;
   const campaigns = adsPlan?.campaigns || [];
   return (
     <div className="space-y-4">
@@ -846,15 +872,24 @@ function AdsPlanView({ adsPlan, currency }: { adsPlan: any; currency: any }) {
                 Total daglig budget: <strong>{formatMoney(adsPlan.recommended_total_daily_sek || 0, currency, { compact: true })}</strong> · {campaigns.length} kampanjer
               </CardDescription>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => downloadAdsPlanCsv(adsPlan, "ads-plan-prelaunch.csv")}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportera CSV (Google Ads Editor)
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={noVerified}
+                onClick={() => downloadAdsPlanCsv(filteredPlan, "ads-plan-prelaunch.csv")}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Exportera CSV (Google Ads Editor)
+              </Button>
+              {excludedCount > 0 && (
+                <span className="text-[11px] text-muted-foreground">{excludedCount} overifierade idéer exkluderade</span>
+              )}
+              {noVerified && (
+                <span className="text-[11px] text-destructive">Inga verifierade sökord att exportera</span>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

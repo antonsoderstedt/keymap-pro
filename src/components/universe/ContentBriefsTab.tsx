@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, FileText, Download, RefreshCw, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { KeywordUniverse } from "@/lib/types";
+import { getIdeaStatus } from "@/lib/ideaStatus";
 import {
   ContentBrief, briefToMarkdown,
   downloadBriefDOCX, downloadBriefJSON, downloadBriefMarkdown, downloadBriefPDF,
@@ -22,13 +23,17 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
   const clusters = Array.from(new Set(universe.keywords.filter((k) => !k.isNegative).map((k) => k.cluster)));
   const clusterStats = clusters.map((c) => {
     const kws = universe.keywords.filter((k) => k.cluster === c && !k.isNegative);
+    const verifiedCount = kws.filter((k) => getIdeaStatus(k) === "verified").length;
     return {
       cluster: c,
       count: kws.length,
+      verifiedCount,
       volume: kws.reduce((s, k) => s + (k.searchVolume ?? 0), 0),
       avgKd: kws.filter((k) => k.kd != null).reduce((s, k, _, arr) => s + (k.kd! / arr.length), 0),
     };
   }).sort((a, b) => b.volume - a.volume);
+
+  
 
   const [selected, setSelected] = useState<string>(clusterStats[0]?.cluster || "");
   const [brief, setBrief] = useState<ContentBrief | null>(null);
@@ -49,7 +54,20 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
     });
   }, [selected, analysisId]);
 
+  const currentStats = clusterStats.find((c) => c.cluster === selected);
+  const verifiedInSelected = currentStats?.verifiedCount ?? 0;
+  const totalInSelected = currentStats?.count ?? 0;
+  const blockedNoVerified = !!selected && verifiedInSelected === 0;
+
   const generate = async (force = false) => {
+    if (blockedNoVerified) {
+      toast({
+        title: "Inga verifierade sökord i klustret",
+        description: "Verifiera via Keyword Planner först.",
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-brief", { body: { analysis_id: analysisId, cluster: selected, force } });
@@ -77,22 +95,36 @@ export function ContentBriefsTab({ analysisId, universe }: Props) {
                 <SelectContent className="max-h-80">
                   {clusterStats.map((c) => (
                     <SelectItem key={c.cluster} value={c.cluster}>
-                      {savedClusters.has(c.cluster) ? "✓ " : ""}{c.cluster} — {c.count} kw, {c.volume} vol
+                      {savedClusters.has(c.cluster) ? "✓ " : ""}{c.cluster} — {c.verifiedCount}/{c.count} verifierade, {c.volume} vol
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => generate(false)} disabled={!selected || loading} className="gap-2">
+            <Button
+              onClick={() => generate(false)}
+              disabled={!selected || loading || blockedNoVerified}
+              className="gap-2"
+            >
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
               {brief ? "Visa brief" : "Generera brief"}
             </Button>
             {brief && (
-              <Button variant="outline" onClick={() => generate(true)} disabled={loading} className="gap-2">
+              <Button variant="outline" onClick={() => generate(true)} disabled={loading || blockedNoVerified} className="gap-2">
                 <RefreshCw className="h-3 w-3" /> Generera om
               </Button>
             )}
           </div>
+          {blockedNoVerified && (
+            <p className="text-xs text-destructive">
+              Inga verifierade sökord i klustret — verifiera via Keyword Planner först.
+            </p>
+          )}
+          {!blockedNoVerified && currentStats && verifiedInSelected < totalInSelected && (
+            <p className="text-xs text-muted-foreground">
+              {verifiedInSelected}/{totalInSelected} verifierade — overifierade idéer inkluderas inte i brief-genereringen.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">{savedClusters.size} av {clusters.length} kluster har briefs sparade</p>
         </CardContent>
       </Card>

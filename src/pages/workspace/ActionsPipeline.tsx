@@ -3,6 +3,9 @@ import { useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useActionItems } from "@/hooks/useActionItems";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
+import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
+import { lookupIdeaStatus } from "@/lib/ideaStatus";
+import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -86,6 +89,7 @@ export default function ActionsPipeline() {
   const [proposalsOpen, setProposalsOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const caps = useProjectCapabilities(projectId || null);
+  const { universe } = useWorkspaceAnalysis(projectId || null);
 
   // Group-by (URL-bound) + selection state for bulk actions
   const groupByParam = params.get("groupBy");
@@ -613,6 +617,7 @@ export default function ActionsPipeline() {
       <ProposalSheet
         proposal={viewProposal}
         onClose={() => setViewProposal(null)}
+        universe={universe}
       />
 
       {viewContext && (
@@ -671,9 +676,11 @@ export default function ActionsPipeline() {
 function ProposalSheet({
   proposal,
   onClose,
+  universe,
 }: {
   proposal: PipelineItem | null;
   onClose: () => void;
+  universe: import("@/lib/types").KeywordUniverse | null;
 }) {
   if (!proposal) return null;
   const raw = proposal.raw as AdsProposalRow;
@@ -711,14 +718,23 @@ function ProposalSheet({
             </p>
           </section>
 
-          {raw.scope_label && (
-            <section>
-              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                Omfattning
-              </p>
-              <p className="text-xs text-muted-foreground">{raw.scope_label}</p>
-            </section>
-          )}
+          {raw.scope_label && (() => {
+            // Försök matcha sista segmentet (ofta sökord) mot universe.
+            const segments = raw.scope_label.split("›").map((s) => s.trim()).filter(Boolean);
+            const tail = segments[segments.length - 1] || raw.scope_label;
+            const status = lookupIdeaStatus(universe, tail);
+            return (
+              <section>
+                <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Omfattning
+                </p>
+                <p className="text-xs text-muted-foreground inline-flex items-center gap-1 flex-wrap">
+                  <span>{raw.scope_label}</span>
+                  {status === "unverified_idea" && <UnverifiedIdeaBadge status={status} />}
+                </p>
+              </section>
+            );
+          })()}
 
           {raw.payload && (
             <section>
