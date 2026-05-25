@@ -1,7 +1,19 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { IdeaStatus } from "@/lib/ideaStatus";
 
-export function UnverifiedIdeaBadge() {
+interface UnverifiedIdeaBadgeProps {
+  /**
+   * Idea-status för sökordet. När prop saknas renderas badge ovillkorligt
+   * (bakåtkompatibel med tidigare användning). När `status` är angiven
+   * returneras null för alla andra statusar än `unverified_idea` — caller
+   * slipper villkora själv.
+   */
+  status?: IdeaStatus;
+}
+
+export function UnverifiedIdeaBadge({ status }: UnverifiedIdeaBadgeProps = {}) {
+  if (status !== undefined && status !== "unverified_idea") return null;
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>

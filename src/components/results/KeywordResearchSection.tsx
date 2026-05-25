@@ -336,7 +336,7 @@ export default function KeywordResearchSection({ clusters, selectedKeywords, set
                                   <TableCell className="font-mono text-xs">
                                     <div className="flex items-center gap-2">
                                       <span>{k.keyword}</span>
-                                      {!isReal && hasRealData && <UnverifiedIdeaBadge />}
+                                      <UnverifiedIdeaBadge status={isReal ? "verified" : (hasRealData ? "unverified_idea" : undefined)} />
                                     </div>
                                   </TableCell>
                                   <TableCell className="font-mono text-xs">{volDisplay}</TableCell>
