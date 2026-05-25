@@ -16,15 +16,18 @@ const { proposals } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
-  const builder: any = {
-    select: vi.fn(() => builder),
-    eq: vi.fn(() => builder),
-    order: vi.fn().mockResolvedValue({ data: proposals, error: null }),
+  const result = { data: proposals, error: null };
+  // Chainable query: select/eq/order all return the same object that is also thenable.
+  const chain: any = {
+    select: vi.fn(() => chain),
+    eq: vi.fn(() => chain),
+    order: vi.fn(() => chain),
     update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })),
+    then: (resolve: any) => Promise.resolve(result).then(resolve),
   };
   return {
     supabase: {
-      from: vi.fn(() => builder),
+      from: vi.fn(() => chain),
       channel: vi.fn(() => ({
         on: vi.fn().mockReturnThis(),
         subscribe: vi.fn().mockReturnThis(),
