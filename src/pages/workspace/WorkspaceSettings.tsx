@@ -20,6 +20,7 @@ import ClientInfoCard from "@/components/workspace/ClientInfoCard";
 import BrandKit from "./BrandKit";
 import { OnboardingChecklist } from "@/components/workspace/OnboardingChecklist";
 import { KeywordPlannerPanel } from "@/components/universe/KeywordPlannerPanel";
+import GoogleDataPanel from "@/components/GoogleDataPanel";
 
 interface KpiTarget {
   id: string;
