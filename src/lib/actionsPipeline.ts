@@ -17,6 +17,7 @@ export interface AdsProposalRow {
   status: string;
   error_message: string | null;
   created_at: string;
+  rule_id?: string | null;
 }
 
 export interface PipelineItem {
