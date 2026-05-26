@@ -163,9 +163,16 @@ function MutedNote({ children }: { children: React.ReactNode }) {
 
 /** Collapsible underavdelning — håller Performance läsbar när Ads är aktivt. */
 function SubSection({
-  title, defaultOpen = false, children,
-}: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  title, defaultOpen = false, forceOpenSignal, children,
+}: { title: string; defaultOpen?: boolean; forceOpenSignal?: number; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (forceOpenSignal != null) {
+      setOpen(true);
+    }
+  }, [forceOpenSignal]);
+
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-t border-border/40 pt-4">
       <CollapsibleTrigger className="flex w-full items-center justify-between text-left group">
@@ -187,6 +194,7 @@ function SubSection({
 export default function Performance() {
   const { id: projectId } = useParams<{ id: string }>();
   const [range, setRange] = useState<Range>("28");
+  const [expandAdsSignal, setExpandAdsSignal] = useState(0);
   const { gsc, ga4, changes, loading, error } = usePerformanceData(projectId);
   const caps = useProjectCapabilities(projectId);
 
@@ -313,12 +321,21 @@ export default function Performance() {
         <section className="space-y-6 border-b border-border/40 pb-10">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <SectionHeader title="Google Ads" />
-            <Link
-              to={`/clients/${projectId}/account-intelligence`}
-              className="text-xs text-primary underline-offset-4 hover:underline"
-            >
-              Visa Account Intelligence →
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setExpandAdsSignal((cur) => cur + 1)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Visa alla Ads-delar
+              </button>
+              <Link
+                to={`/clients/${projectId}/account-intelligence`}
+                className="text-xs text-primary underline-offset-4 hover:underline"
+              >
+                Visa Account Intelligence →
+              </Link>
+            </div>
           </div>
 
           {adsFallback.state === "block" ? (
@@ -327,13 +344,13 @@ export default function Performance() {
             <>
               {adsFallback.node}
               <DiagnosisPanel projectId={projectId} />
-              <SubSection title="Auction Insights">
+              <SubSection title="Auction Insights" forceOpenSignal={expandAdsSignal}>
                 <AuctionInsights />
               </SubSection>
-              <SubSection title="Kampanjstruktur">
+              <SubSection title="Kampanjstruktur" forceOpenSignal={expandAdsSignal}>
                 <CampaignTree projectId={projectId} />
               </SubSection>
-              <SubSection title="Senaste ändringars effekt" defaultOpen>
+              <SubSection title="Senaste ändringars effekt" defaultOpen forceOpenSignal={expandAdsSignal}>
                 <AdsResultsTab projectId={projectId} />
               </SubSection>
             </>

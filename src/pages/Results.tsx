@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Download, FileText, Presentation, FileType, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -282,6 +283,29 @@ export default function Results() {
         <ResultsSidebar />
 
         <main className="min-w-0 flex-1 space-y-16 animate-fade-in">
+          <Card className="border-border bg-card/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-serif">Arbeta i den här ordningen</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                1. Starta i <span className="text-foreground">Översikt</span> för nuläge.
+                2. Gå vidare till <span className="text-foreground">Segment</span> och <span className="text-foreground">Sökord</span> för prioritering.
+                3. Avsluta i <span className="text-foreground">Action</span> och skicka till åtgärdsflödet.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full border border-border px-2 py-0.5">Segment: {result.segments?.length ?? 0}</span>
+                <span className="rounded-full border border-border px-2 py-0.5">Sökord: {result.totalKeywords?.toLocaleString("sv-SE") ?? 0}</span>
+                {universe && <span className="rounded-full border border-border px-2 py-0.5">Berikade: {universe.totalEnriched}</span>}
+              </div>
+              <div>
+                <Button size="sm" variant="outline" onClick={() => navigate(`/clients/${id}/actions`)}>
+                  Nästa steg: öppna Åtgärder
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <OverviewSection result={result} universe={universe} />
           {result.segments?.length > 0 && <SegmentsSection segments={result.segments} />}
           {universe ? (

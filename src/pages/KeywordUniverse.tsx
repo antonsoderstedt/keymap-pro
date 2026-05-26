@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search, Target, BookOpen, ShieldCheck } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, Download, Network, Sparkles, Megaphone, FileText, MapPin, Ban, Search, Target, BookOpen, ShieldCheck, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { KeywordUniverse, UniverseKeyword } from "@/lib/types";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
@@ -59,6 +60,7 @@ export default function KeywordUniversePage() {
   const [onlyGap, setOnlyGap] = useState(false);
   const [maxKd, setMaxKd] = useState<string>("100");
   const [ideaTab, setIdeaTab] = useState<IdeaTab>("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     load();
@@ -143,6 +145,21 @@ export default function KeywordUniversePage() {
     negative: baseFiltered.filter((k) => getIdeaStatus(k) === "negative").length,
     winners: baseFiltered.filter(isWinner).length,
   }), [baseFiltered]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count += 1;
+    if (intent !== "all") count += 1;
+    if (funnel !== "all") count += 1;
+    if (dimension !== "all") count += 1;
+    if (channel !== "all") count += 1;
+    if (priority !== "all") count += 1;
+    if (maxKd !== "100") count += 1;
+    if (onlyReal) count += 1;
+    if (onlyGap) count += 1;
+    if (!hideZeroVolume) count += 1;
+    return count;
+  }, [search, intent, funnel, dimension, channel, priority, maxKd, onlyReal, onlyGap, hideZeroVolume]);
 
   const downloadCSV = (rows: string[][], filename: string) => {
     const csv = rows.map((r) => r.map((c) => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -315,13 +332,13 @@ export default function KeywordUniversePage() {
 
         <Tabs defaultValue="priority">
           <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="universe" className="gap-1"><Network className="h-3 w-3" />Universe</TabsTrigger>
-            <TabsTrigger value="priority" className="gap-1"><Sparkles className="h-3 w-3" />Prioriterade</TabsTrigger>
-            <TabsTrigger value="seo" className="gap-1"><FileText className="h-3 w-3" />SEO</TabsTrigger>
-            <TabsTrigger value="ads" className="gap-1"><Megaphone className="h-3 w-3" />Google Ads</TabsTrigger>
-            <TabsTrigger value="content" className="gap-1"><FileText className="h-3 w-3" />Content</TabsTrigger>
-            <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal</TabsTrigger>
-            <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa</TabsTrigger>
+            <TabsTrigger value="universe" className="gap-1"><Network className="h-3 w-3" />Universe ({universe.keywords.length})</TabsTrigger>
+            <TabsTrigger value="priority" className="gap-1"><Sparkles className="h-3 w-3" />Prioriterade ({priorityKeywords.length})</TabsTrigger>
+            <TabsTrigger value="seo" className="gap-1"><FileText className="h-3 w-3" />SEO ({seoOpps.length})</TabsTrigger>
+            <TabsTrigger value="ads" className="gap-1"><Megaphone className="h-3 w-3" />Google Ads ({adsOpps.length})</TabsTrigger>
+            <TabsTrigger value="content" className="gap-1"><FileText className="h-3 w-3" />Content ({contentOpps.length})</TabsTrigger>
+            <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal ({localOpps.length})</TabsTrigger>
+            <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa ({negatives.length})</TabsTrigger>
             <TabsTrigger value="briefs" className="gap-1"><BookOpen className="h-3 w-3" />Briefs</TabsTrigger>
             <TabsTrigger value="techseo" className="gap-1"><ShieldCheck className="h-3 w-3" />Teknisk SEO</TabsTrigger>
             <TabsTrigger value="strategy" className="gap-1"><Target className="h-3 w-3" />Strategi</TabsTrigger>
@@ -330,60 +347,85 @@ export default function KeywordUniversePage() {
           {/* Universe — full filtered table */}
           <TabsContent value="universe" className="space-y-4">
             <KeywordPlannerPanel projectId={id!} onAddToUniverse={handleAddToUniverse} />
-            <Card className="border-border bg-card">
-              <CardContent className="p-4 grid gap-3 md:grid-cols-4 lg:grid-cols-6">
-                <div className="md:col-span-2">
-                  <Label className="text-xs">Sök</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filtrera sökord..." className="pl-7" />
-                  </div>
-                </div>
-                <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[["all","Alla"],["informational","Info"],["commercial","Kommersiell"],["transactional","Transaktionell"],["navigational","Navigations"]]} />
-                <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"]]} />
-                <FilterSelect label="Dimension" value={dimension} onChange={setDimension} options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
-                <FilterSelect label="Kanal" value={channel} onChange={setChannel} options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
-                <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"]]} />
-                <div>
-                  <Label className="text-xs">KD max</Label>
-                  <Input type="number" min={0} max={100} value={maxKd} onChange={(e) => setMaxKd(e.target.value)} className="h-9" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
-                  <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
-                  <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
-                  <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
-                </div>
+            <Card className="border-border bg-card/50">
+              <CardContent className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>Filtrerat urval: <span className="text-foreground font-medium">{filtered.length}</span> av {universe.totalKeywords} sökord</span>
+                <span>Aktiva filter: <span className="text-foreground font-medium">{activeFilterCount}</span></span>
               </CardContent>
             </Card>
 
-            <Tabs value={ideaTab} onValueChange={(v) => setIdeaTab(v as IdeaTab)}>
-              <TabsList className="h-auto flex-wrap">
-                <TabsTrigger value="all">Alla ({ideaTabCounts.all})</TabsTrigger>
-                <TabsTrigger value="verified" className="gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Verifierade ({ideaTabCounts.verified})
-                </TabsTrigger>
-                <TabsTrigger value="unverified" className="gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Overifierade idéer ({ideaTabCounts.unverified})
-                </TabsTrigger>
-                <TabsTrigger value="negative" className="gap-1.5">
-                  <Ban className="h-3.5 w-3.5" />
-                  Negativa ({ideaTabCounts.negative})
-                </TabsTrigger>
-                <TabsTrigger value="winners" className="gap-1.5">
-                  <Target className="h-3.5 w-3.5" />
-                  Winners ({ideaTabCounts.winners})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <Collapsible open={showFilters} onOpenChange={setShowFilters} className="space-y-3">
+              <div className="md:hidden">
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    <span className="flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Filter och urval
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+
+              <CollapsibleContent className="md:!block">
+                <div className={`${showFilters ? "block" : "hidden"} md:block space-y-3`}>
+                  <Card className="border-border bg-card">
+                    <CardContent className="p-4 grid gap-3 md:grid-cols-4 lg:grid-cols-6">
+                      <div className="md:col-span-2">
+                        <Label className="text-xs">Sök</Label>
+                        <div className="relative">
+                          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filtrera sökord..." className="pl-7" />
+                        </div>
+                      </div>
+                      <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[["all","Alla"],["informational","Info"],["commercial","Kommersiell"],["transactional","Transaktionell"],["navigational","Navigations"]]} />
+                      <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"]]} />
+                      <FilterSelect label="Dimension" value={dimension} onChange={setDimension} options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
+                      <FilterSelect label="Kanal" value={channel} onChange={setChannel} options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
+                      <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"]]} />
+                      <div>
+                        <Label className="text-xs">KD max</Label>
+                        <Input type="number" min={0} max={100} value={maxKd} onChange={(e) => setMaxKd(e.target.value)} className="h-9" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch id="zero" checked={hideZeroVolume} onCheckedChange={setHideZeroVolume} />
+                        <Label htmlFor="zero" className="text-xs cursor-pointer">Dölj 0-volym</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
+                        <Label htmlFor="real" className="text-xs cursor-pointer">Endast verklig data</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                        <Label htmlFor="gap" className="text-xs cursor-pointer">Konkurrent-gap</Label>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Tabs value={ideaTab} onValueChange={(v) => setIdeaTab(v as IdeaTab)}>
+                    <TabsList className="h-auto flex-wrap">
+                      <TabsTrigger value="all">Alla ({ideaTabCounts.all})</TabsTrigger>
+                      <TabsTrigger value="verified" className="gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Verifierade ({ideaTabCounts.verified})
+                      </TabsTrigger>
+                      <TabsTrigger value="unverified" className="gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Overifierade idéer ({ideaTabCounts.unverified})
+                      </TabsTrigger>
+                      <TabsTrigger value="negative" className="gap-1.5">
+                        <Ban className="h-3.5 w-3.5" />
+                        Negativa ({ideaTabCounts.negative})
+                      </TabsTrigger>
+                      <TabsTrigger value="winners" className="gap-1.5">
+                        <Target className="h-3.5 w-3.5" />
+                        Winners ({ideaTabCounts.winners})
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <KeywordTable items={filtered} />
           </TabsContent>
@@ -435,12 +477,28 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 }
 
 function KeywordTable({ items }: { items: UniverseKeyword[] }) {
+  const PAGE_SIZE = 75;
+  const [visibleRows, setVisibleRows] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleRows(PAGE_SIZE);
+  }, [items]);
+
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Inga sökord matchar.</p>;
   }
+
+  const shown = items.slice(0, visibleRows);
+  const hasMore = visibleRows < items.length;
+  const nextStep = Math.min(PAGE_SIZE, items.length - visibleRows);
+
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-0 overflow-x-auto">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
+          <span>Visar {shown.length} av {items.length} sökord</span>
+          {hasMore && <span>Scrolla eller visa fler</span>}
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -457,7 +515,7 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.slice(0, 500).map((k, i) => (
+            {shown.map((k, i) => (
               <TableRow key={i} className={k.isNegative ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
@@ -484,11 +542,14 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
             ))}
           </TableBody>
         </Table>
-        {items.length > 500 && (
-          <p className="text-xs text-muted-foreground text-center py-3 border-t border-border">
-            Visar 500 av {items.length} — exportera CSV för komplett lista
-          </p>
-        )}
+        <div className="border-t border-border px-4 py-3 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">Exportera CSV för komplett lista.</p>
+          {hasMore && (
+            <Button size="sm" variant="outline" onClick={() => setVisibleRows((cur) => Math.min(cur + PAGE_SIZE, items.length))}>
+              Visa fler (+{nextStep})
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

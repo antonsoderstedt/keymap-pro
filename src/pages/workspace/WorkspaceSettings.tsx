@@ -102,14 +102,24 @@ export default function WorkspaceSettings() {
         </CardContent>
       </Card>
 
+      <Card className="border-border bg-card/40">
+        <CardContent className="p-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" asChild><a href="#settings-konto">Konto</a></Button>
+          <Button size="sm" variant="outline" asChild><a href="#settings-kopplingar">Kopplingar</a></Button>
+          <Button size="sm" variant="outline" asChild><a href="#settings-mal">Mål</a></Button>
+          <Button size="sm" variant="outline" asChild><a href="#settings-brand">Brand</a></Button>
+          <Button size="sm" variant="outline" asChild><a href="#settings-automation">Automation</a></Button>
+        </CardContent>
+      </Card>
+
       {id && <OnboardingChecklist projectId={id} />}
 
-      <Section title="Konto" description="Obligatoriskt: kunduppgifter och teammedlemmar.">
+      <Section sectionId="settings-konto" title="Konto" description="Obligatoriskt: kunduppgifter och teammedlemmar.">
         <ClientInfoCard projectId={id!} />
         <MembersCard projectId={id!} />
       </Section>
 
-      <Section title="Mål" description="Rekommenderat: KPI-mål, intäktsmodell och måluppföljning.">
+      <Section sectionId="settings-mal" title="Mål" description="Rekommenderat: KPI-mål, intäktsmodell och måluppföljning.">
         <GoalsCard projectId={id!} />
 
         <Card>
@@ -203,7 +213,7 @@ export default function WorkspaceSettings() {
         <RevenueSettings projectId={id!} />
       </Section>
 
-      <Section title="Kopplingar" description="Obligatoriskt: Google Ads, GA4 och övriga datakällor.">
+      <Section sectionId="settings-kopplingar" title="Kopplingar" description="Obligatoriskt: Google Ads, GA4 och övriga datakällor.">
         <GoogleAdsConnection projectId={id!} />
         <Ga4Filters projectId={id!} />
         <Ga4ConversionFilters projectId={id!} />
@@ -227,7 +237,7 @@ export default function WorkspaceSettings() {
         </Card>
       </Section>
 
-      <Section title="Brand" description="Valfritt: logotyp, färger och tonläge för rapporter.">
+      <Section sectionId="settings-brand" title="Brand" description="Valfritt: logotyp, färger och tonläge för rapporter.">
         <div>
           <h3 className="font-serif text-base mb-3 flex items-center gap-2 text-muted-foreground">
             <Palette className="h-4 w-4 text-primary" /> Brand Kit
@@ -236,7 +246,7 @@ export default function WorkspaceSettings() {
         </div>
       </Section>
 
-      <Section title="Automation" description="Valfritt: regler för automatiska åtgärder och alerts.">
+      <Section sectionId="settings-automation" title="Automation" description="Valfritt: regler för automatiska åtgärder och alerts.">
         <AutomationRules projectId={id!} />
       </Section>
     </div>
@@ -244,16 +254,18 @@ export default function WorkspaceSettings() {
 }
 
 function Section({
+  sectionId,
   title,
   description,
   children,
 }: {
+  sectionId: string;
   title: string;
   description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4">
+    <section id={sectionId} className="space-y-4 scroll-mt-24">
       <div className="border-b border-border/50 pb-2">
         <h2 className="font-serif text-xl">{title}</h2>
         {description && (

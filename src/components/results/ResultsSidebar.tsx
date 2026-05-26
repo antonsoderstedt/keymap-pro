@@ -3,11 +3,11 @@ import { LayoutGrid, Users, Search, Megaphone, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { id: "overview", label: "Översikt", icon: LayoutGrid },
-  { id: "segments", label: "Segment", icon: Users },
-  { id: "keywords", label: "Sökord", icon: Search },
-  { id: "channels", label: "Kanaler", icon: Megaphone },
-  { id: "action", label: "Action", icon: Target },
+  { id: "overview", label: "Översikt", hint: "Start här", icon: LayoutGrid },
+  { id: "segments", label: "Segment", hint: "Välj marknadsfokus", icon: Users },
+  { id: "keywords", label: "Sökord", hint: "Prioritera möjligheter", icon: Search },
+  { id: "channels", label: "Kanaler", hint: "Aktivera per kanal", icon: Megaphone },
+  { id: "action", label: "Action", hint: "Skicka till Åtgärder", icon: Target },
 ];
 
 export function ResultsSidebar() {
@@ -38,7 +38,7 @@ export function ResultsSidebar() {
     <nav className="sticky top-24 hidden w-52 shrink-0 lg:block">
       <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Sektioner</p>
       <ul className="space-y-0.5">
-        {items.map(({ id, label, icon: Icon }, i) => (
+        {items.map(({ id, label, hint, icon: Icon }, i) => (
           <li key={id}>
             <button
               onClick={() => handleClick(id)}
@@ -54,7 +54,10 @@ export function ResultsSidebar() {
                 active === id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               )}>{i + 1}</span>
               <Icon className="h-4 w-4" />
-              {label}
+              <span className="min-w-0">
+                <span className="block truncate">{label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{hint}</span>
+              </span>
             </button>
           </li>
         ))}
