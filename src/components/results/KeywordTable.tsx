@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { UniverseKeyword } from "@/lib/types";
 
@@ -21,6 +23,13 @@ const fmtSek = (n?: number) =>
   n != null && n > 0 ? `${Math.round(n / 1000)}k` : "—";
 
 export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[]; limit?: number }) {
+  const PAGE_SIZE = 75;
+  const [visibleRows, setVisibleRows] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleRows(PAGE_SIZE);
+  }, [items]);
+
   if (items.length === 0) {
     return (
       <Card className="border-dashed border-border bg-card/50">
@@ -28,10 +37,20 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
       </Card>
     );
   }
+
+  const maxRows = Math.min(items.length, limit);
+  const shownRows = Math.min(visibleRows, maxRows);
+  const hasMore = shownRows < maxRows;
+  const step = Math.min(PAGE_SIZE, maxRows - shownRows);
+
   const hasScores = items.some((k) => k.score);
   return (
     <Card className="border-border bg-card shadow-card">
       <CardContent className="overflow-x-auto p-0">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
+          <span>Visar {shownRows.toLocaleString("sv-SE")} av {maxRows.toLocaleString("sv-SE")} sökord</span>
+          {hasMore && <span>Använd Visa fler för nästa block</span>}
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -50,7 +69,7 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.slice(0, limit).map((k, i) => (
+            {items.slice(0, shownRows).map((k, i) => (
               <TableRow key={i} className={k.isNegative || k.priority === "skip" ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
@@ -109,9 +128,17 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
             ))}
           </TableBody>
         </Table>
+        <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">Exportera CSV för komplett lista.</p>
+          {hasMore && (
+            <Button size="sm" variant="outline" onClick={() => setVisibleRows((cur) => Math.min(cur + PAGE_SIZE, maxRows))}>
+              Visa fler (+{step})
+            </Button>
+          )}
+        </div>
         {items.length > limit && (
-          <p className="border-t border-border py-3 text-center text-xs text-muted-foreground">
-            Visar {limit} av {items.length.toLocaleString("sv-SE")} — exportera CSV för komplett lista
+          <p className="px-4 pb-3 text-xs text-muted-foreground">
+            Tekniskt tak i tabellen: {limit.toLocaleString("sv-SE")}. Använd export för alla {items.length.toLocaleString("sv-SE")}.
           </p>
         )}
       </CardContent>

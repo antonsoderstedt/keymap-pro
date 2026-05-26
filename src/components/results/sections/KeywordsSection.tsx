@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Search, Download } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, Download, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ZAxis } from "recharts";
 import { SectionHeader } from "../SectionHeader";
 import { ChartCard } from "../ChartCard";
@@ -40,6 +41,7 @@ export function KeywordsSection({ universe, onExportCsv }: Props) {
   const [onlyReal, setOnlyReal] = useState(false);
   const [onlyGap, setOnlyGap] = useState(false);
   const [maxKd, setMaxKd] = useState("100");
+  const [showFilters, setShowFilters] = useState(false);
 
   const filtered = useMemo<UniverseKeyword[]>(() => {
     const kdLimit = Number(maxKd) || 100;
@@ -60,6 +62,21 @@ export function KeywordsSection({ universe, onExportCsv }: Props) {
 
   const dimensions = useMemo(() => Array.from(new Set(universe.keywords.map((k) => k.dimension))), [universe]);
   const channels = useMemo(() => Array.from(new Set(universe.keywords.map((k) => k.channel))), [universe]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count += 1;
+    if (intent !== "all") count += 1;
+    if (funnel !== "all") count += 1;
+    if (dimension !== "all") count += 1;
+    if (channel !== "all") count += 1;
+    if (priority !== "all") count += 1;
+    if (maxKd !== "100") count += 1;
+    if (!hideZero) count += 1;
+    if (onlyReal) count += 1;
+    if (onlyGap) count += 1;
+    return count;
+  }, [search, intent, funnel, dimension, channel, priority, maxKd, hideZero, onlyReal, onlyGap]);
 
   const scatterData = useMemo(() =>
     filtered
@@ -105,39 +122,64 @@ export function KeywordsSection({ universe, onExportCsv }: Props) {
         </ChartCard>
       )}
 
-      {/* Filters */}
-      <Card className="border-border bg-card shadow-card">
-        <CardContent className="grid gap-3 p-4 md:grid-cols-3 lg:grid-cols-6">
-          <div className="md:col-span-2 space-y-1.5">
-            <Label className="text-xs">Sök</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filtrera sökord…" className="h-9 pl-8" />
-            </div>
-          </div>
-          <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[["all","Alla"],["informational","Info"],["commercial","Kommersiell"],["transactional","Transaktionell"],["navigational","Navigations"]]} />
-          <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"]]} />
-          <FilterSelect label="Dimension" value={dimension} onChange={setDimension} options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
-          <FilterSelect label="Kanal" value={channel} onChange={setChannel} options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
-          <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"]]} />
-          <div className="space-y-1.5">
-            <Label className="text-xs">KD max</Label>
-            <Input type="number" min={0} max={100} value={maxKd} onChange={(e) => setMaxKd(e.target.value)} className="h-9" />
-          </div>
-          <div className="flex items-center gap-2 pt-5">
-            <Switch id="zero" checked={hideZero} onCheckedChange={setHideZero} />
-            <Label htmlFor="zero" className="cursor-pointer text-xs">Dölj 0-volym</Label>
-          </div>
-          <div className="flex items-center gap-2 pt-5">
-            <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
-            <Label htmlFor="real" className="cursor-pointer text-xs">Endast verklig data</Label>
-          </div>
-          <div className="flex items-center gap-2 pt-5">
-            <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
-            <Label htmlFor="gap" className="cursor-pointer text-xs">Konkurrent-gap</Label>
-          </div>
+      <Card className="border-border bg-card/50 shadow-card">
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-xs text-muted-foreground">
+          <span>Filtrerat urval: <span className="font-medium text-foreground">{filtered.length}</span> av {universe.totalKeywords.toLocaleString("sv-SE")} sökord</span>
+          <span>Aktiva filter: <span className="font-medium text-foreground">{activeFilterCount}</span></span>
         </CardContent>
       </Card>
+
+      {/* Filters */}
+      <Collapsible open={showFilters} onOpenChange={setShowFilters} className="space-y-3">
+        <div className="md:hidden">
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4" />
+                Filter och urval
+              </span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+
+        <CollapsibleContent className="md:!block">
+          <div className={`${showFilters ? "block" : "hidden"} md:block`}>
+            <Card className="border-border bg-card shadow-card">
+              <CardContent className="grid gap-3 p-4 md:grid-cols-3 lg:grid-cols-6">
+                <div className="md:col-span-2 space-y-1.5">
+                  <Label className="text-xs">Sök</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filtrera sökord..." className="h-9 pl-8" />
+                  </div>
+                </div>
+                <FilterSelect label="Intent" value={intent} onChange={setIntent} options={[["all","Alla"],["informational","Info"],["commercial","Kommersiell"],["transactional","Transaktionell"],["navigational","Navigations"]]} />
+                <FilterSelect label="Funnel" value={funnel} onChange={setFunnel} options={[["all","Alla"],["awareness","Awareness"],["consideration","Consideration"],["conversion","Conversion"]]} />
+                <FilterSelect label="Dimension" value={dimension} onChange={setDimension} options={[["all","Alla"], ...dimensions.map<[string,string]>((d) => [d, DIMENSION_LABELS[d] || d])]} />
+                <FilterSelect label="Kanal" value={channel} onChange={setChannel} options={[["all","Alla"], ...channels.map<[string,string]>((c) => [c, c])]} />
+                <FilterSelect label="Prioritet" value={priority} onChange={setPriority} options={[["all","Alla"],["high","Hög"],["medium","Medium"],["low","Låg"]]} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">KD max</Label>
+                  <Input type="number" min={0} max={100} value={maxKd} onChange={(e) => setMaxKd(e.target.value)} className="h-9" />
+                </div>
+                <div className="flex items-center gap-2 pt-5">
+                  <Switch id="zero" checked={hideZero} onCheckedChange={setHideZero} />
+                  <Label htmlFor="zero" className="cursor-pointer text-xs">Dölj 0-volym</Label>
+                </div>
+                <div className="flex items-center gap-2 pt-5">
+                  <Switch id="real" checked={onlyReal} onCheckedChange={setOnlyReal} />
+                  <Label htmlFor="real" className="cursor-pointer text-xs">Endast verklig data</Label>
+                </div>
+                <div className="flex items-center gap-2 pt-5">
+                  <Switch id="gap" checked={onlyGap} onCheckedChange={setOnlyGap} />
+                  <Label htmlFor="gap" className="cursor-pointer text-xs">Konkurrent-gap</Label>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <KeywordTable items={filtered} />
     </section>
