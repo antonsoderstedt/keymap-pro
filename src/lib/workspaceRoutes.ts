@@ -9,8 +9,10 @@ import {
   BarChart3,
   Archive,
   History,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
+
 
 export type WorkspaceRoute = {
   /** Sub-path under /clients/:id. Empty string = index. */
@@ -28,11 +30,13 @@ export type WorkspaceRoute = {
 };
 
 export const WORKSPACE_ROUTES: WorkspaceRoute[] = [
-  { sub: "",            label: "Idag",           icon: LayoutDashboard, keywords: "today start hem dashboard idag", primary: true, end: true },
-  { sub: "actions",     label: "Åtgärder",       icon: ListChecks,      keywords: "actions pipeline queue todo förslag åtgärder audit", primary: true },
-  { sub: "performance", label: "Performance",    icon: BarChart3,       keywords: "performance kpi seo ads ga4 trafik auction kampanj", primary: true },
-  { sub: "keywords",    label: "Sökord",         icon: Search,          keywords: "keywords sökord universe segment", primary: true },
-  { sub: "settings",    label: "Inställningar",  icon: Settings,        keywords: "settings källor data sources brand", primary: true },
+  { sub: "",                     label: "Idag",                icon: LayoutDashboard, keywords: "today start hem dashboard idag", primary: true, end: true },
+  { sub: "actions",              label: "Åtgärder",            icon: ListChecks,      keywords: "actions pipeline queue todo förslag åtgärder audit", primary: true },
+  { sub: "account-intelligence", label: "Account Intelligence", icon: Activity,        keywords: "account intelligence health kampanj jämförelse timeline ändringar översikt", primary: true },
+  { sub: "performance",          label: "Performance",         icon: BarChart3,       keywords: "performance kpi seo ads ga4 trafik auction kampanj", primary: true },
+  { sub: "keywords",             label: "Sökord",              icon: Search,          keywords: "keywords sökord universe segment", primary: true },
+  { sub: "settings",             label: "Inställningar",       icon: Settings,        keywords: "settings källor data sources brand", primary: true },
+
 
   // Situationsspecifikt — endast via command bar
   { sub: "ads-history",     label: "Ads-historik",      icon: History, keywords: "ads historik mutations audit trail revert", primary: false, legacy: true },

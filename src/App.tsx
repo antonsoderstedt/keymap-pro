@@ -24,6 +24,8 @@ import KeywordsHub from "./pages/workspace/KeywordsHub";
 import ActionsPipeline from "./pages/workspace/ActionsPipeline";
 import Performance from "./pages/workspace/Performance";
 import AdsHistory from "./pages/workspace/AdsHistory";
+import AccountIntelligence from "./pages/workspace/AccountIntelligence";
+
 
 
 
@@ -87,6 +89,8 @@ const App = () => (
 
             {/* Performance */}
             <Route path="performance" element={<Performance />} />
+            <Route path="account-intelligence" element={<AccountIntelligence />} />
+
 
             {/* Situationsspecifikt — endast via command bar */}
             <Route path="ads-history" element={<AdsHistory />} />
