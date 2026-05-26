@@ -48,6 +48,7 @@ const GATE_LABEL: Record<string, string> = {
   RC_DC_STALE_SIGNALS: "Inaktuella signaler",
   RC_DC_SCORING_LOW_CONFIDENCE: "Låg score-tillförlitlighet",
   RC_DC_LIMITED_CROSS_SOURCE: "Begränsad triangulering",
+  RC_DC_PRIMARILY_GENERIC_CONTEXT: "Primärt generell kontext",
   RC_DC_NO_OPPORTUNITY_SCORE: "Saknar score",
   RC_DC_NARRATIVE_DISABLED: "Narrativ avstängd",
   RC_DC_NARRATIVE_VALIDATION_FAILED: "Narrativ förkastad",

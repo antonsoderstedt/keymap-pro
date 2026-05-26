@@ -152,6 +152,18 @@ export async function buildDecisionContext(
     limited_cross_source: related.limited_cross_source,
   });
 
+  // Scope-specific actions (ads/page/cluster) should normally have at least one
+  // scope-anchored signal (causal, recent change, or analog). If they do not,
+  // we flag the context as primarily generic so UI can warn before push.
+  const scopeSpecific =
+    input.scope.kind === "ads" ||
+    input.scope.kind === "page" ||
+    input.scope.kind === "cluster";
+  const hasScopeAnchors = causal.length > 0 || recent.length > 0 || analogs.length > 0;
+  if (scopeSpecific && !hasScopeAnchors && (whatChanged.length > 0 || related.signals.length > 0)) {
+    confidence.gate_triggers.push("RC_DC_PRIMARILY_GENERIC_CONTEXT");
+  }
+
   const context: DecisionContextV1 = {
     model_version: MODEL_VERSION,
     signals_version: SIGNALS_VERSION,

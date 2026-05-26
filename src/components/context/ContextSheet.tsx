@@ -314,6 +314,7 @@ function Body({
 }) {
   return (
     <div className="space-y-6 text-sm" data-testid="context-body">
+      <DecisionCardSection data={data} />
       <NextStepSection text={data.recommended_next_step} />
       <ExpectedImpactSection impact={data.expected_impact} />
       <WhatChangedSection items={data.what_changed} />
@@ -337,6 +338,99 @@ function Body({
       />
     </div>
   );
+}
+
+function DecisionCardSection({ data }: { data: DecisionContext }) {
+  const decision = buildDecisionCard(data);
+  if (!decision) return null;
+
+  return (
+    <Section label="Beslutsstöd" testId="section-decision-card">
+      <div className="space-y-2.5 rounded-md border border-border/60 bg-muted/20 p-3">
+        {decision.genericWarning && (
+          <p className="text-xs text-amber-700" data-testid="decision-generic-warning">
+            Kontexten är främst generell för projektet. Bekräfta målet innan du pushar.
+          </p>
+        )}
+        <DecisionLine label="Problem" value={decision.problem} />
+        <DecisionLine label="Varför" value={decision.why} />
+        <DecisionLine label="När" value={decision.when} />
+        <DecisionLine label="Lösning" value={decision.solution} />
+        <DecisionLine label="Optimering" value={decision.optimization} />
+      </div>
+    </Section>
+  );
+}
+
+function DecisionLine({ label, value }: { label: string; value: string }) {
+  return (
+    <p className="text-xs leading-relaxed">
+      <span className="font-medium text-foreground">{label}: </span>
+      <span className="text-muted-foreground">{value}</span>
+    </p>
+  );
+}
+
+function buildDecisionCard(data: DecisionContext): {
+  problem: string;
+  why: string;
+  when: string;
+  solution: string;
+  optimization: string;
+  genericWarning: boolean;
+} | null {
+  const topDelta = data.what_changed?.[0] ?? null;
+  const topCause = data.causal_signals?.[0] ?? null;
+  const topRelated = data.related_signals?.[0] ?? null;
+  const topChange = data.recent_changes?.[0] ?? null;
+  const hasAnySignal =
+    Boolean(topDelta) || Boolean(topCause) || Boolean(topRelated) || Boolean(topChange);
+  if (!hasAnySignal && !data.recommended_next_step) return null;
+
+  const problem = topDelta
+    ? `${topDelta.metric} visar tydlig avvikelse (${formatMetricDeltaSummary(topDelta)}).`
+    : "Vi har en prioriterad åtgärd utan tillräckligt verifierad förändringssignal ännu.";
+
+  const why = topCause
+    ? topCause.description
+      ? `${topCause.label}: ${topCause.description}`
+      : topCause.label
+    : topRelated
+      ? `Relaterad signal: ${topRelated.label}.`
+      : "Datamönstret indikerar avvikelse men saknar stark kausal länk.";
+
+  const stale = data.confidence.gate_triggers.includes("RC_DC_STALE_SIGNALS");
+  const lowCoverage = data.confidence.gate_triggers.includes("RC_DC_LOW_COVERAGE");
+  const when = stale
+    ? "Agera efter att du verifierat färsk data (bygg om eller synka datakällor)."
+    : lowCoverage
+      ? "Agera försiktigt nu och verifiera med fler signaler före större ändringar."
+      : "Agera nu medan signalen fortfarande är aktuell.";
+
+  const solution = data.recommended_next_step ??
+    "Välj en liten, reversibel ändring först och följ upp utfallet inom 7 dagar.";
+
+  const optimization = topChange
+    ? `Använd senaste händelsen som referens (${topChange.label}) och jämför före/efter.`
+    : topRelated
+      ? `Följ upp ${topRelated.label} efter ändring för att validera effekt.`
+      : "Dokumentera ändringen och mät primär KPI före/efter i samma fönster.";
+
+  const genericWarning = data.confidence.gate_triggers.includes("RC_DC_PRIMARILY_GENERIC_CONTEXT");
+  return { problem, why, when, solution, optimization, genericWarning };
+}
+
+function formatMetricDeltaSummary(delta: MetricDelta): string {
+  const pct =
+    delta.delta_pct != null
+      ? `${delta.delta_pct >= 0 ? "+" : ""}${(delta.delta_pct * 100).toFixed(1)}%`
+      : null;
+  const abs =
+    delta.delta != null
+      ? `${delta.delta >= 0 ? "+" : ""}${delta.delta.toLocaleString("sv-SE")}${delta.unit ? ` ${delta.unit}` : ""}`
+      : null;
+  const parts = [pct, abs].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "utan kvantifierad delta";
 }
 
 // ---------------------------------------------------------------------------

@@ -294,6 +294,7 @@ describe("ContextSheet — body", () => {
 
     // Order check (evidence BEFORE narrative; analogs collapsed; confidence footer last).
     expect(ids).toEqual([
+      "section-decision-card",
       "section-next-step",
       "section-expected-impact",
       "section-what-changed",
@@ -338,6 +339,31 @@ describe("ContextSheet — body", () => {
     // Only the confidence footer remains.
     expect(sections.length).toBe(1);
     expect(sections[0].getAttribute("data-testid")).toBe("section-confidence-footer");
+  });
+
+  it("renders generic-context warning when RC_DC_PRIMARILY_GENERIC_CONTEXT gate is set", async () => {
+    const dc = fullDc({
+      confidence: {
+        value: 0.47,
+        band: "medium",
+        gate_triggers: ["RC_DC_PRIMARILY_GENERIC_CONTEXT"],
+      },
+    });
+    mockMaybeSingle.mockResolvedValue({ data: dc, error: null });
+
+    render(
+      <ContextSheet
+        open
+        onOpenChange={() => {}}
+        projectId="p1"
+        actionItemId="a1"
+        title="Test"
+      />,
+    );
+
+    await flush();
+    expect(screen.getByTestId("decision-generic-warning")).toBeInTheDocument();
+    expect(screen.getByText(/Primärt generell kontext/)).toBeInTheDocument();
   });
 
   it("renders narrative only when status='generated'", async () => {

@@ -68,6 +68,7 @@ export const DC_GATE_CODES = {
   RC_DC_STALE_SIGNALS: "Signaler är äldre än freshness-mål",
   RC_DC_SCORING_LOW_CONFIDENCE: "Underliggande opportunity_score har låg konfidens",
   RC_DC_LIMITED_CROSS_SOURCE: "Färre än tre korssignaler tillgängliga",
+  RC_DC_PRIMARILY_GENERIC_CONTEXT: "Kontexten är främst på projektnivå",
   RC_DC_NARRATIVE_DISABLED: "Narrativ avstängt (env eller konfidensgrind)",
   RC_DC_NARRATIVE_VALIDATION_FAILED: "Narrativ åberopade evidens som inte finns",
   RC_DC_NO_OPPORTUNITY_SCORE: "Saknar opportunity_score för scopet",

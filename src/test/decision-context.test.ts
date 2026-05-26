@@ -599,6 +599,25 @@ describe("buildDecisionContext", () => {
     expect(context.confidence.gate_triggers).toContain("RC_DC_LOW_COVERAGE");
     expect(context.confidence.gate_triggers).toContain("RC_DC_STALE_SIGNALS");
   });
+
+  it("flags primarily generic context for scope-specific rows without scope anchors", async () => {
+    const scoped = input();
+    scoped.scope = { kind: "page", ids: ["url:https://x.test/p"] };
+    scoped.causal_candidates = [];
+    scoped.change_candidates = [];
+    scoped.analog_candidates = [];
+    scoped.delta_candidates = [
+      delta("ga4", "sessions", -0.22, { id: "ga4-s1" }),
+    ];
+    scoped.related_candidates = [
+      delta("gsc", "clicks", -0.18, { id: "gsc-r1" }),
+      delta("ga4", "users", -0.2, { id: "ga4-r2" }),
+      delta("gsc", "impressions", -0.11, { id: "gsc-r3" }),
+    ];
+
+    const { context } = await buildDecisionContext(scoped);
+    expect(context.confidence.gate_triggers).toContain("RC_DC_PRIMARILY_GENERIC_CONTEXT");
+  });
 });
 
 describe("hashCanonical (re-exported)", () => {
