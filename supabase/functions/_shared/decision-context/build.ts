@@ -21,7 +21,7 @@
 import { selectHistoricalAnalogs } from "./analogs.ts";
 import { selectCausalSignals } from "./causal.ts";
 import { computeDecisionConfidence } from "./confidence.ts";
-import { assembleEvidence } from "./evidence.ts";
+import { assembleEvidence, buildExcerptMap } from "./evidence.ts";
 import { hashCanonical } from "./hash.ts";
 import { selectRecommendedNextStep } from "./next_step.ts";
 import { selectRecentChanges } from "./recent_changes.ts";
