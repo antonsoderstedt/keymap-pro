@@ -1,86 +1,116 @@
-# Plan — Rensa upp Sökord-hubben
-
-## Diagnos
-
-`KeywordsHub.tsx` (`/clients/:id/keywords`) har 6 tabbar, men **Översikt-tabben är överlastad** och fungerar idag som "allt i en". Den renderar i denna ordning:
-
-1. `SeoDiagnosisPanel` — lång diagnoslista (det användaren ser först)
-2. `OverviewSection` — KPI:er, grafer, sammanfattning
-3. Quick wins-grid
-4. `ClusterActionsTab` — ännu en lång lista med klusteråtgärder
-
-Resultatet: man landar mitt i en diagnoslista, måste scrolla förbi den för att hitta översikten, och sen forsätter sidan i evighet med två till sektioner som egentligen är *åtgärder*, inte översikt.
-
-Övriga tabbar (Sökord / Briefs / Strategi / Teknisk SEO / Ads-export) är OK i sig — problemet är **vad som ligger i Översikt och i vilken ordning**, plus att tabbraden har 6 jämnstora tabs utan visuell hierarki.
+# Performance Command Center — fullständig plan
 
 ## Mål
+Gå från "teknisk dashboard" till **Performance Command Center**: marketern ska på 10 sekunder förstå (1) hur det går, (2) vad som ändrats, (3) varför, (4) vad som ska göras härnäst. All UI/frontend — ingen ny scoring/LLM-logik, ingen ny edge-function.
 
-- Översikten ska vara *översikt* — KPI:er + sammanfattning + en handfull "vad nu?"-kort. Inte en arbetsyta.
-- Inga sidor som scrollar mer än ~2 skärmar utan en tydlig ankarpunkt.
-- Diagnos och klusteråtgärder flyttas till egna tabbar där de hör hemma (de är arbetsytor).
-- Visuell hierarki i tabbraden så ögat hittar primärflödet direkt.
+## Vad ChatGPT-reviewen redan fångar (jag tar in allt)
+Header utan period/jämförelse · KPI utan delta/tolkning · graf utan kontext/växling · Ads för långt ner · Diagnos otydlig · saknad action-kö · datakällebanner för dominant · ingen exec-summary · ingen top pages/queries · ingen ROAS/Spend.
 
-## Ny tabb-struktur
+## Ytterligare problem jag hittade i koden
+1. `PerformanceKpis.tsx` och `PerformanceTrendChart.tsx` finns **redan färdigbyggda** med delta-logik, annotation-markörer och metric-toggling — men är **oanvända**. Performance.tsx renderar en enkel `MetricStrip` + naken `AreaChart` istället. Vinst: noll nytt arbete för stora delar.
+2. `usePerformanceData` hämtar bara *en* aktuell snapshot — ingen `previous`-period laddas, så KPI-deltas saknar källdata. Måste lösas innan delta-korten kan visa siffror.
+3. `summarizePeriod` anropas med `[]` som rankings → `topTenShare` blir alltid 0 %. Bug, inte UX. Måste hämta query-rader för perioden.
+4. "Senaste ändringar"-listan i botten är dubbel info — `PerformanceTrendChart` ritar redan annotation-punkter ◆ i grafen. Bättre att slå ihop dem visuellt.
+5. `SourceFallback`-noden renderas som full banner *inuti varje sektion*. Tre stacka banners när allt är trasigt. Bör konsolideras till en **DataHealthStrip** i headern + inline-fallback bara när en sektion är blockerad.
+6. Ads-sektionen visar bara `DiagnosisPanel` + kollapsade subsektioner — inga råa KPI:er (spend, conv, ROAS). `ads_results`/`campaign_metrics`-data finns i `AdsResultsTab` men ligger gömd bakom en collapse.
+7. Range-pills "7/28/90" har ingen jämförelse-etikett och inget "Senast uppdaterad" på sidnivå.
+8. `AccountHealthCard` (R5) finns redan — kan återanvändas för Ads-KPI-rad utan att bygga nytt.
+9. Action-kön finns i `ActionsPipeline` + `action_items` — bara hämta top 3-5 `priority=high, status≠done` och rendera som cards.
+10. Den befintliga texten "En läsbar översikt över SEO, Ads och GA4." är generisk — ska bytas mot statusrad.
+11. `caps.hasAds` döljer hela Ads-sektionen — bör visa en CTA istället ("Anslut Google Ads") när inte ansluten.
+12. Ingen filter för kanal/marknad/brand i nuläget — out of scope för v1 men noterat.
 
-Från 6 → 6 tabbar men **omgrupperade**:
+## Föreslagen ny struktur (en sida, scroll-läsbar)
 
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ HEADER                                                        │
+│  Performance · Ståldirect                       [28d ▾] [vs] │
+│  Period 1 maj–28 maj · jmf 3 apr–30 apr · uppdat. 14h        │
+│  ● SEO ok  ● Ads ok  ⚠ Keyword Planner inaktuell             │
+├───────────────────────────────────────────────────────────────┤
+│ EXECUTIVE SUMMARY (2–4 meningar, autogen från KPI-deltas)    │
+├───────────────────────────────────────────────────────────────┤
+│ PRIORITERADE ÅTGÄRDER (max 4 cards + "Visa alla →")          │
+├───────────────────────────────────────────────────────────────┤
+│ KPI-RAD — SEO  (5 kort med delta)                            │
+│ KPI-RAD — ADS  (5 kort: spend, conv, CPA, ROAS, IS)          │
+├───────────────────────────────────────────────────────────────┤
+│ TREND-GRAF (PerformanceTrendChart — toggle klick/imp/CTR/pos)│
+│ + annotation-punkter ◆ för senaste ändringar                 │
+├───────────────────────────────────────────────────────────────┤
+│ SEO-INSIKTER  (2 kolumner)                                   │
+│  Top sidor · Top sökord · Nära topp 10 · Hög imp/låg CTR    │
+├───────────────────────────────────────────────────────────────┤
+│ ADS-INSIKTER                                                  │
+│  DiagnosisPanel · AccountHealthCard · subsektioner           │
+├───────────────────────────────────────────────────────────────┤
+│ GA4 KPI:er + kanalbreakdown                                  │
+└───────────────────────────────────────────────────────────────┘
 ```
-[Översikt] [Sökord] [Kluster] [Diagnos] | [Briefs] [Strategi] [Teknisk SEO] [Ads-export]
-   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   Primära (data + arbete)                 Output (kräver full analys)
-```
 
-En tunn separator/grupplabel i `TabsList` skiljer "data" från "output" så de 8 inte ser likvärdiga ut.
+## Genomförande i 6 atomära steg
 
-## Innehåll per tabb (efter omflytt)
+### Steg 1 — Data foundation (utan UI)
+- Utöka `usePerformanceData`:
+  - Hämta *två* GSC-snapshots för aktuell + jämförelseperiod (eller dela en stor snapshot via `lastNDays` med offset).
+  - Bygg `rankings` via `buildRankings` så `summarizePeriod` kan räkna `topTenShare` korrekt.
+  - Hämta `ads_results`/senaste `account_intelligence`-rad för spend/conv/ROAS.
+  - Hämta top 5 `action_items` (`priority=high`, `status≠done`) för åtgärdskön.
+- Inga DB-ändringar.
 
-**Översikt** (kort, scannbar — max ~1.5 skärm)
-- StatCards (finns redan ovanför tabbarna — behåll)
-- `OverviewSection` (KPI:er + grafer + sammanfattning)
-- Quick wins-grid (max 4 kort, "Visa alla →" länkar till Sökord-tabben filtrerad på `priority=high`)
-- *Borttaget:* SeoDiagnosisPanel, ClusterActionsTab
+### Steg 2 — Header + DataHealthStrip
+- Ny `PerformanceHeader`: titel + projektnamn, period-väljare flyttas in, jämförelse-etikett, "senast uppdaterad".
+- Ny `DataHealthStrip`: tre prickar (SEO/Ads/GA4/Planner) i headern. Klick → popover med detaljer. Befintlig `SourceFallback`-banner används bara när en *hel sektion* är blockerad (state=`block`).
 
-**Sökord** (oförändrad — den interna sub-tabben Universe/Prioriterade/SEO/Ads/Content/Lokal/Negativa fungerar)
+### Steg 3 — Executive summary + KPI-rad
+- Ny `ExecutiveSummary`-komponent: deterministisk text byggd från KPI-deltas ("Organiska klick −18 %, CTR stabil, Ads-spend +12 %"). Ingen LLM.
+- Återanvänd befintlig `PerformanceKpis` (har delta-logik). Lägg till `AdsKpis`-variant med spend/conv/CPA/ROAS/IS, samma visuella språk.
 
-**Kluster** (NY tabb)
-- `ClusterActionsTab` flyttas hit i sin helhet
-- Får andas: egen tabb, egen rubrik, egen sök/sortering (redan inbyggt)
+### Steg 4 — PrioritizedActions
+- Ny `PrioritizedActions`-komponent som listar top 4 cards: titel, "varför viktigt" (från `decision_context`), impact-badge, datakälla-badge, "Visa detaljer →" som öppnar `ContextSheet`/Actions Pipeline.
 
-**Diagnos** (NY tabb)
-- `SeoDiagnosisPanel` flyttas hit
-- Hör inte hemma på Översikt — det är en arbetslista, inte en sammanfattning
+### Steg 5 — Trend + SEO-insikter
+- Byt naken `AreaChart` mot befintlig `PerformanceTrendChart` (metric toggle + annotations + insight-rad).
+- Ny `SeoOpportunities` (2x2 grid): Top sidor, Top sökord, Nära topp 10 (pos 11–20), Hög imp/låg CTR. Allt härlett från redan hämtad `rankings`-data via `winnersAndLosers` + filter.
 
-**Briefs / Strategi / Teknisk SEO / Ads-export** — oförändrade
+### Steg 6 — Ads-omstrukturering + copy-pass
+- Lyft Ads över GA4. Visa `AccountHealthCard` + KPI-rad **före** `DiagnosisPanel`.
+- `DiagnosisPanel` får tydligare meta-rad: "Analyserar: Ads, GA4, GSC · Senast körd: X · Resultat: Y kritiska / Z möjligheter".
+- Ta bort dubbletten "Senaste ändringar"-listan i botten (data finns nu i trendgrafens annotation-rad).
+- Copy-pass: "Snittpos." → "Genomsnittlig Google-position", "Topp 10" → "Andel sökord på sida 1", "Kör diagnos" → "Analysera kontot", etc.
 
-## Visuell hierarki i tabbraden
+## Filer som rörs
 
-- Primära tabbar (Översikt, Sökord, Kluster, Diagnos) får full vikt
-- Output-tabbar (Briefs, Strategi, Teknisk SEO, Ads-export) får en subtil avgränsare (`<div className="w-px h-6 bg-border mx-1" />`) före sig så ögat ser grupperingen
-- Tabbar med `disabled={!analysisId}` behåller sin grå-out
+**Nya:**
+- `src/components/workspace/performance/PerformanceHeader.tsx`
+- `src/components/workspace/performance/DataHealthStrip.tsx`
+- `src/components/workspace/performance/ExecutiveSummary.tsx`
+- `src/components/workspace/performance/AdsKpis.tsx`
+- `src/components/workspace/performance/PrioritizedActions.tsx`
+- `src/components/workspace/performance/SeoOpportunities.tsx`
 
-## Quick win-kortbegränsning
+**Edit:**
+- `src/pages/workspace/Performance.tsx` (orchestration + ny layout)
+- `usePerformanceData`-hook flyttas till egen fil med utökad shape
 
-Idag renderas *alla* quick wins (kan vara 10+). Begränsa till 4 + "Visa alla N quick wins →"-knapp som sätter `tab="keywords"` + sub-tab `priority` och filtrerar `priority=high`. Resten av flödet bryts inte.
+**Återanvänds som de är:**
+- `PerformanceKpis`, `PerformanceTrendChart`, `AccountHealthCard`, `DiagnosisPanel`, `SourceFallback`, `ContextSheet`
 
-## Filer som ändras
-
-- `src/pages/workspace/KeywordsHub.tsx` — enda filen som rörs
-  - Lägg till `"clusters"` och `"diagnosis"` som tab-värden
-  - Flytta `<SeoDiagnosisPanel>` och `<ClusterActionsTab>` ur Översikt-`TabsContent` till egna `TabsContent`
-  - Lägg till separator + ikon i `TabsList`
-  - Begränsa quick wins-rendering till 4 med "Visa alla"-länk
-  - Inga ändringar i underliggande komponenter (`SeoDiagnosisPanel`, `ClusterActionsTab`, `OverviewSection`)
-
-## Det här rör vi INTE
-
-- Ingen logik, ingen datahämtning, inga lib-funktioner
-- Inga ändringar i sidomeny (`workspaceRoutes.ts`) — fortfarande en `Sökord`-post
-- Inga andra workspace-sidor
+## Vad som **inte** ändras
+- Inga DB-migrationer.
+- Inga edge functions.
+- Ingen scoring-/LLM-logik.
+- Övriga workspace-sidor (Today, ActionsPipeline, AccountIntelligence, KeywordsHub).
+- Routing i `workspaceRoutes.ts`.
 
 ## Acceptanskriterier
+- KPI-kort visar delta vs föregående period.
+- Headern visar period, jämförelseperiod, senast uppdaterad, data health-status.
+- Ads-KPI:er (spend, conv, CPA, ROAS, IS) syns ovanför fold tillsammans med SEO-KPI:er.
+- Prioriterade åtgärder ligger ovanför trendgrafen.
+- "Senaste ändringar"-block i botten är borttaget (info finns i trendgrafens annotation-rad).
+- Tre stacka SourceFallback-banners ersätts av en kompakt status i headern.
+- Sidan får plats för KPI + summary + actions ovanför fold på 1019×927.
 
-1. Översikt-tabben passar i ~1.5 skärm på 1280×900 utan att man når Quick wins via scroll-into-view-tricks
-2. Diagnoslistan syns *inte* förrän man klickar på Diagnos-tabben
-3. Klusteråtgärder syns *inte* förrän man klickar på Kluster-tabben
-4. Quick wins-sektionen visar max 4 kort + länk till fullständig lista
-5. De 8 tabbarna har tydlig visuell gruppering (4 primära + separator + 4 output)
+Säg till så bygger jag i build mode.
