@@ -311,7 +311,16 @@ export default function Performance() {
       {/* Ads — konsoliderad i Performance (Sprint 3) */}
       {caps.hasAds && projectId && (
         <section className="space-y-6 border-b border-border/40 pb-10">
-          <SectionHeader title="Google Ads" />
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <SectionHeader title="Google Ads" />
+            <Link
+              to={`/clients/${projectId}/account-intelligence`}
+              className="text-xs text-primary underline-offset-4 hover:underline"
+            >
+              Visa Account Intelligence →
+            </Link>
+          </div>
+
           {adsFallback.state === "block" ? (
             adsFallback.node
           ) : (
