@@ -1,119 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
-} from "recharts";
-import { buildDailyTrend, summarizePeriod, lastNDays, type GscRow } from "@/lib/performance";
+import { Activity, ArrowRight } from "lucide-react";
+
+import { usePerformanceData } from "@/hooks/usePerformanceData";
 import { useProjectCapabilities } from "@/hooks/useProjectCapabilities";
-import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
-import AuctionInsights from "./AuctionInsights";
-import { CampaignTree } from "@/components/workspace/CampaignTree";
-import { AdsResultsTab } from "@/components/workspace/AdsResultsTab";
 import { useSourceFallback } from "@/components/workspace/SourceFallback";
 
-type Range = "7" | "28" | "90";
+import { PerformanceHeader } from "@/components/workspace/performance/PerformanceHeader";
+import { ExecutiveSummary } from "@/components/workspace/performance/ExecutiveSummary";
+import { PrioritizedActions } from "@/components/workspace/performance/PrioritizedActions";
+import { SeoOpportunities } from "@/components/workspace/performance/SeoOpportunities";
 
-interface ChangeEvent {
-  ts: string;
-  kind: "ads_change" | "action_done";
-  label: string;
-}
-
-interface PerfData {
-  gsc: { rows: GscRow[]; createdAt: string | null } | null;
-  ga4: { totals: any; createdAt: string | null } | null;
-  changes: ChangeEvent[];
-  loading: boolean;
-  error: string | null;
-}
-
-const ADS_ACTION_LABEL: Record<string, string> = {
-  pause_keyword: "Pausade sökord",
-  resume_keyword: "Återupptog sökord",
-  pause_ad: "Pausade annons",
-  add_negative_keyword: "La till negativt sökord",
-  replace_rsa_asset: "Ersatte RSA-text",
-  rsa_batch: "RSA-batchändring",
-  create_rsa: "Skapade RSA-annons",
-  create_ad_group: "Skapade annonsgrupp",
-  add_keyword: "La till sökord",
-};
-
-function usePerformanceData(projectId: string | undefined): PerfData {
-  const [data, setData] = useState<PerfData>({
-    gsc: null, ga4: null, changes: [], loading: true, error: null,
-  });
-
-  useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    (async () => {
-      const [gscRes, ga4Res, mutsRes, actsRes] = await Promise.all([
-        supabase.from("gsc_snapshots")
-          .select("rows,created_at")
-          .eq("project_id", projectId)
-          .order("created_at", { ascending: false })
-          .limit(1).maybeSingle(),
-        supabase.from("ga4_snapshots")
-          .select("totals,created_at")
-          .eq("project_id", projectId)
-          .order("created_at", { ascending: false })
-          .limit(1).maybeSingle(),
-        supabase.from("ads_mutations")
-          .select("id,action_type,status,created_at")
-          .eq("project_id", projectId)
-          .order("created_at", { ascending: false })
-          .limit(12),
-        supabase.from("action_items")
-          .select("id,title,implemented_at")
-          .eq("project_id", projectId)
-          .not("implemented_at", "is", null)
-          .order("implemented_at", { ascending: false })
-          .limit(12),
-      ]);
-      if (cancelled) return;
-
-      const error =
-        gscRes.error?.message || ga4Res.error?.message ||
-        mutsRes.error?.message || actsRes.error?.message || null;
-
-      const changes: ChangeEvent[] = [];
-      for (const m of (mutsRes.data ?? [])) {
-        if (m.status !== "success" && m.status !== "pushed") continue;
-        changes.push({
-          ts: m.created_at,
-          kind: "ads_change",
-          label: ADS_ACTION_LABEL[m.action_type] ?? m.action_type,
-        });
-      }
-      for (const a of (actsRes.data ?? [])) {
-        if (!a.implemented_at) continue;
-        changes.push({
-          ts: a.implemented_at,
-          kind: "action_done",
-          label: a.title,
-        });
-      }
-      changes.sort((x, y) => new Date(y.ts).getTime() - new Date(x.ts).getTime());
-
-      setData({
-        gsc: gscRes.data ? { rows: (gscRes.data.rows as unknown as GscRow[]) ?? [], createdAt: gscRes.data.created_at } : null,
-        ga4: ga4Res.data ? { totals: ga4Res.data.totals, createdAt: ga4Res.data.created_at } : null,
-        changes: changes.slice(0, 8),
-        loading: false,
-        error,
-      });
-    })();
-    return () => { cancelled = true; };
-  }, [projectId]);
-
-  return data;
-}
+import { PerformanceKpis } from "@/components/workspace/PerformanceKpis";
+import { PerformanceTrendChart } from "@/components/workspace/PerformanceTrendChart";
+import DiagnosisPanel from "@/components/workspace/DiagnosisPanel";
 
 function fmt(n: number | null | undefined, opts?: { pct?: boolean; decimals?: number }) {
   if (n == null || !isFinite(n)) return "—";
@@ -123,297 +23,190 @@ function fmt(n: number | null | undefined, opts?: { pct?: boolean; decimals?: nu
   return Math.round(n).toLocaleString("sv-SE");
 }
 
-function relTime(iso: string): string {
-  const d = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (d < 60) return "nyss";
-  if (d < 3600) return `${Math.round(d / 60)} min`;
-  if (d < 86_400) return `${Math.round(d / 3600)} h`;
-  return `${Math.round(d / 86_400)} d`;
-}
-
-function MetricStrip({ items }: { items: { label: string; value: string }[] }) {
-  return (
-    <dl className="grid grid-cols-2 sm:grid-cols-5 gap-x-6 gap-y-3">
-      {items.map((m) => (
-        <div key={m.label} className="space-y-0.5">
-          <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            {m.label}
-          </dt>
-          <dd className="text-xl tabular-nums tracking-tight">{m.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function SectionHeader({
-  title, status,
-}: { title: string; status?: string | null }) {
-  return (
-    <div className="mb-4 flex items-baseline justify-between">
-      <h2 className="text-base font-medium tracking-tight">{title}</h2>
-      {status && <span className="text-xs text-muted-foreground">{status}</span>}
-    </div>
-  );
-}
-
-function MutedNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-muted-foreground">{children}</p>;
-}
-
-/** Collapsible underavdelning — håller Performance läsbar när Ads är aktivt. */
-function SubSection({
-  title, defaultOpen = false, forceOpenSignal, children,
-}: { title: string; defaultOpen?: boolean; forceOpenSignal?: number; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    if (forceOpenSignal != null) {
-      setOpen(true);
-    }
-  }, [forceOpenSignal]);
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-t border-border/40 pt-4">
-      <CollapsibleTrigger className="flex w-full items-center justify-between text-left group">
-        <span className="text-sm font-medium text-foreground/90 group-hover:text-foreground">
-          {title}
-        </span>
-        <ChevronRight
-          className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform",
-            open && "rotate-90",
-          )}
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-4">{children}</CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 export default function Performance() {
   const { id: projectId } = useParams<{ id: string }>();
-  const [range, setRange] = useState<Range>("28");
-  const [expandAdsSignal, setExpandAdsSignal] = useState(0);
-  const { gsc, ga4, changes, loading, error } = usePerformanceData(projectId);
   const caps = useProjectCapabilities(projectId);
+  const bundle = usePerformanceData(projectId);
 
-  const seo = useMemo(() => {
-    if (!gsc) return null;
-    const trend = buildDailyTrend(gsc.rows);
-    const windowed = lastNDays(trend, parseInt(range));
-    const kpis = summarizePeriod(windowed, []);
-    return { trend: windowed, kpis };
-  }, [gsc, range]);
+  const seoFallback = useSourceFallback({
+    projectId: projectId ?? "",
+    source: "gsc",
+    hasData: bundle.seo.hasData,
+  });
+  const ga4Fallback = useSourceFallback({
+    projectId: projectId ?? "",
+    source: "ga4",
+    hasData: bundle.ga4.hasData,
+  });
+  const adsFallback = useSourceFallback({
+    projectId: projectId ?? "",
+    source: "ads",
+    hasData: true,
+  });
 
-  const ga4Totals = (ga4?.totals ?? null) as any;
-  const ga4Items = ga4Totals ? [
-    { label: "Sessioner", value: fmt(Number(ga4Totals.sessions)) },
-    { label: "Användare", value: fmt(Number(ga4Totals.totalUsers ?? ga4Totals.users)) },
-    { label: "Konv.", value: fmt(Number(ga4Totals.conversions)) },
-    { label: "Sidvisningar", value: fmt(Number(ga4Totals.screenPageViews ?? ga4Totals.pageviews)) },
-  ] : null;
+  if (!projectId) return <Skeleton className="m-6 h-64" />;
 
-  // R2 — degraded-mode awareness per källa.
-  // SEO: "har data" = snapshot + minst en rad.
-  // GA4: "har data" = totals-objekt finns med åtminstone ett positivt fält.
-  // Ads: vi har ingen lokal snapshot här; hasData=true gör att vi bara ersätter
-  //      sektionen vid riktiga problem (not_connected/reauth/error).
-  const seoHasData = !!gsc && (gsc.rows?.length ?? 0) > 0;
-  const ga4HasData = !!ga4Totals && (
-    Number(ga4Totals.sessions) > 0 ||
-    Number(ga4Totals.totalUsers ?? ga4Totals.users) > 0 ||
-    Number(ga4Totals.screenPageViews ?? ga4Totals.pageviews) > 0
-  );
-  const seoFallback = useSourceFallback({ projectId: projectId ?? "", source: "gsc", hasData: seoHasData });
-  const ga4Fallback = useSourceFallback({ projectId: projectId ?? "", source: "ga4", hasData: ga4HasData });
-  const adsFallback = useSourceFallback({ projectId: projectId ?? "", source: "ads", hasData: true });
+  // Senast uppdaterad = nyaste av snapshotsen
+  const lastUpdated = [bundle.seo.snapshotAt, bundle.ga4.snapshotAt, bundle.ads.auditAt]
+    .filter(Boolean)
+    .sort()
+    .reverse()[0] as string | null;
+
+  const ga4 = bundle.ga4.totals as any;
+  const ga4Items = ga4
+    ? [
+        { label: "Sessioner", value: fmt(Number(ga4.sessions)) },
+        { label: "Användare", value: fmt(Number(ga4.totalUsers ?? ga4.users)) },
+        { label: "Konv.", value: fmt(Number(ga4.conversions)) },
+        { label: "Sidvisningar", value: fmt(Number(ga4.screenPageViews ?? ga4.pageviews)) },
+      ]
+    : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10 lg:py-14 space-y-12">
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-medium tracking-tight">Performance</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            En läsbar översikt över SEO, Ads och GA4.
-          </p>
-        </div>
-        <div className="flex gap-1 text-xs">
-          {(["7", "28", "90"] as Range[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "rounded-full px-2.5 py-0.5 transition-colors",
-                range === r ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {r}d
-            </button>
-          ))}
-        </div>
-      </header>
+    <div className="mx-auto max-w-6xl px-6 py-8 lg:py-10 space-y-8">
+      <PerformanceHeader
+        projectId={projectId}
+        projectName={bundle.projectName}
+        range={bundle.range}
+        onRangeChange={bundle.setRange}
+        rangeDays={bundle.rangeDays}
+        lastUpdatedIso={lastUpdated}
+      />
 
-      {/* SEO */}
-      <section className="space-y-5 border-b border-border/40 pb-10">
-        <SectionHeader
-          title="SEO"
-          status={gsc?.createdAt ? `Uppdaterad ${relTime(gsc.createdAt)} sedan` : null}
-        />
-        {loading ? (
+      {bundle.loading ? (
+        <div className="space-y-3">
           <Skeleton className="h-20 w-full" />
-        ) : seoFallback.state === "block" ? (
-          seoFallback.node
-        ) : !seo ? (
-          // status säger ok men ingen snapshot finns — bara warn-bannern.
-          seoFallback.node
-        ) : (
-          <>
-            {seoFallback.node}
-            <MetricStrip items={[
-              { label: "Klick", value: fmt(seo.kpis.clicks) },
-              { label: "Impressions", value: fmt(seo.kpis.impressions) },
-              { label: "CTR", value: fmt(seo.kpis.ctr, { pct: true, decimals: 2 }) },
-              { label: "Snittpos.", value: seo.kpis.position ? seo.kpis.position.toFixed(1) : "—" },
-              { label: "Topp 10", value: fmt(seo.kpis.topTenShare, { pct: true, decimals: 0 }) },
-            ]} />
-            {seo.trend.length > 0 && (
-              <div className="h-32 -mx-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={seo.trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="seoArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={32}
-                    />
-                    <YAxis hide />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--popover))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 6, fontSize: 12,
-                      }}
-                      labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                    />
-                    <Area
-                      type="monotone" dataKey="clicks"
-                      stroke="hsl(var(--primary))" strokeWidth={1.5}
-                      fill="url(#seoArea)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </>
-        )}
-      </section>
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      ) : (
+        <>
+          {/* Executive summary */}
+          <ExecutiveSummary
+            current={bundle.seo.kpisCurrent}
+            previous={bundle.seo.kpisPrevious}
+            adsHealth={bundle.ads.healthScore}
+            ga4HasData={bundle.ga4.hasData}
+            rangeDays={bundle.rangeDays}
+          />
 
-      {/* Ads — konsoliderad i Performance (Sprint 3) */}
-      {caps.hasAds && projectId && (
-        <section className="space-y-6 border-b border-border/40 pb-10">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <SectionHeader title="Google Ads" />
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setExpandAdsSignal((cur) => cur + 1)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Visa alla Ads-delar
-              </button>
-              <Link
-                to={`/clients/${projectId}/account-intelligence`}
-                className="text-xs text-primary underline-offset-4 hover:underline"
-              >
-                Visa Account Intelligence →
-              </Link>
-            </div>
-          </div>
+          {/* Prioriterade åtgärder högt upp */}
+          <PrioritizedActions projectId={projectId} actions={bundle.priorityActions} />
 
-          {adsFallback.state === "block" ? (
-            adsFallback.node
-          ) : (
-            <>
-              {adsFallback.node}
-              <DiagnosisPanel projectId={projectId} />
-              <SubSection title="Auction Insights" forceOpenSignal={expandAdsSignal}>
-                <AuctionInsights />
-              </SubSection>
-              <SubSection title="Kampanjstruktur" forceOpenSignal={expandAdsSignal}>
-                <CampaignTree projectId={projectId} />
-              </SubSection>
-              <SubSection title="Senaste ändringars effekt" defaultOpen forceOpenSignal={expandAdsSignal}>
-                <AdsResultsTab projectId={projectId} />
-              </SubSection>
-            </>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Förslag och audit hanteras i{" "}
-            <Link to={`/clients/${projectId}/actions`} className="underline-offset-4 hover:underline text-foreground">
-              Åtgärder
-            </Link>.
-          </p>
-        </section>
-      )}
-
-      {/* GA4 */}
-      <section className="space-y-5 border-b border-border/40 pb-10">
-        <SectionHeader
-          title="GA4"
-          status={ga4?.createdAt ? `Uppdaterad ${relTime(ga4.createdAt)} sedan` : null}
-        />
-        {loading ? (
-          <Skeleton className="h-16 w-full" />
-        ) : ga4Fallback.state === "block" ? (
-          ga4Fallback.node
-        ) : (
-          <>
-            {ga4Fallback.node}
-            {ga4Items && <MetricStrip items={ga4Items} />}
-          </>
-        )}
-      </section>
-
-      {/* Changes */}
-      <section className="space-y-3">
-        <SectionHeader title="Senaste ändringar i konto och åtgärder" />
-        {loading ? (
-          <Skeleton className="h-24 w-full" />
-        ) : error && changes.length === 0 ? (
-          <MutedNote>Kunde inte ladda ändringar.</MutedNote>
-        ) : changes.length === 0 ? (
-          <MutedNote>
-            Inga registrerade ändringar ännu. Ändringar hämtas från Google Ads-mutationer och markerade åtgärder.
-          </MutedNote>
-        ) : (
-          <ul className="divide-y divide-border/40">
-            {changes.map((c, i) => (
-              <li key={i} className="flex items-baseline justify-between gap-4 py-2.5">
-                <span className="text-sm text-foreground/90 truncate">{c.label}</span>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {relTime(c.ts)} sedan
+          {/* SEO KPI-rad med delta */}
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-base font-medium tracking-tight">SEO — nyckeltal</h2>
+              {bundle.seo.snapshotAt && (
+                <span className="text-xs text-muted-foreground">
+                  vs föregående {bundle.rangeDays} dagar
                 </span>
-              </li>
-            ))}
-            <li className="pt-3">
-              <Link
-                to={`/clients/${projectId}/actions`}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Visa alla åtgärder →
-              </Link>
-            </li>
-          </ul>
-        )}
-      </section>
+              )}
+            </div>
+            {seoFallback.state === "block" ? (
+              seoFallback.node
+            ) : !bundle.seo.hasData ? (
+              seoFallback.node
+            ) : (
+              <>
+                {seoFallback.node}
+                <PerformanceKpis
+                  current={bundle.seo.kpisCurrent}
+                  previous={bundle.seo.kpisPrevious}
+                />
+              </>
+            )}
+          </section>
+
+          {/* Trendgraf med metric-toggle + annotations */}
+          {bundle.seo.hasData && bundle.seo.trendFull.length > 0 && (
+            <PerformanceTrendChart
+              trend={bundle.seo.trendFull}
+              annotations={bundle.seo.annotations}
+            />
+          )}
+
+          {/* SEO-möjligheter */}
+          {bundle.seo.rankings.length > 0 && (
+            <SeoOpportunities projectId={projectId} rankings={bundle.seo.rankings} />
+          )}
+
+          {/* Google Ads — diagnos + länk till Account Intelligence */}
+          {caps.hasAds && (
+            <section className="space-y-4 border-t border-border/40 pt-8">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-base font-medium tracking-tight">Google Ads</h2>
+                  {bundle.ads.healthScore != null && (
+                    <span className="text-xs text-muted-foreground">
+                      Hälsa: {bundle.ads.healthScore} %
+                    </span>
+                  )}
+                </div>
+                <Link
+                  to={`/clients/${projectId}/account-intelligence`}
+                  className="text-xs text-primary underline-offset-4 hover:underline flex items-center gap-1"
+                >
+                  Öppna Account Intelligence <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+
+              {adsFallback.state === "block" ? (
+                adsFallback.node
+              ) : (
+                <>
+                  {adsFallback.node}
+                  <DiagnosisPanel projectId={projectId} />
+                </>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Audit, kampanjstruktur och budgetfördelning finns i{" "}
+                <Link
+                  to={`/clients/${projectId}/account-intelligence`}
+                  className="text-foreground underline-offset-4 hover:underline"
+                >
+                  Account Intelligence
+                </Link>
+                . Förslag hanteras i{" "}
+                <Link
+                  to={`/clients/${projectId}/actions`}
+                  className="text-foreground underline-offset-4 hover:underline"
+                >
+                  Åtgärder
+                </Link>
+                .
+              </p>
+            </section>
+          )}
+
+          {/* GA4 */}
+          <section className="space-y-3 border-t border-border/40 pt-8">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-base font-medium tracking-tight">GA4</h2>
+            </div>
+            {ga4Fallback.state === "block" ? (
+              ga4Fallback.node
+            ) : (
+              <>
+                {ga4Fallback.node}
+                {ga4Items && (
+                  <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
+                    {ga4Items.map((m) => (
+                      <div key={m.label}>
+                        <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                          {m.label}
+                        </dt>
+                        <dd className="text-xl tabular-nums tracking-tight">{m.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }
