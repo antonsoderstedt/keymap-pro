@@ -527,6 +527,7 @@ export interface RelatedSignal {
   label: string;
   source: string;
   relevance: number;                    // 0..1
+  metric_delta?: MetricDelta;
   evidence: EvidenceRef[];
 }
 
