@@ -10,6 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   RefreshCw, ChevronRight, ChevronDown, Megaphone, Layers, Search, Hash, Ban, FileText, Loader2,
 } from "lucide-react";
+import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
+import { lookupIdeaStatus } from "@/lib/ideaStatus";
+import { UnverifiedIdeaBadge } from "@/components/keywords/UnverifiedIdeaBadge";
+
 
 interface Metrics {
   clicks: number; impressions: number; cost_sek: number; conversions: number;
@@ -52,6 +56,8 @@ export function CampaignTree({ projectId }: { projectId: string | null }) {
   const [openCampaigns, setOpenCampaigns] = useState<Set<string>>(new Set());
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
+  const { universe } = useWorkspaceAnalysis(projectId ?? undefined);
+
 
   const load = async (force = false) => {
     if (!projectId) return;
@@ -170,16 +176,23 @@ export function CampaignTree({ projectId }: { projectId: string | null }) {
                                   <div>
                                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5"><Hash className="h-3 w-3" /> Sökord ({g.keywords.length})</div>
                                     <div className="space-y-1">
-                                      {g.keywords.slice(0, 25).map((k) => (
+                                      {g.keywords.slice(0, 25).map((k) => {
+                                        const ideaStatus = lookupIdeaStatus(universe, k.text);
+                                        return (
                                         <div key={k.criterion_id} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-muted/20">
                                           <Badge variant="outline" className={`${STATUS_TONE[k.status] || ""} text-[9px]`}>{k.match_type}</Badge>
-                                          <span className="truncate flex-1">{k.text}</span>
+                                          <span className="truncate flex-1">
+                                            {k.text}
+                                            {ideaStatus === "unverified_idea" && <UnverifiedIdeaBadge />}
+                                          </span>
                                           {k.quality_score != null && <span className="text-[10px] font-mono text-muted-foreground">QS:{k.quality_score}</span>}
                                           <span className="text-[10px] font-mono text-muted-foreground tabular-nums">{fmtSek(k.metrics_30d.cost_sek)}</span>
                                           <span className="text-[10px] font-mono text-muted-foreground tabular-nums w-12 text-right">{fmtPct(k.metrics_30d.ctr)}</span>
                                         </div>
-                                      ))}
+                                        );
+                                      })}
                                       {g.keywords.length > 25 && <p className="text-[10px] text-muted-foreground italic px-2">…och {g.keywords.length - 25} till</p>}
+
                                     </div>
                                   </div>
                                 )}
