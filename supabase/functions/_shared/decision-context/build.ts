@@ -134,7 +134,8 @@ export async function buildDecisionContext(
   const risk = input.opportunity_score ? deriveRisk(input.opportunity_score) : null;
 
   // Section 7
-  const evidence = assembleEvidence(whatChanged, causal, related.signals, whatChangedEvidence);
+  const excerpts = buildExcerptMap(input.delta_candidates, input.causal_candidates);
+  const evidence = assembleEvidence(whatChanged, causal, related.signals, whatChangedEvidence, excerpts);
 
   // Section 8
   const nextStep = input.opportunity_score
