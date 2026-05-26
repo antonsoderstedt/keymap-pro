@@ -66,6 +66,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 
 type Origin = "all" | "action" | "ads_proposal";
 const ORIGIN_LABEL: Record<Origin, string> = {
@@ -858,11 +859,50 @@ function ProposalSheet({
   onClose: () => void;
   universe: import("@/lib/types").KeywordUniverse | null;
 }) {
-  if (!proposal) return null;
-  const raw = proposal.raw as AdsProposalRow;
+  const raw = (proposal?.raw as AdsProposalRow | undefined) ?? null;
+  const [editingPayload, setEditingPayload] = useState(false);
+  const [draftPayload, setDraftPayload] = useState("{}");
+  const [payloadErr, setPayloadErr] = useState<string | null>(null);
+  const [savingPayload, setSavingPayload] = useState(false);
+
+  useEffect(() => {
+    if (!raw) return;
+    setEditingPayload(false);
+    setPayloadErr(null);
+    setSavingPayload(false);
+    setDraftPayload(JSON.stringify(raw.payload ?? {}, null, 2));
+  }, [raw?.id]);
+
+  if (!proposal || !raw) return null;
+
   const impact = proposal.impactSek
     ? `+${proposal.impactSek.toLocaleString("sv-SE")} kr/mån`
     : null;
+
+  const savePayload = async () => {
+    try {
+      const parsed = JSON.parse(draftPayload);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setPayloadErr("Payload måste vara ett JSON-objekt.");
+        return;
+      }
+      setPayloadErr(null);
+      setSavingPayload(true);
+      const { error } = await supabase
+        .from("ads_change_proposals")
+        .update({ payload: parsed, error_message: null })
+        .eq("id", raw.id);
+      if (error) throw error;
+      toast.success("Ändringsdetaljer sparade.");
+      setEditingPayload(false);
+    } catch (e: any) {
+      const msg = e?.message ?? "okänt fel";
+      setPayloadErr(`Ogiltig payload: ${msg}`);
+      toast.error(`Kunde inte spara payload: ${msg}`);
+    } finally {
+      setSavingPayload(false);
+    }
+  };
 
   return (
     <Sheet open={!!proposal} onOpenChange={(v) => !v && onClose()}>
@@ -914,12 +954,52 @@ function ProposalSheet({
 
           {raw.payload && (
             <section>
-              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                Payload
-              </p>
-              <pre className="overflow-x-auto rounded-md border border-border/60 bg-muted/30 p-3 text-[11px] leading-relaxed">
-                {JSON.stringify(raw.payload, null, 2)}
-              </pre>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Ändringsdetaljer
+                </p>
+                {!editingPayload ? (
+                  <Button size="sm" variant="outline" onClick={() => setEditingPayload(true)}>
+                    Redigera
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingPayload(false);
+                        setPayloadErr(null);
+                        setDraftPayload(JSON.stringify(raw.payload ?? {}, null, 2));
+                      }}
+                    >
+                      Avbryt
+                    </Button>
+                    <Button size="sm" onClick={savePayload} disabled={savingPayload}>
+                      {savingPayload ? "Sparar…" : "Spara"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {editingPayload ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={draftPayload}
+                    onChange={(e) => {
+                      setDraftPayload(e.target.value);
+                      if (payloadErr) setPayloadErr(null);
+                    }}
+                    className="min-h-[220px] font-mono text-[11px]"
+                    spellCheck={false}
+                  />
+                  {payloadErr && <p className="text-xs text-destructive">{payloadErr}</p>}
+                </div>
+              ) : (
+                <pre className="overflow-x-auto rounded-md border border-border/60 bg-muted/30 p-3 text-[11px] leading-relaxed">
+                  {JSON.stringify(raw.payload, null, 2)}
+                </pre>
+              )}
             </section>
           )}
 
