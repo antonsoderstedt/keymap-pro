@@ -26,6 +26,7 @@ import {
   Search, BarChart3, BookOpen, Target, ShieldCheck, Megaphone,
   Download, RefreshCw, Loader2, Sparkles, FileText, MapPin, Ban,
   Network, FileType, Presentation, LayoutGrid, List, CheckCircle2, X,
+  Layers, Stethoscope, ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceAnalysis } from "@/hooks/useWorkspaceAnalysis";
