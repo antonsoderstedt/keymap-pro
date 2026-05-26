@@ -408,6 +408,33 @@ describe("ContextSheet — body", () => {
     expect(screen.queryByTestId("section-narrative")).not.toBeInTheDocument();
   });
 
+  it("renders narrative-gated explanation when confidence gates are low", async () => {
+    const gated = fullDc({
+      narrative_status: "skipped",
+      why_this_matters: null,
+      confidence: {
+        value: 0.21,
+        band: "low",
+        gate_triggers: ["RC_DC_LOW_COVERAGE", "RC_DC_STALE_SIGNALS"],
+      },
+    });
+    mockMaybeSingle.mockResolvedValue({ data: gated, error: null });
+
+    render(
+      <ContextSheet
+        open
+        onOpenChange={() => {}}
+        projectId="p1"
+        actionItemId="a1"
+        title="Test"
+      />,
+    );
+
+    await flush();
+    expect(screen.getByTestId("section-narrative-gated")).toBeInTheDocument();
+    expect(screen.getByText(/Narrativ visas inte ännu/)).toBeInTheDocument();
+  });
+
   it("analogs collapse is closed by default and toggles open", async () => {
     mockMaybeSingle.mockResolvedValue({ data: fullDc(), error: null });
 

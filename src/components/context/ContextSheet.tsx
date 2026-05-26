@@ -326,6 +326,7 @@ function Body({
       <NarrativeSection
         text={data.why_this_matters}
         status={data.narrative_status}
+        gates={data.confidence?.gate_triggers ?? []}
       />
       <AnalogsCollapse items={data.historical_analogs} />
       {score && score.contribution_trace && score.contribution_trace.length > 0 && (
@@ -662,11 +663,27 @@ function EvidenceSection({ items }: { items: EvidenceRef[] }) {
 function NarrativeSection({
   text,
   status,
+  gates,
 }: {
   text: string | null;
   status: DecisionContext["narrative_status"];
+  gates: string[];
 }) {
-  if (!text || status !== "generated") return null;
+  if (status !== "generated") {
+    const lowConfidence =
+      gates.includes("RC_DC_LOW_COVERAGE") ||
+      gates.includes("RC_DC_STALE_SIGNALS") ||
+      gates.includes("RC_DC_SCORING_LOW_CONFIDENCE");
+    if (!lowConfidence) return null;
+    return (
+      <Section label="Varför detta spelar roll" testId="section-narrative-gated">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Narrativ visas inte ännu eftersom tillförlitligheten är låg. Granska bevisen nedan och bygg om kontext efter ny synk.
+        </p>
+      </Section>
+    );
+  }
+  if (!text) return null;
   // Render with [[ev:<id>]] citations stripped from inline text but rendered as
   // small superscript markers — keeps narrative readable without breaking
   // evidence grounding.

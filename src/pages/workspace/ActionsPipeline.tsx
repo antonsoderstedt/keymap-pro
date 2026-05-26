@@ -70,8 +70,8 @@ import { Badge } from "@/components/ui/badge";
 type Origin = "all" | "action" | "ads_proposal";
 const ORIGIN_LABEL: Record<Origin, string> = {
   all: "Alla",
-  action: "Manuella",
-  ads_proposal: "Förslag",
+  action: "Manuella åtgärder",
+  ads_proposal: "AI-förslag",
 };
 
 const STAGES: PipelineStage[] = ["proposed", "approved", "implemented", "measured"];
@@ -119,6 +119,7 @@ export default function ActionsPipeline() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
   const [confirmLargeBatch, setConfirmLargeBatch] = useState<null | "approve" | "push" | "reject">(null);
+  const [riskAckPushIds, setRiskAckPushIds] = useState<Set<string>>(new Set());
   const [autoRevertOpen, setAutoRevertOpen] = useState(false);
   const [autoRevertPolicy, setAutoRevertPolicy] = useState<AutoRevertPolicy>(DEFAULT_AUTO_REVERT_POLICY);
   const [outcomeMap, setOutcomeMap] = useState<Record<string, { auto_reverted_at: string | null; auto_revert_reason: string | null }>>({});
@@ -245,6 +246,32 @@ export default function ActionsPipeline() {
     if (p.origin !== "action" || !p.flags.pushable) return;
     const raw = p.raw as any;
     if (!raw.source_payload) return toast.error("Saknar payload för Ads-push.");
+
+    const { data: ctx, error: ctxErr } = await (supabase as any)
+      .from("decision_context")
+      .select("confidence")
+      .eq("project_id", projectId)
+      .eq("action_item_id", raw.id)
+      .maybeSingle();
+    if (ctxErr && ctxErr.code !== "PGRST116") {
+      return toast.error(`Kunde inte validera kontext: ${ctxErr.message}`);
+    }
+    if (ctx?.confidence) {
+      const confidence = ctx.confidence as { value?: number; gate_triggers?: string[] };
+      const value = typeof confidence.value === "number" ? confidence.value : 0;
+      const gates = confidence.gate_triggers ?? [];
+      if (value < 0.4) {
+        return toast.error("Kan inte skicka: tillförlitlighet är under 40%. Bygg om kontext först.");
+      }
+      const warnings: string[] = [];
+      if (gates.includes("RC_DC_STALE_SIGNALS")) warnings.push("inaktuella signaler");
+      if (gates.includes("RC_DC_PRIMARILY_GENERIC_CONTEXT")) warnings.push("primärt generell kontext");
+      if (warnings.length && !riskAckPushIds.has(p.id)) {
+        setRiskAckPushIds((prev) => new Set(prev).add(p.id));
+        return toast.warning(`Varning: ${warnings.join(" + ")}. Klicka Skicka igen för att bekräfta.`);
+      }
+    }
+
     setPendingId(p.id);
     try {
       const { error } = await supabase.functions.invoke("ads-mutate", {
@@ -256,10 +283,15 @@ export default function ActionsPipeline() {
       });
       if (error) throw error;
       await markImplemented(raw.id);
-      toast.success("Pushad till Google Ads.");
+      setRiskAckPushIds((prev) => {
+        const next = new Set(prev);
+        next.delete(p.id);
+        return next;
+      });
+      toast.success("Skickad till Google Ads (pausat läge).");
       reload();
     } catch (e: any) {
-      toast.error(`Push misslyckades: ${e?.message ?? "okänt fel"}`);
+      toast.error(`Skickning misslyckades: ${e?.message ?? "okänt fel"}`);
     } finally {
       setPendingId(null);
     }
@@ -336,12 +368,35 @@ export default function ActionsPipeline() {
             if (p.origin === "action" && p.flags.pushable) {
               const raw = p.raw as any;
               if (!raw.source_payload) throw new Error("Saknar payload");
+
+              const { data: ctx } = await (supabase as any)
+                .from("decision_context")
+                .select("confidence")
+                .eq("project_id", projectId)
+                .eq("action_item_id", raw.id)
+                .maybeSingle();
+              const c = (ctx?.confidence ?? null) as { value?: number; gate_triggers?: string[] } | null;
+              if (c && typeof c.value === "number" && c.value < 0.4) {
+                throw new Error("Blockerad: låg tillförlitlighet i kontext (<40%)");
+              }
+
               const { error } = await supabase.functions.invoke("ads-mutate", {
                 body: { project_id: projectId, source_action_item_id: raw.id, ...(raw.source_payload as any) },
               });
               if (error) throw error;
               await markImplemented(raw.id);
             } else if (p.origin === "ads_proposal") {
+              const proposalRaw = p.raw as AdsProposalRow;
+              const { data: ctx } = await (supabase as any)
+                .from("decision_context")
+                .select("confidence")
+                .eq("project_id", projectId)
+                .eq("ads_change_proposal_id", p.rawId)
+                .maybeSingle();
+              const c = (ctx?.confidence ?? null) as { value?: number } | null;
+              if (c && typeof c.value === "number" && c.value < 0.4) {
+                throw new Error(`Blockerad (${proposalRaw.action_type}): låg tillförlitlighet i kontext (<40%)`);
+              }
               if (autoRevertPolicy.enabled) {
                 await supabase
                   .from("ads_change_proposals")
@@ -404,7 +459,7 @@ export default function ActionsPipeline() {
           <p className="mt-1 text-xs text-muted-foreground">
             {openCount} öppna
             {openValue > 0 && ` · ${openValue.toLocaleString("sv-SE")} kr/mån att hämta`}
-            {implementedValue > 0 && ` · ${implementedValue.toLocaleString("sv-SE")} kr/mån implementerat`}
+            {implementedValue > 0 && ` · ${implementedValue.toLocaleString("sv-SE")} kr/mån skickat`}
           </p>
         </div>
         {caps.hasAds && (
@@ -511,10 +566,10 @@ export default function ActionsPipeline() {
         </p>
       ) : visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {stage === "proposed" && "Inga åtgärder just nu."}
+          {stage === "proposed" && "Inga väntande åtgärder just nu."}
           {stage === "approved" && "Inga godkända åtgärder väntar."}
-          {stage === "implemented" && "Inga implementerade åtgärder ännu."}
-          {stage === "measured" && "Inga mätta åtgärder ännu."}
+          {stage === "implemented" && "Inga skickade åtgärder ännu."}
+          {stage === "measured" && "Inga resultatmätta åtgärder ännu."}
         </p>
       ) : groupBy === "none" ? (
         <div className="divide-y divide-border/40 pb-24">
@@ -937,7 +992,7 @@ function Row({
         <p className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1">
           <span>{categoryLabel(item.category)}</span>
           {impact && <span>· {impact}</span>}
-          {item.flags.queued && <span>· i kö</span>}
+          {item.flags.queued && <span>· skickas till Google</span>}
           {item.flags.failed && <span className="text-destructive">· misslyckades</span>}
           {autoRevertInfo?.auto_reverted_at && (
             <Badge variant="outline" className="text-[10px] py-0 px-1.5" title={autoRevertInfo.auto_revert_reason ?? undefined}>
@@ -956,14 +1011,14 @@ function Row({
             onClick={onOpenContext}
             className="text-muted-foreground hover:text-foreground"
           >
-            Kontext
+            Se bakgrund
           </Button>
         )}
         {item.origin === "action" && item.stage === "proposed" && (
           <>
             {item.flags.pushable ? (
               <Button size="sm" variant="ghost" disabled={pending} onClick={onPushAds}>
-                Pusha
+                Skicka
               </Button>
             ) : (
               <Button size="sm" variant="ghost" disabled={pending} onClick={onApprove}>
@@ -986,7 +1041,7 @@ function Row({
           <>
             {item.flags.pushable && (
               <Button size="sm" variant="ghost" disabled={pending} onClick={onPushAds}>
-                Pusha
+                Skicka
               </Button>
             )}
             <Button size="sm" variant="ghost" disabled={pending} onClick={onMarkDone}>
@@ -997,7 +1052,7 @@ function Row({
 
         {item.origin === "ads_proposal" && (
           <Button size="sm" variant="ghost" onClick={onOpenProposal}>
-            Visa detaljer
+            Se detaljer
           </Button>
         )}
       </div>

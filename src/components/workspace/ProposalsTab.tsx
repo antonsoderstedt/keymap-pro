@@ -47,8 +47,8 @@ const STATUS_TONE: Record<Status, string> = {
   failed: "bg-destructive/15 text-destructive border-destructive/40",
 };
 const STATUS_LABEL: Record<Status, string> = {
-  draft: "Att granska", approved: "Godkänt", queued: "I kö",
-  pushed: "Pushat (pausat)", rejected: "Avvisat", failed: "Fel",
+  draft: "Att granska", approved: "Godkänd", queued: "Skickas…",
+  pushed: "Skickad (pausat)", rejected: "Avvisad", failed: "Misslyckades",
 };
 const STATUS_ICON: Record<Status, any> = {
   draft: Eye, approved: CheckCircle2, queued: Clock,
@@ -90,6 +90,7 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
   const [bucket, setBucket] = useState<Bucket>("review");
   const [pushAsPaused, setPushAsPaused] = useState(true);
   const [review, setReview] = useState<Proposal | null>(null);
+  const [riskAck, setRiskAck] = useState<Set<string>>(new Set());
 
   const load = async () => {
     if (!projectId) return;
@@ -165,10 +166,88 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
     await load();
   };
 
+  const validatePayload = (actionType: string, payload: unknown): string | null => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return "Payload saknas eller är inte ett objekt.";
+    }
+    const pl = payload as Record<string, unknown>;
+    const has = (k: string) => pl[k] !== undefined && pl[k] !== null && String(pl[k]).length > 0;
+    switch (actionType) {
+      case "pause_keyword":
+      case "resume_keyword":
+        if (!has("criterion_id") || !has("ad_group_id")) return "Kräver criterion_id och ad_group_id.";
+        return null;
+      case "pause_ad":
+      case "resume_ad":
+        if (!has("ad_id")) return "Kräver ad_id.";
+        return null;
+      case "add_negative_keyword":
+        if ((!has("keyword") && !has("text")) || !has("match_type")) {
+          return "Kräver keyword/text och match_type.";
+        }
+        if (!has("campaign_id") && !has("ad_group_id")) {
+          return "Kräver campaign_id eller ad_group_id.";
+        }
+        return null;
+      case "add_keyword":
+        if ((!has("keyword") && !has("text")) || !has("match_type") || !has("ad_group_id")) {
+          return "Kräver keyword/text, match_type och ad_group_id.";
+        }
+        return null;
+      case "create_rsa_pending_adgroup":
+        return "Välj annonsgrupp först (target ad group saknas).";
+      default:
+        return null;
+    }
+  };
+
+  const preflightProposalPush = async (p: Proposal): Promise<{ ok: boolean; warning: string | null }> => {
+    const payloadErr = validatePayload(p.action_type, p.payload);
+    if (payloadErr) {
+      toast({ title: "Kan inte skicka förslag", description: payloadErr, variant: "destructive" });
+      return { ok: false, warning: null };
+    }
+
+    const { data, error } = await (supabase as any)
+      .from("decision_context")
+      .select("confidence")
+      .eq("project_id", projectId)
+      .eq("ads_change_proposal_id", p.id)
+      .maybeSingle();
+    if (error && error.code !== "PGRST116") {
+      toast({ title: "Kunde inte validera kontext", description: error.message, variant: "destructive" });
+      return { ok: false, warning: null };
+    }
+    if (!data?.confidence) return { ok: true, warning: null };
+
+    const conf = data.confidence as { value?: number; gate_triggers?: string[] };
+    const value = typeof conf.value === "number" ? conf.value : 0;
+    const gates = conf.gate_triggers ?? [];
+    if (value < 0.4) {
+      toast({
+        title: "Push blockerad: låg tillförlitlighet",
+        description: "Kontexten är för osäker (<40%). Bygg om kontext eller granska manuellt innan push.",
+        variant: "destructive",
+      });
+      return { ok: false, warning: null };
+    }
+
+    const warns: string[] = [];
+    if (gates.includes("RC_DC_STALE_SIGNALS")) warns.push("inaktuella signaler");
+    if (gates.includes("RC_DC_PRIMARILY_GENERIC_CONTEXT")) warns.push("primärt generell kontext");
+    return { ok: true, warning: warns.length ? warns.join(" + ") : null };
+  };
+
   const pushOne = async (p: Proposal) => {
     if (!projectId) return;
-    if (p.action_type === "create_rsa_pending_adgroup") {
-      toast({ title: "Välj annonsgrupp först", description: "Den här typen kräver mål-annonsgrupp innan push.", variant: "destructive" });
+    const preflight = await preflightProposalPush(p);
+    if (!preflight.ok) return;
+    if (preflight.warning && !riskAck.has(p.id)) {
+      toast({
+        title: "Verifiera innan du skickar",
+        description: `Varning: ${preflight.warning}. Klicka Skicka igen för att bekräfta ändå.`,
+      });
+      setRiskAck((cur) => new Set(cur).add(p.id));
       return;
     }
     setPushing((cur) => new Set(cur).add(p.id));
@@ -189,6 +268,11 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
         pushed_at: new Date().toISOString(),
         mutation_id: (data as any)?.mutation_id ?? null,
         push_as_paused: pushAsPaused,
+      });
+      setRiskAck((cur) => {
+        const n = new Set(cur);
+        n.delete(p.id);
+        return n;
       });
     } catch (e: any) {
       await setStatus(p.id, "failed", { error_message: String(e?.message || e).slice(0, 500) });
@@ -273,13 +357,13 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
               Granska AI-genererade ändringar, godkänn dem och pusha till Google Ads.
-              Pushas som <span className="text-foreground font-medium">PAUSED</span> by default — du aktiverar manuellt i kontot för säkerhet.
+              Skickas som <span className="text-foreground font-medium">PAUSED</span> by default — du aktiverar manuellt i kontot för säkerhet.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <Switch id="pap" checked={pushAsPaused} onCheckedChange={setPushAsPaused} />
               <Label htmlFor="pap" className="text-xs cursor-pointer flex items-center gap-1.5">
                 <PauseCircle className="h-3.5 w-3.5 text-yellow-500" />
-                Pusha som PAUSED (rekommenderas)
+                Skicka i sparläge (rekommenderas)
               </Label>
             </div>
           </div>
@@ -292,7 +376,7 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
             </Button>
             <Button size="sm" onClick={buildProposals} disabled={building}>
               {building ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-              Bygg nya förslag
+              Kör ny analys
             </Button>
           </div>
         </CardContent>
@@ -330,7 +414,7 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Godkänn
               </Button>
               <Button size="sm" disabled={!selected.size || pushing.size > 0} onClick={bulkPush}>
-                <Send className="h-3.5 w-3.5 mr-1" /> Pusha {pushAsPaused ? "pausat" : "aktivt"}
+                <Send className="h-3.5 w-3.5 mr-1" /> Skicka {pushAsPaused ? "pausat" : "aktivt"}
               </Button>
             </div>
           </CardContent>
@@ -660,14 +744,14 @@ function ReviewDrawer({
                 <XCircle className="h-3.5 w-3.5 mr-1" /> Avvisa
               </Button>
             )}
-            {st === "draft" && (
+                {st === "draft" && (
               <Button size="sm" onClick={onApprove}>
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Godkänn
               </Button>
             )}
             {(st === "approved" || st === "failed") && (
               <Button size="sm" onClick={onPush}>
-                <Send className="h-3.5 w-3.5 mr-1" /> Pusha {pushAsPaused ? "pausat" : "aktivt"}
+                    <Send className="h-3.5 w-3.5 mr-1" /> Skicka {pushAsPaused ? "pausat" : "aktivt"}
               </Button>
             )}
             {st === "pushed" && (

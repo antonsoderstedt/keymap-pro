@@ -54,6 +54,7 @@ export default function Today() {
   const { items, loading, error, update, markImplemented } = useActionItems(workspace?.id);
   const { data: sources } = useDataSourcesStatus(workspace?.id);
   const [contextOpen, setContextOpen] = useState(false);
+  const [riskAckActionId, setRiskAckActionId] = useState<string | null>(null);
 
   const open = useMemo(
     () => items.filter((i) => i.status === "todo" || i.status === "in_progress"),
@@ -84,6 +85,38 @@ export default function Today() {
 
   const onPushToAds = async () => {
     if (!primary || !workspace || !isPushable) return;
+
+    const { data: ctx, error: ctxErr } = await (supabase as any)
+      .from("decision_context")
+      .select("confidence")
+      .eq("project_id", workspace.id)
+      .eq("action_item_id", primary.id)
+      .maybeSingle();
+
+    if (ctxErr && ctxErr.code !== "PGRST116") {
+      toast.error(`Kunde inte validera beslutskontext: ${ctxErr.message}`);
+      return;
+    }
+
+    if (ctx?.confidence) {
+      const confidence = ctx.confidence as { value?: number; gate_triggers?: string[] };
+      const value = typeof confidence.value === "number" ? confidence.value : 0;
+      const gates = confidence.gate_triggers ?? [];
+      if (value < 0.4) {
+        toast.error("Kan inte skicka: tillförlitlighet är under 40%. Bygg om kontext eller verifiera data först.");
+        return;
+      }
+
+      const riskFlags: string[] = [];
+      if (gates.includes("RC_DC_STALE_SIGNALS")) riskFlags.push("inaktuella signaler");
+      if (gates.includes("RC_DC_PRIMARILY_GENERIC_CONTEXT")) riskFlags.push("primärt generell kontext");
+      if (riskFlags.length > 0 && riskAckActionId !== primary.id) {
+        toast.warning(`Varning: ${riskFlags.join(" + ")}. Klicka Skicka igen för att bekräfta ändå.`);
+        setRiskAckActionId(primary.id);
+        return;
+      }
+    }
+
     setPushing(true);
     try {
       const { error: invokeErr } = await supabase.functions.invoke("ads-mutate", {
@@ -95,10 +128,11 @@ export default function Today() {
       });
       if (invokeErr) throw invokeErr;
       await markImplemented(primary.id);
-      toast.success("Pushad till Google Ads.");
+      setRiskAckActionId(null);
+      toast.success("Skickad till Google Ads (pausat läge). Granska och aktivera i Ads när du är redo.");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "okänt fel";
-      toast.error(`Push misslyckades: ${msg}`);
+      toast.error(`Skickning misslyckades: ${msg}`);
     } finally {
       setPushing(false);
     }
@@ -110,7 +144,10 @@ export default function Today() {
     due.setDate(due.getDate() + 7);
     const { error: err } = await update(primary.id, { due_date: due.toISOString() });
     if (err) toast.error("Kunde inte skjuta upp åtgärden.");
-    else toast.success("Skjuten till nästa vecka.");
+    else {
+      const human = due.toLocaleDateString("sv-SE", { year: "numeric", month: "short", day: "numeric" });
+      toast.success(`Skjuten till ${human}.`);
+    }
   };
 
   const onOpen = () => {
@@ -136,7 +173,7 @@ export default function Today() {
           id="next-action"
           className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground"
         >
-          Nästa åtgärd
+          Din prioriterade åtgärd
         </p>
 
         {loading ? (
@@ -191,18 +228,18 @@ export default function Today() {
             <div className="flex flex-wrap gap-2 pt-2">
               {isPushable ? (
                 <Button size="sm" onClick={onPushToAds} disabled={pushing}>
-                  {pushing ? "Pushar…" : "Pusha till Google Ads"}
+                  {pushing ? "Skickar…" : "Skicka till Google Ads"}
                 </Button>
               ) : (
                 <Button size="sm" onClick={onMarkHandled}>
-                  Markera som hanterad
+                  Markera som gjord
                 </Button>
               )}
               <Button size="sm" variant="outline" onClick={onDefer}>
                 Skjut upp
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setContextOpen(true)}>
-                Visa kontext
+                Varför denna åtgärd?
               </Button>
               <Button size="sm" variant="ghost" onClick={onOpen}>
                 Visa i åtgärder
@@ -210,8 +247,13 @@ export default function Today() {
             </div>
             {!isPushable && (
               <p className="text-[11px] text-muted-foreground/80 pt-1">
-                Den här åtgärden kräver manuellt arbete. Knappen markerar bara att du har hanterat den —
-                ingen ändring skickas automatiskt till Google Ads eller SEO-källor.
+                Den här åtgärden kräver manuellt arbete. Knappen markerar bara att du har gjort åtgärden —
+                ingen automatisk ändring skickas.
+              </p>
+            )}
+            {isPushable && (
+              <p className="text-[11px] text-muted-foreground/80 pt-1">
+                Skickas i pausat läge för säkerhet. Du granskar och aktiverar i Google Ads när du är redo.
               </p>
             )}
           </div>
@@ -234,14 +276,14 @@ export default function Today() {
             isPushable
               ? {
                   id: "push",
-                  label: pushing ? "Pushar…" : "Pusha till Google Ads",
+                  label: pushing ? "Skickar…" : "Skicka till Google Ads",
                   onClick: async () => { setContextOpen(false); await onPushToAds(); },
                   variant: "primary" as const,
                   disabled: pushing,
                 }
               : {
                   id: "mark-handled",
-                  label: "Markera som hanterad",
+                  label: "Markera som gjord",
                   onClick: async () => { setContextOpen(false); await onMarkHandled(); },
                   variant: "primary" as const,
                 },

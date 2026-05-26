@@ -154,10 +154,10 @@ export function mergeIntoPipeline(
 }
 
 export const STAGE_LABEL: Record<PipelineStage, string> = {
-  proposed: "Föreslagen",
+  proposed: "Väntande",
   approved: "Godkänd",
-  implemented: "Implementerad",
-  measured: "Mätt",
+  implemented: "Skickad",
+  measured: "Resultat",
 };
 
 export function countByStage(items: PipelineItem[]): Record<PipelineStage, number> {
