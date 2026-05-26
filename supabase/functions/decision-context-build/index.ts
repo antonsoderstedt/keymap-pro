@@ -54,6 +54,8 @@ const corsHeaders = {
 
 const MAX_SCOPES_PER_CALL = 200;
 
+const CLAIM_RX = /(konverteringar|klick|ctr|kostnad|sessions|impressions|users|pageviews)\s*[-:]?\s*[-+]?\d+%/i;
+
 interface ReqScope {
   kind: "action_item" | "ads_change_proposal";
   id: string;
