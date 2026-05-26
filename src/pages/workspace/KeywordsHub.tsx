@@ -701,13 +701,20 @@ export default function KeywordsHub() {
 
       {universe && (
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsList className="flex flex-wrap h-auto gap-1 items-center">
             <TabsTrigger value="overview" className="gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" /> Översikt
             </TabsTrigger>
             <TabsTrigger value="keywords" className="gap-1.5">
               <Search className="h-3.5 w-3.5" /> Sökord
             </TabsTrigger>
+            <TabsTrigger value="clusters" className="gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Kluster
+            </TabsTrigger>
+            <TabsTrigger value="diagnosis" className="gap-1.5">
+              <Stethoscope className="h-3.5 w-3.5" /> Diagnos
+            </TabsTrigger>
+            <div className="w-px h-6 bg-border mx-1" aria-hidden="true" />
             <TabsTrigger value="briefs" className="gap-1.5" disabled={!analysisId}>
               <BookOpen className="h-3.5 w-3.5" /> Briefs
             </TabsTrigger>
@@ -722,9 +729,8 @@ export default function KeywordsHub() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Översikt */}
+          {/* Översikt — stram sammanfattning */}
           <TabsContent value="overview" className="mt-4 space-y-6">
-            {id && <SeoDiagnosisPanel projectId={id} />}
             {result ? (
               <OverviewSection result={result} universe={universe} />
             ) : (
@@ -736,11 +742,23 @@ export default function KeywordsHub() {
             )}
             {result?.quickWins?.length ? (
               <div>
-                <h3 className="font-serif text-xl mb-3 flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-accent" /> Quick wins
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-serif text-xl flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-accent" /> Quick wins
+                  </h3>
+                  {result.quickWins.length > 4 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      onClick={() => { setTab("keywords"); setPriority("high"); }}
+                    >
+                      Visa alla {result.quickWins.length} <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {result.quickWins.map((q, i) => (
+                  {result.quickWins.slice(0, 4).map((q, i) => (
                     <Card key={i} className="border-accent/30 bg-card shadow-card">
                       <CardContent className="space-y-2 p-4">
                         <div className="flex items-center justify-between">
@@ -761,13 +779,34 @@ export default function KeywordsHub() {
                 </div>
               </div>
             ) : null}
-            <div>
-              <h3 className="font-serif text-xl mb-3 flex items-center gap-2">
-                <Network className="h-5 w-5 text-primary" /> Klusteråtgärder
-              </h3>
-              <ClusterActionsTab projectId={id!} universe={universe} />
-            </div>
+            <Card className="border-border/60 bg-muted/20">
+              <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm text-muted-foreground">
+                  Behöver du djupare arbetsytor? Hoppa till en flik.
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTab("clusters")}>
+                    <Layers className="h-3.5 w-3.5" /> Klusteråtgärder
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTab("diagnosis")}>
+                    <Stethoscope className="h-3.5 w-3.5" /> Diagnos
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
+
+          {/* Kluster */}
+          <TabsContent value="clusters" className="mt-4">
+            <ClusterActionsTab projectId={id!} universe={universe} />
+          </TabsContent>
+
+          {/* Diagnos */}
+          <TabsContent value="diagnosis" className="mt-4">
+            {id && <SeoDiagnosisPanel projectId={id} />}
+          </TabsContent>
+
+
 
           {/* Sökord */}
           <TabsContent value="keywords" className="mt-4 space-y-4">
