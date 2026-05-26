@@ -90,14 +90,26 @@ export default function WorkspaceSettings() {
         </p>
       </div>
 
+      <Card className="border-border bg-card/60">
+        <CardHeader>
+          <CardTitle className="font-serif text-lg">Rekommenderad startordning</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-1">
+          <p>1. <span className="text-foreground">Konto</span> (obligatoriskt): kunduppgifter och team.</p>
+          <p>2. <span className="text-foreground">Kopplingar</span> (obligatoriskt): Google Ads, GA4 och Search Console.</p>
+          <p>3. <span className="text-foreground">Mål</span> (rekommenderat): KPI:er och intäktsmodell för bättre prioritering.</p>
+          <p>4. <span className="text-foreground">Brand/Automation</span> (valfritt): för rapportkvalitet och drift.</p>
+        </CardContent>
+      </Card>
+
       {id && <OnboardingChecklist projectId={id} />}
 
-      <Section title="Konto" description="Kunduppgifter och teammedlemmar.">
+      <Section title="Konto" description="Obligatoriskt: kunduppgifter och teammedlemmar.">
         <ClientInfoCard projectId={id!} />
         <MembersCard projectId={id!} />
       </Section>
 
-      <Section title="Mål" description="KPI-mål, intäktsmodell och måluppföljning.">
+      <Section title="Mål" description="Rekommenderat: KPI-mål, intäktsmodell och måluppföljning.">
         <GoalsCard projectId={id!} />
 
         <Card>
@@ -191,7 +203,7 @@ export default function WorkspaceSettings() {
         <RevenueSettings projectId={id!} />
       </Section>
 
-      <Section title="Kopplingar" description="Google Ads, GA4 och övriga datakällor.">
+      <Section title="Kopplingar" description="Obligatoriskt: Google Ads, GA4 och övriga datakällor.">
         <GoogleAdsConnection projectId={id!} />
         <Ga4Filters projectId={id!} />
         <Ga4ConversionFilters projectId={id!} />
@@ -215,7 +227,7 @@ export default function WorkspaceSettings() {
         </Card>
       </Section>
 
-      <Section title="Brand" description="Logotyp, färger och tonläge för rapporter.">
+      <Section title="Brand" description="Valfritt: logotyp, färger och tonläge för rapporter.">
         <div>
           <h3 className="font-serif text-base mb-3 flex items-center gap-2 text-muted-foreground">
             <Palette className="h-4 w-4 text-primary" /> Brand Kit
@@ -224,7 +236,7 @@ export default function WorkspaceSettings() {
         </div>
       </Section>
 
-      <Section title="Automation" description="Regler för automatiska åtgärder och alerts.">
+      <Section title="Automation" description="Valfritt: regler för automatiska åtgärder och alerts.">
         <AutomationRules projectId={id!} />
       </Section>
     </div>

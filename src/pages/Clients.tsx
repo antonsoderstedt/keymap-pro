@@ -225,9 +225,13 @@ export default function Clients() {
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl">Vilken typ av kund?</DialogTitle>
             <DialogDescription>
-              Välj utgångsläge — vi anpassar onboarding och vy efter om kunden har historisk data eller inte.
+              Välj utgångsläge. Vi anpassar onboarding efter om kunden har historisk data eller inte.
             </DialogDescription>
           </DialogHeader>
+          <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">Osäker vad du ska välja?</p>
+            <p className="mt-1">Har kunden redan sajt + GA4/GSC/Google Ads: välj <span className="text-foreground">Etablerad kund</span>. Saknar kunden historik: välj <span className="text-foreground">Pre-launch</span>.</p>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 mt-2">
             <button
               type="button"
@@ -242,6 +246,7 @@ export default function Clients() {
               <p className="text-sm text-muted-foreground">
                 Har sajt, GA4, Search Console och/eller Google Ads. Vi importerar data och kör full analys.
               </p>
+              <p className="text-xs text-muted-foreground">Tid att komma igång: cirka 5–10 min.</p>
               <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
                 <li>Koppla GA4, GSC, Google Ads</li>
                 <li>SEO-audit, sökordsanalys, åtgärder</li>
@@ -262,6 +267,7 @@ export default function Clients() {
               <p className="text-sm text-muted-foreground">
                 Ingen sajt eller data ännu. Vi bygger en marknadsplan, sökordsuniversum, sajtkarta och prognos från affärsidén.
               </p>
+              <p className="text-xs text-muted-foreground">Tid att komma igång: cirka 10–15 min.</p>
               <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
                 <li>Brief: idé, målgrupp, USP, konkurrenter</li>
                 <li>AI + Firecrawl + DataForSEO genererar plan</li>

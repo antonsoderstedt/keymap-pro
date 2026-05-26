@@ -316,7 +316,7 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
   const savePayload = async (id: string, nextPayload: Record<string, unknown>) => {
     const { error } = await supabase
       .from("ads_change_proposals")
-      .update({ payload: nextPayload, error_message: null })
+      .update({ payload: nextPayload as any, error_message: null })
       .eq("id", id);
     if (error) {
       toast({ title: "Kunde inte spara payload", description: error.message, variant: "destructive" });

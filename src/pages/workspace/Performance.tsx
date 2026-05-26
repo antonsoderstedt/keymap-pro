@@ -333,7 +333,7 @@ export default function Performance() {
               <SubSection title="Kampanjstruktur">
                 <CampaignTree projectId={projectId} />
               </SubSection>
-              <SubSection title="Senaste ändringars effekt">
+              <SubSection title="Senaste ändringars effekt" defaultOpen>
                 <AdsResultsTab projectId={projectId} />
               </SubSection>
             </>
@@ -367,13 +367,15 @@ export default function Performance() {
 
       {/* Changes */}
       <section className="space-y-3">
-        <SectionHeader title="Senaste ändringar" />
+        <SectionHeader title="Senaste ändringar i konto och åtgärder" />
         {loading ? (
           <Skeleton className="h-24 w-full" />
         ) : error && changes.length === 0 ? (
           <MutedNote>Kunde inte ladda ändringar.</MutedNote>
         ) : changes.length === 0 ? (
-          <MutedNote>Inga registrerade ändringar ännu.</MutedNote>
+          <MutedNote>
+            Inga registrerade ändringar ännu. Ändringar hämtas från Google Ads-mutationer och markerade åtgärder.
+          </MutedNote>
         ) : (
           <ul className="divide-y divide-border/40">
             {changes.map((c, i) => (

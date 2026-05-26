@@ -15,6 +15,20 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const mapAuthError = (message: string) => {
+    const lower = message.toLowerCase();
+    if (lower.includes("invalid login credentials")) {
+      return "E-post eller lösenord stämmer inte. Kontrollera stavning och försök igen.";
+    }
+    if (lower.includes("email not confirmed") || lower.includes("confirm your email")) {
+      return "Din e-post är inte verifierad ännu. Kolla inkorgen eller skräpposten efter verifieringslänk.";
+    }
+    if (lower.includes("password") && lower.includes("least 6")) {
+      return "Lösenordet måste vara minst 6 tecken.";
+    }
+    return message;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -34,11 +48,14 @@ export default function Auth() {
         toast({ title: "Konto skapat!", description: "Kolla din mail för att verifiera." });
       }
     } catch (error: any) {
-      toast({ title: "Fel", description: error.message, variant: "destructive" });
+      const msg = mapAuthError(error?.message ?? "Okänt fel");
+      toast({ title: "Kunde inte logga in", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
+
+  const isPasswordTooShort = password.length > 0 && password.length < 6;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -73,8 +90,12 @@ export default function Auth() {
                 required
                 minLength={6}
               />
+              <p className="text-[11px] text-muted-foreground">Minst 6 tecken.</p>
+              {isPasswordTooShort && !isLogin && (
+                <p className="text-[11px] text-destructive">Lösenordet är för kort.</p>
+              )}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (!isLogin && isPasswordTooShort)}>
               {loading ? "Laddar..." : isLogin ? "Logga in" : "Skapa konto"}
             </Button>
           </form>

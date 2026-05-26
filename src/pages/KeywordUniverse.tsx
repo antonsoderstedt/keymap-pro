@@ -293,6 +293,17 @@ export default function KeywordUniversePage() {
       )}
 
       <main className="mx-auto max-w-7xl px-6 py-6 space-y-6">
+        <Card className="border-border bg-card/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-serif">Börja här</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-sm text-muted-foreground space-y-1">
+            <p>1. Granska <span className="text-foreground">Prioriterade</span> för snabbaste vinsterna.</p>
+            <p>2. Byt till <span className="text-foreground">SEO</span> eller <span className="text-foreground">Google Ads</span> för kanal-specifik aktivering.</p>
+            <p>3. Exportera till CSV eller Google Ads Editor när urvalet känns rätt.</p>
+          </CardContent>
+        </Card>
+
         {/* Stats */}
         <div className="grid gap-3 md:grid-cols-5">
           <StatCard icon={<Sparkles className="h-4 w-4" />} label="Prioriterade" value={priorityKeywords.length} />
@@ -302,7 +313,7 @@ export default function KeywordUniversePage() {
           <StatCard icon={<Ban className="h-4 w-4" />} label="Negativa" value={negatives.length} />
         </div>
 
-        <Tabs defaultValue="universe">
+        <Tabs defaultValue="priority">
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="universe" className="gap-1"><Network className="h-3 w-3" />Universe</TabsTrigger>
             <TabsTrigger value="priority" className="gap-1"><Sparkles className="h-3 w-3" />Prioriterade</TabsTrigger>
