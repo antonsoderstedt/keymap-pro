@@ -35,12 +35,12 @@ interface Mutation {
   action_type: string;
   status: string;
   created_at: string;
-  applied_at: string | null;
   reverted_at: string | null;
   payload: any;
   response: any;
   proposal_id: string | null;
 }
+
 
 interface Outcome {
   id: string;
@@ -119,13 +119,14 @@ function deriveStatus(item: TimelineItem): {
       icon: CheckCircle2,
     };
   }
-  if (m.applied_at) {
+  if (m.status === "success" || m.status === "pushed") {
     return {
       label: "Mätning pågår",
       tone: "bg-muted text-muted-foreground",
       icon: Hourglass,
     };
   }
+
   return {
     label: m.status ?? "—",
     tone: "bg-muted text-muted-foreground",
@@ -148,9 +149,10 @@ export function ChangeTimeline({ projectId }: Props) {
       const { data: mutations } = await supabase
         .from("ads_mutations")
         .select(
-          "id, action_type, status, created_at, applied_at, reverted_at, payload, response, proposal_id",
+          "id, action_type, status, created_at, reverted_at, payload, response, proposal_id",
         )
         .eq("project_id", projectId)
+
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(200);
