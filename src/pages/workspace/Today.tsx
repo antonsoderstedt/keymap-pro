@@ -10,6 +10,17 @@ import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 import RoiOverview from "@/components/workspace/RoiOverview";
 import { ContextSheet } from "@/components/context";
+import { supabase } from "@/integrations/supabase/client";
+
+// Action source types that map to a real Google Ads mutation. Mirrors
+// ADS_PUSHABLE_SOURCES in src/lib/actionsPipeline.ts — kept in sync so Today's
+// primary CTA can actually push to Ads when there is a payload to push.
+const ADS_PUSHABLE_SOURCES = new Set([
+  "ads_wasted",
+  "ads_negatives",
+  "ads_pacing",
+  "ads_rsa",
+]);
 
 function greeting() {
   const h = new Date().getHours();
@@ -51,13 +62,46 @@ export default function Today() {
   const primary = open[0] ?? null;
   const remaining = Math.max(0, open.length - 1);
 
+  // "Godkänn" på ett action_item utför ingen mekanisk åtgärd om det inte
+  // finns en source_payload kopplad till en pushable källa. Då blir det bara
+  // en notering: status → done. Vi gör skillnaden synlig i UI:t så användaren
+  // inte tror att en konv-droppe åtgärdas av ett knapptryck.
+  const isPushable = !!(
+    primary &&
+    primary.source_payload &&
+    ADS_PUSHABLE_SOURCES.has(primary.source_type ?? "")
+  );
+  const [pushing, setPushing] = useState(false);
+
   const sourceIssues = (sources?.sources ?? []).filter((s) => s.status !== "ok");
 
-  const onApprove = async () => {
+  const onMarkHandled = async () => {
     if (!primary) return;
     const { error: err } = await markImplemented(primary.id);
     if (err) toast.error("Kunde inte uppdatera åtgärden.");
-    else toast.success("Markerad som klar.");
+    else toast.success("Markerad som hanterad.");
+  };
+
+  const onPushToAds = async () => {
+    if (!primary || !workspace || !isPushable) return;
+    setPushing(true);
+    try {
+      const { error: invokeErr } = await supabase.functions.invoke("ads-mutate", {
+        body: {
+          project_id: workspace.id,
+          source_action_item_id: primary.id,
+          ...(primary.source_payload as Record<string, unknown>),
+        },
+      });
+      if (invokeErr) throw invokeErr;
+      await markImplemented(primary.id);
+      toast.success("Pushad till Google Ads.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "okänt fel";
+      toast.error(`Push misslyckades: ${msg}`);
+    } finally {
+      setPushing(false);
+    }
   };
 
   const onDefer = async () => {
@@ -145,9 +189,15 @@ export default function Today() {
             </p>
 
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button size="sm" onClick={onApprove}>
-                Godkänn
-              </Button>
+              {isPushable ? (
+                <Button size="sm" onClick={onPushToAds} disabled={pushing}>
+                  {pushing ? "Pushar…" : "Pusha till Google Ads"}
+                </Button>
+              ) : (
+                <Button size="sm" onClick={onMarkHandled}>
+                  Markera som hanterad
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={onDefer}>
                 Skjut upp
               </Button>
@@ -158,6 +208,12 @@ export default function Today() {
                 Visa i åtgärder
               </Button>
             </div>
+            {!isPushable && (
+              <p className="text-[11px] text-muted-foreground/80 pt-1">
+                Den här åtgärden kräver manuellt arbete. Knappen markerar bara att du har hanterat den —
+                ingen ändring skickas automatiskt till Google Ads eller SEO-källor.
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -175,7 +231,20 @@ export default function Today() {
               : "") + categoryLabel(primary.category)
           }
           actions={[
-            { id: "approve", label: "Godkänn", onClick: async () => { setContextOpen(false); await onApprove(); }, variant: "primary" },
+            isPushable
+              ? {
+                  id: "push",
+                  label: pushing ? "Pushar…" : "Pusha till Google Ads",
+                  onClick: async () => { setContextOpen(false); await onPushToAds(); },
+                  variant: "primary" as const,
+                  disabled: pushing,
+                }
+              : {
+                  id: "mark-handled",
+                  label: "Markera som hanterad",
+                  onClick: async () => { setContextOpen(false); await onMarkHandled(); },
+                  variant: "primary" as const,
+                },
             { id: "defer", label: "Skjut upp", onClick: async () => { setContextOpen(false); await onDefer(); } },
             { id: "open", label: "Visa i åtgärder", onClick: () => { setContextOpen(false); onOpen(); }, variant: "ghost" },
           ]}
