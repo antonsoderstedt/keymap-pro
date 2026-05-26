@@ -54,6 +54,8 @@ const corsHeaders = {
 
 const MAX_SCOPES_PER_CALL = 200;
 
+const CLAIM_RX = /(konverteringar|klick|ctr|kostnad|sessions|impressions|users|pageviews)\s*[-:]?\s*[-+]?\d+%/i;
+
 interface ReqScope {
   kind: "action_item" | "ads_change_proposal";
   id: string;
@@ -305,6 +307,21 @@ serve(async (req) => {
           }
         }
 
+        // Claim validation: if the action title contains a numeric metric claim
+        // (e.g. "konverteringar -61%") but what_changed is empty, mark the
+        // narrative as failed so UI shows "Kunde inte verifiera påståendet"
+        // instead of empty sections.
+        if (s.kind === "action_item" && actionItem) {
+          const title = actionItem.title ?? "";
+          if (CLAIM_RX.test(title) && context.what_changed.length === 0) {
+            if (!gateTriggers.includes("claim_unverified")) {
+              gateTriggers.push("claim_unverified");
+            }
+            narrativeStatus = "failed";
+          }
+        }
+
+
         const row = {
           project_id,
           action_item_id: s.kind === "action_item" ? s.id : null,
@@ -524,25 +541,11 @@ function assembleCausalCandidates(
     });
   }
 
-  for (const a of recentActions) {
-    if (!a.implemented_at) continue;
-    const days = Math.max(0, (nowMs - Date.parse(a.implemented_at)) / 86_400_000);
-    if (days > 30) continue;
-    out.push({
-      id: `action:${a.id}`,
-      label: `Tidigare åtgärd: ${a.title ?? a.category}`,
-      days_ago: days,
-      scope_proximity: 0.5,
-      magnitude: 0.4,
-      prior_likelihood: 0.5,
-      evidence: [{
-        id: `action:${a.id}`,
-        source: "operator",
-        source_id: a.id,
-        observed_at: a.implemented_at,
-      }],
-    });
-  }
+  // NOTE: recent operator actions are surfaced via `recent_changes` (built
+  // separately by assembleChangeCandidates). They are NOT causal candidates —
+  // a previous action is a notation, not a mechanical change. Dropping them
+  // here prevents the same item from being double-classified.
+  void recentActions;
 
   // The rule that generated this proposal is itself a high-prior causal candidate.
   if (proposal?.rule_id) {

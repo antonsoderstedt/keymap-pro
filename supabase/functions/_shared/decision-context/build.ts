@@ -21,7 +21,7 @@
 import { selectHistoricalAnalogs } from "./analogs.ts";
 import { selectCausalSignals } from "./causal.ts";
 import { computeDecisionConfidence } from "./confidence.ts";
-import { assembleEvidence } from "./evidence.ts";
+import { assembleEvidence, buildExcerptMap } from "./evidence.ts";
 import { hashCanonical } from "./hash.ts";
 import { selectRecommendedNextStep } from "./next_step.ts";
 import { selectRecentChanges } from "./recent_changes.ts";
@@ -134,7 +134,8 @@ export async function buildDecisionContext(
   const risk = input.opportunity_score ? deriveRisk(input.opportunity_score) : null;
 
   // Section 7
-  const evidence = assembleEvidence(whatChanged, causal, related.signals, whatChangedEvidence);
+  const excerpts = buildExcerptMap(input.delta_candidates, input.causal_candidates);
+  const evidence = assembleEvidence(whatChanged, causal, related.signals, whatChangedEvidence, excerpts);
 
   // Section 8
   const nextStep = input.opportunity_score

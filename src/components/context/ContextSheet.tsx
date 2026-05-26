@@ -458,9 +458,15 @@ function RelatedSection({ items }: { items: RelatedSignal[] }) {
     <Section label="Relaterade signaler" testId="section-related">
       <ul className="space-y-1.5">
         {items.map((s) => (
-          <li key={s.id} className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-foreground/90">{s.label}</span>
-            <span className="text-[11px] text-muted-foreground">{sourceLabel(s.source)}</span>
+          <li key={s.id} className="space-y-0.5">
+            {s.metric_delta ? (
+              <MetricDeltaRow delta={s.metric_delta} />
+            ) : (
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-foreground/90">{s.label}</span>
+                <span className="text-[11px] text-muted-foreground">{sourceLabel(s.source)}</span>
+              </span>
+            )}
           </li>
         ))}
       </ul>

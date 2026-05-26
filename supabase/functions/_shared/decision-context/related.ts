@@ -63,11 +63,31 @@ export function selectRelatedSignals(
     const used = perSource.get(c.source) ?? 0;
     if (used >= RELATED_MAX_PER_SOURCE) continue;
     perSource.set(c.source, used + 1);
+    const hasDelta =
+      typeof c.delta_pct === "number" ||
+      typeof c.value === "number" ||
+      typeof c.baseline === "number";
+    const metric_delta = hasDelta
+      ? {
+          metric: c.metric,
+          from: c.baseline,
+          to: c.value,
+          delta:
+            typeof c.value === "number" && typeof c.baseline === "number"
+              ? c.value - c.baseline
+              : undefined,
+          delta_pct: c.delta_pct,
+          unit: c.unit,
+          window_days: c.window_days,
+          source: c.source,
+        }
+      : undefined;
     out.push({
       id: c.id,
       label: c.label ?? `${c.source}:${c.metric}`,
       source: c.source,
       relevance: Math.max(0, Math.min(1, score)),
+      metric_delta,
       evidence: c.evidence ? [c.evidence] : [],
     });
     if (out.length >= RELATED_MAX_ITEMS) break;

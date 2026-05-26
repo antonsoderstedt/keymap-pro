@@ -10,7 +10,7 @@
  * Phrasing is owned by code, not by the LLM.
  */
 
-export const MODEL_VERSION = "decision-context-v1.0.0";
+export const MODEL_VERSION = "decision-context-v1.1.0";
 export const SIGNALS_VERSION = "signals-v1.0.0";
 
 // ---- Gates / thresholds ----------------------------------------------------

@@ -39,6 +39,7 @@ export interface RelatedSignalLite {
   label: string;
   source: string;
   relevance: number;
+  metric_delta?: MetricDeltaLite;
   evidence: EvidenceRefLite[];
 }
 

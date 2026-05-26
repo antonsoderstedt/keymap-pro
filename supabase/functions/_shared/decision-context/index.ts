@@ -12,7 +12,7 @@ export { selectRelatedSignals } from "./related.ts";
 export { selectRecentChanges } from "./recent_changes.ts";
 export { selectHistoricalAnalogs, jaccardSimilarity } from "./analogs.ts";
 export { deriveRisk } from "./risk.ts";
-export { assembleEvidence } from "./evidence.ts";
+export { assembleEvidence, buildExcerptMap, formatSignalExcerpt, formatCausalExcerpt } from "./evidence.ts";
 export { selectRecommendedNextStep } from "./next_step.ts";
 export { computeDecisionConfidence } from "./confidence.ts";
 export { validateNarrative, extractClaimIds } from "./narrative.ts";
