@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -228,6 +229,20 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
     setSelected(new Set());
   };
 
+  const savePayload = async (id: string, nextPayload: Record<string, unknown>) => {
+    const { error } = await supabase
+      .from("ads_change_proposals")
+      .update({ payload: nextPayload, error_message: null })
+      .eq("id", id);
+    if (error) {
+      toast({ title: "Kunde inte spara payload", description: error.message, variant: "destructive" });
+      return false;
+    }
+    toast({ title: "Payload sparad", description: "Exakta ändringar uppdaterade." });
+    await load();
+    return true;
+  };
+
   if (!projectId) return <Skeleton className="h-64 w-full rounded-lg" />;
 
   const exportCsv = () => {
@@ -425,6 +440,7 @@ export function ProposalsTab({ projectId }: { projectId: string | null }) {
       <ReviewDrawer
         proposal={review}
         onClose={() => setReview(null)}
+        onSavePayload={savePayload}
         onApprove={async () => { if (review) { await setStatus(review.id, "approved"); setReview(null); } }}
         onReject={async () => { if (review) { await setStatus(review.id, "rejected", { rejected_at: new Date().toISOString() }); setReview(null); } }}
         onPush={async () => { if (review) { await pushOne(review); setReview(null); } }}
@@ -450,15 +466,78 @@ function BTab({ v, cur, label, count, accent }: {
 }
 
 function ReviewDrawer({
-  proposal, onClose, onApprove, onReject, onPush, pushAsPaused,
+  proposal, onClose, onSavePayload, onApprove, onReject, onPush, pushAsPaused,
 }: {
   proposal: Proposal | null; onClose: () => void;
+  onSavePayload: (id: string, nextPayload: Record<string, unknown>) => Promise<boolean>;
   onApprove: () => void; onReject: () => void; onPush: () => void; pushAsPaused: boolean;
 }) {
   const open = !!proposal;
   const p = proposal;
+  const [editing, setEditing] = useState(false);
+  const [draftPayload, setDraftPayload] = useState("{}");
+  const [payloadError, setPayloadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!p) return;
+    setEditing(false);
+    setPayloadError(null);
+    setSaving(false);
+    setDraftPayload(JSON.stringify(p.payload ?? {}, null, 2));
+  }, [p?.id]);
+
   if (!p) return <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}><SheetContent /></Sheet>;
   const st = isStatus(p.status);
+
+  const parsePayload = (): Record<string, unknown> | null => {
+    try {
+      const parsed = JSON.parse(draftPayload);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setPayloadError("Payload måste vara ett JSON-objekt.");
+        return null;
+      }
+      setPayloadError(null);
+      return parsed as Record<string, unknown>;
+    } catch (e: any) {
+      setPayloadError(`Ogiltig JSON: ${e?.message ?? "parsefel"}`);
+      return null;
+    }
+  };
+
+  const save = async () => {
+    const parsed = parsePayload();
+    if (!parsed) return;
+    setSaving(true);
+    const ok = await onSavePayload(p.id, parsed);
+    setSaving(false);
+    if (ok) setEditing(false);
+  };
+
+  const payloadPreview = (() => {
+    if (editing) {
+      try {
+        const parsed = JSON.parse(draftPayload);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return { ...(parsed as Record<string, unknown>), status: pushAsPaused ? "PAUSED" : "ENABLED" };
+        }
+      } catch {
+        // Preview falls back to last persisted payload while edited JSON is invalid.
+      }
+    }
+    return { ...(p.payload || {}), status: pushAsPaused ? "PAUSED" : "ENABLED" };
+  })();
+
+  const payloadDiffPreview = (() => {
+    try {
+      const parsed = JSON.parse(draftPayload);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+      return topLevelDiff((p.payload ?? {}) as Record<string, unknown>, parsed as Record<string, unknown>);
+    } catch {
+      return [];
+    }
+  })();
+
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
@@ -500,10 +579,70 @@ function ReviewDrawer({
           )}
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Payload som skickas</div>
-            <pre className="bg-muted/30 border rounded-md p-2 max-h-64 overflow-auto text-[10px] font-mono whitespace-pre-wrap break-words">
-              {JSON.stringify({ ...(p.payload || {}), status: pushAsPaused ? "PAUSED" : "ENABLED" }, null, 2)}
-            </pre>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Payload som skickas</div>
+              <div className="flex items-center gap-1.5">
+                {!editing ? (
+                  <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                    Redigera payload
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      setEditing(false);
+                      setPayloadError(null);
+                      setDraftPayload(JSON.stringify(p.payload ?? {}, null, 2));
+                    }}>
+                      Avbryt
+                    </Button>
+                    <Button size="sm" onClick={save} disabled={saving}>
+                      {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                      Spara ändring
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {editing ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={draftPayload}
+                  onChange={(e) => {
+                    setDraftPayload(e.target.value);
+                    if (payloadError) setPayloadError(null);
+                  }}
+                  className="min-h-[220px] font-mono text-[11px]"
+                  spellCheck={false}
+                />
+                {payloadError && (
+                  <p className="text-xs text-destructive">{payloadError}</p>
+                )}
+                {payloadDiffPreview.length > 0 && (
+                  <div className="rounded-md border border-border/60 bg-muted/20 p-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Ändringar som kommer pushas</p>
+                    <ul className="space-y-1">
+                      {payloadDiffPreview.map((d) => (
+                        <li key={d.key} className="text-[11px] text-muted-foreground">
+                          <span className="font-mono text-foreground">{d.key}</span>
+                          <span>:</span>
+                          <span className="ml-1">{d.before}</span>
+                          <span className="mx-1">→</span>
+                          <span>{d.after}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Tips: redigera exakta fält som keyword/match_type/budget. Status sätts separat vid push ({pushAsPaused ? "PAUSED" : "ENABLED"}).
+                </p>
+              </div>
+            ) : (
+              <pre className="bg-muted/30 border rounded-md p-2 max-h-64 overflow-auto text-[10px] font-mono whitespace-pre-wrap break-words">
+                {JSON.stringify(payloadPreview, null, 2)}
+              </pre>
+            )}
           </div>
 
           {p.diff && Object.keys(p.diff || {}).length > 0 && (
@@ -541,4 +680,29 @@ function ReviewDrawer({
       </SheetContent>
     </Sheet>
   );
+}
+
+function shortJson(v: unknown): string {
+  if (v === undefined) return "<saknas>";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean" || v === null) return String(v);
+  const s = JSON.stringify(v);
+  if (!s) return "<okänd>";
+  return s.length > 80 ? `${s.slice(0, 77)}...` : s;
+}
+
+function topLevelDiff(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): Array<{ key: string; before: string; after: string }> {
+  const keys = new Set<string>([...Object.keys(before), ...Object.keys(after)]);
+  const rows: Array<{ key: string; before: string; after: string }> = [];
+  for (const key of keys) {
+    const b = before[key];
+    const a = after[key];
+    if (JSON.stringify(b) !== JSON.stringify(a)) {
+      rows.push({ key, before: shortJson(b), after: shortJson(a) });
+    }
+  }
+  return rows.slice(0, 20);
 }
