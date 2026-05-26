@@ -305,6 +305,21 @@ serve(async (req) => {
           }
         }
 
+        // Claim validation: if the action title contains a numeric metric claim
+        // (e.g. "konverteringar -61%") but what_changed is empty, mark the
+        // narrative as failed so UI shows "Kunde inte verifiera påståendet"
+        // instead of empty sections.
+        if (s.kind === "action_item" && actionItem) {
+          const title = actionItem.title ?? "";
+          if (CLAIM_RX.test(title) && context.what_changed.length === 0) {
+            if (!gateTriggers.includes("claim_unverified")) {
+              gateTriggers.push("claim_unverified");
+            }
+            narrativeStatus = "failed";
+          }
+        }
+
+
         const row = {
           project_id,
           action_item_id: s.kind === "action_item" ? s.id : null,
