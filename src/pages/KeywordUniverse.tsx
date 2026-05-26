@@ -477,27 +477,29 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 }
 
 function KeywordTable({ items }: { items: UniverseKeyword[] }) {
-  const PAGE_SIZE = 75;
-  const [visibleRows, setVisibleRows] = useState(PAGE_SIZE);
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setVisibleRows(PAGE_SIZE);
+    setPage(1);
   }, [items]);
 
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Inga sökord matchar.</p>;
   }
 
-  const shown = items.slice(0, visibleRows);
-  const hasMore = visibleRows < items.length;
-  const nextStep = Math.min(PAGE_SIZE, items.length - visibleRows);
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, items.length);
+  const shown = items.slice(start, end);
 
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-0 overflow-x-auto">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-          <span>Visar {shown.length} av {items.length} sökord</span>
-          {hasMore && <span>Scrolla eller visa fler</span>}
+          <span>Visar {start + 1}-{end} av {items.length} sökord</span>
+          <span>Sida {currentPage} av {totalPages}</span>
         </div>
         <Table>
           <TableHeader>
@@ -544,11 +546,14 @@ function KeywordTable({ items }: { items: UniverseKeyword[] }) {
         </Table>
         <div className="border-t border-border px-4 py-3 flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">Exportera CSV för komplett lista.</p>
-          {hasMore && (
-            <Button size="sm" variant="outline" onClick={() => setVisibleRows((cur) => Math.min(cur + PAGE_SIZE, items.length))}>
-              Visa fler (+{nextStep})
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Forra
             </Button>
-          )}
+            <Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              Nasta
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

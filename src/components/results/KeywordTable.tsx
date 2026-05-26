@@ -23,11 +23,11 @@ const fmtSek = (n?: number) =>
   n != null && n > 0 ? `${Math.round(n / 1000)}k` : "—";
 
 export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[]; limit?: number }) {
-  const PAGE_SIZE = 75;
-  const [visibleRows, setVisibleRows] = useState(PAGE_SIZE);
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setVisibleRows(PAGE_SIZE);
+    setPage(1);
   }, [items]);
 
   if (items.length === 0) {
@@ -39,17 +39,19 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
   }
 
   const maxRows = Math.min(items.length, limit);
-  const shownRows = Math.min(visibleRows, maxRows);
-  const hasMore = shownRows < maxRows;
-  const step = Math.min(PAGE_SIZE, maxRows - shownRows);
+  const totalPages = Math.max(1, Math.ceil(maxRows / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, maxRows);
+  const pageRows = items.slice(start, end);
 
   const hasScores = items.some((k) => k.score);
   return (
     <Card className="border-border bg-card shadow-card">
       <CardContent className="overflow-x-auto p-0">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-          <span>Visar {shownRows.toLocaleString("sv-SE")} av {maxRows.toLocaleString("sv-SE")} sökord</span>
-          {hasMore && <span>Använd Visa fler för nästa block</span>}
+          <span>Visar {start + 1}-{end} av {maxRows.toLocaleString("sv-SE")} sökord</span>
+          <span>Sida {currentPage} av {totalPages}</span>
         </div>
         <Table>
           <TableHeader>
@@ -69,7 +71,7 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.slice(0, shownRows).map((k, i) => (
+            {pageRows.map((k, i) => (
               <TableRow key={i} className={k.isNegative || k.priority === "skip" ? "opacity-60" : ""}>
                 <TableCell className="font-mono text-sm">
                   {k.keyword}
@@ -130,11 +132,14 @@ export function KeywordTable({ items, limit = 500 }: { items: UniverseKeyword[];
         </Table>
         <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
           <p className="text-xs text-muted-foreground">Exportera CSV för komplett lista.</p>
-          {hasMore && (
-            <Button size="sm" variant="outline" onClick={() => setVisibleRows((cur) => Math.min(cur + PAGE_SIZE, maxRows))}>
-              Visa fler (+{step})
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Forra
             </Button>
-          )}
+            <Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              Nasta
+            </Button>
+          </div>
         </div>
         {items.length > limit && (
           <p className="px-4 pb-3 text-xs text-muted-foreground">
