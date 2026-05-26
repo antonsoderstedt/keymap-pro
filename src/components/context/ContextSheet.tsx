@@ -113,7 +113,7 @@ export function ContextSheet(props: ContextSheetProps) {
   }, [actionItemId, adsProposalId]);
 
   // Only fetch when the sheet is open (saves a request per row hover).
-  const { data, loading, error, building, build, refresh } = useDecisionContext(
+  const { data, loading, error, building, build, refresh, isStale } = useDecisionContext(
     open ? projectId : undefined,
     open ? ref : null,
   );
@@ -156,7 +156,11 @@ export function ContextSheet(props: ContextSheetProps) {
             />
           )}
 
-          {ref && !loading && !error && data && (
+          {ref && !loading && !error && data && isStale && building && (
+            <LoadingState />
+          )}
+
+          {ref && !loading && !error && data && !(isStale && building) && (
             <Body data={data} score={score} onRebuild={() => build({ force: true })} building={building} />
           )}
         </div>

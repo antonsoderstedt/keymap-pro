@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { DecisionContext } from "@/lib/types";
+import { CURRENT_DECISION_CONTEXT_MODEL_VERSION } from "@/lib/decisionContextVersion";
 
 type DcScopeRef =
   | { kind: "action_item"; id: string }
@@ -47,6 +48,9 @@ export function useDecisionContext(
     error: null,
   });
   const [building, setBuilding] = useState(false);
+  // Tracks which scope+version combos we've already auto-rebuilt so a stale
+  // row (or a deploy that hasn't propagated) can't trigger an infinite loop.
+  const autoRebuiltRef = useRef<Set<string>>(new Set());
 
   const fetchOnce = useCallback(async () => {
     if (!projectId || !ref) {
@@ -101,6 +105,22 @@ export function useDecisionContext(
     [projectId, ref?.kind, ref?.id, fetchOnce],
   );
 
+  // Auto-rebuild stale rows: when a fetched decision_context was produced by
+  // an older MODEL_VERSION, transparently force-rebuild it once. Guarded by
+  // autoRebuiltRef so a deploy that hasn't propagated yet can't trigger a
+  // rebuild loop on every fetch.
+  const staleVersion =
+    state.data && state.data.model_version !== CURRENT_DECISION_CONTEXT_MODEL_VERSION
+      ? state.data.model_version
+      : null;
+  useEffect(() => {
+    if (!staleVersion || !ref || building) return;
+    const key = `${ref.kind}:${ref.id}:${staleVersion}`;
+    if (autoRebuiltRef.current.has(key)) return;
+    autoRebuiltRef.current.add(key);
+    void build({ force: true });
+  }, [staleVersion, ref?.kind, ref?.id, building, build]);
+
   return {
     data: state.data,
     loading: state.loading,
@@ -108,5 +128,6 @@ export function useDecisionContext(
     building,
     refresh: fetchOnce,
     build,
+    isStale: staleVersion !== null,
   };
 }
