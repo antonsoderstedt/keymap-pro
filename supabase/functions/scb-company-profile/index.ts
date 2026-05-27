@@ -91,14 +91,21 @@ function sanitizePem(input: string, kinds: string[]): string {
   const blocks: string[] = [];
   for (const kind of kinds) {
     const re = new RegExp(
-      `-----BEGIN ${kind}-----[\\s\\S]*?-----END ${kind}-----`,
+      `-----BEGIN ${kind}-----([\\s\\S]*?)-----END ${kind}-----`,
       "g",
     );
-    const matches = input.match(re);
-    if (matches) blocks.push(...matches);
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(input)) !== null) {
+      // Strip everything that isn't base64 (handles collapsed whitespace/newlines)
+      const body = m[1].replace(/[^A-Za-z0-9+/=]/g, "");
+      // Re-wrap body to 64-char lines as required by PEM parsers
+      const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? "";
+      blocks.push(`-----BEGIN ${kind}-----\n${wrapped}\n-----END ${kind}-----`);
+    }
   }
   return blocks.join("\n");
 }
+
 
 function loadPem(
   rawEnv: string,
