@@ -38,7 +38,12 @@ Deno.serve(async (req) => {
     } = await sbUser.auth.getUser();
     if (!user) return json({ error: "unauthenticated" }, 401);
 
-    const { project_id, org_number, force = false } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({} as any));
+    const { project_id, org_number, force = false, debug } = body;
+    if (debug === "categories") {
+      const cats = await fetchScbCategories();
+      return json({ categories: cats });
+    }
     if (!project_id) return json({ error: "project_id required" }, 400);
 
     const { data: project } = await sbUser
@@ -87,36 +92,73 @@ Deno.serve(async (req) => {
   }
 });
 
-function loadPem(rawEnv: string, b64Env: string): string | null {
-  const raw = Deno.env.get(rawEnv)?.trim();
-  if (raw && raw.includes("-----BEGIN")) return raw;
-  const b64 = Deno.env.get(b64Env)?.trim();
-  if (b64) {
-    try {
-      return new TextDecoder().decode(
-        Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0)),
-      );
-    } catch (_) {
-      return null;
+function sanitizePem(input: string, kinds: string[]): string {
+  const blocks: string[] = [];
+  for (const kind of kinds) {
+    const re = new RegExp(
+      `-----BEGIN ${kind}-----([\\s\\S]*?)-----END ${kind}-----`,
+      "g",
+    );
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(input)) !== null) {
+      // Strip everything that isn't base64 (handles collapsed whitespace/newlines)
+      const body = m[1].replace(/[^A-Za-z0-9+/=]/g, "");
+      // Re-wrap body to 64-char lines as required by PEM parsers
+      const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? "";
+      blocks.push(`-----BEGIN ${kind}-----\n${wrapped}\n-----END ${kind}-----`);
     }
   }
-  return null;
+  return blocks.join("\n");
 }
+
+
+function loadPem(
+  rawEnv: string,
+  b64Env: string,
+  kinds: string[],
+): string | null {
+  let raw = Deno.env.get(rawEnv)?.trim();
+  if (!raw) {
+    const b64 = Deno.env.get(b64Env)?.trim();
+    if (b64) {
+      try {
+        raw = new TextDecoder().decode(
+          Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0)),
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+  if (!raw) return null;
+  const cleaned = sanitizePem(raw, kinds);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 
 async function fetchScb(org: string): Promise<unknown> {
   const url = "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtaforetag";
 
-  const cert = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
-  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
-  if (!cert || !key) throw new Error("SCB klientcert/key saknas i secrets");
+  const certFull = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64", ["CERTIFICATE"]);
+  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64", ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"]);
+  if (!certFull || !key) throw new Error("SCB klientcert/key saknas i secrets");
+
+  // Split chain: leaf = first cert, rest = CA chain
+  const certBlocks = certFull.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+  if (certBlocks.length === 0) throw new Error("Inga CERTIFICATE-block i SCB_API_CLIENT_CERT_PEM");
+  const leafCert = certBlocks[0];
+  const caCerts = certBlocks.slice(1);
 
   const payload = JSON.stringify({
     ["Företagsstatus"]: "1",
     Registreringsstatus: "1",
     AntalPoster: 1,
     StartPost: 1,
-    Kategorier: [{ Kategori: "OrgNr", Kod: [org] }],
+    Kategorier: [],
+    OrgNr: [org],
   });
+
+
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -125,10 +167,28 @@ async function fetchScb(org: string): Promise<unknown> {
   const apiId = Deno.env.get("SCB_API_ID")?.trim();
   if (apiId) headers["X-Api-Id"] = apiId;
 
-  // mTLS via Deno.createHttpClient (Supabase Edge runtime supports cert/key)
+  // mTLS via Deno.createHttpClient
   // deno-lint-ignore no-explicit-any
-  const client = (Deno as any).createHttpClient?.({ cert, key });
+  const clientOpts: any = { cert: leafCert, key };
+  if (caCerts.length > 0) clientOpts.caCerts = caCerts;
+  let client: unknown;
+  try {
+    client = (Deno as any).createHttpClient?.(clientOpts);
+  } catch (e) {
+    console.error("createHttpClient failed", {
+      err: String(e instanceof Error ? e.message : e),
+      leafLen: leafCert.length,
+      leafHead: leafCert.slice(0, 40),
+      leafTail: leafCert.slice(-40),
+      keyLen: key.length,
+      keyHead: key.slice(0, 40),
+      keyTail: key.slice(-40),
+      caCount: caCerts.length,
+    });
+    throw e;
+  }
   if (!client) throw new Error("Deno.createHttpClient ej tillgänglig i denna runtime");
+
 
   const res = await fetch(url, {
     method: "POST",
@@ -149,35 +209,82 @@ async function fetchScb(org: string): Promise<unknown> {
   }
 }
 
+async function fetchScbCategories(): Promise<unknown> {
+  const certFull = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64", ["CERTIFICATE"]);
+  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64", ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"]);
+  if (!certFull || !key) throw new Error("SCB klientcert/key saknas i secrets");
+  const certBlocks = certFull.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+  const leafCert = certBlocks[0];
+  const caCerts = certBlocks.slice(1);
+  // deno-lint-ignore no-explicit-any
+  const clientOpts: any = { cert: leafCert, key };
+  if (caCerts.length > 0) clientOpts.caCerts = caCerts;
+  const client = (Deno as any).createHttpClient(clientOpts);
+
+  const urls = [
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Je/HamtaKategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Kategori",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Kategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/HamtaAllaKategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/Metadata",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/help",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Help",
+  ];
+  const out: Record<string, unknown> = {};
+  for (const u of urls) {
+    try {
+      const r = await fetch(u, { method: "GET", client } as any);
+      const t = await r.text();
+      out[u] = { status: r.status, body: t.slice(0, 2000) };
+    } catch (e) {
+      out[u] = { error: String(e) };
+    }
+  }
+  return out;
+}
+
 
 
 function normalizeScbPayload(org: string, payload: unknown): ScbProfile {
-  const root = asObject(payload);
-  const firstObj = findNestedObject(root);
-  const node = firstObj || root;
+  const node = findCompanyNode(payload);
 
   const phones = pickMany(node, [
-    "telefon", "phone", "telefonnummer", "tg22tel_je", "tg22tel_ae", "tel",
+    "HAE_Telefon", "Telefon", "telefon", "telefonnummer", "phone", "tel",
   ]);
   const emails = pickMany(node, [
-    "epost", "email", "e-post", "tg09epost_je", "tg09epost_ae", "mail",
+    "HAE_Epost", "E-post", "Epost", "epost", "email", "mail",
   ]);
 
   return {
     org_number: org,
-    company_name: pickFirst(node, ["foretagsnamn", "namn", "company_name", "foretag", "juridiskt_namn"]),
-    sni_code: pickFirst(node, ["sni", "sni_kod", "snikod", "naringsgren_kod", "branschkod"]),
-    sni_text: pickFirst(node, ["sni_text", "naringsgren", "bransch", "naringsgren_namn"]),
-    municipality: pickFirst(node, ["kommun", "kommun_namn", "municipality"]),
-    county: pickFirst(node, ["lan", "lansnamn", "county"]),
-    status: pickFirst(node, ["bolagsstatus", "status", "tg15stat_bol"]),
-    owner_category: pickFirst(node, ["agarkategori", "agarkat", "tg08agkat"]),
-    turnover_class: pickFirst(node, ["omsattning", "oms_klass", "tg07oms"]),
+    company_name: pickFirst(node, ["Företagsnamn", "foretagsnamn", "Firma", "namn", "juridiskt_namn"]),
+    sni_code: pickFirst(node, ["Bransch_1, kod", "HAE_Bransch_1, kod", "sni_kod", "branschkod"]),
+    sni_text: pickFirst(node, ["Bransch_1", "HAE_Bransch_1", "naringsgren", "bransch"]),
+    municipality: pickFirst(node, ["HAE_kommun", "Kommun", "kommun"]),
+    county: pickFirst(node, ["HAE_län", "Län", "lan", "lansnamn"]),
+    status: pickFirst(node, ["Företagsstatus", "Bolagsstatus", "bolagsstatus", "status"]),
+    owner_category: pickFirst(node, ["Juridisk form", "agarkategori", "agarkat"]),
+    turnover_class: pickFirst(node, ["Omsättning, år", "omsattning", "oms_klass"]),
     phones,
     emails,
     raw: payload,
     fetched_at: new Date().toISOString(),
   };
+}
+
+function findCompanyNode(payload: unknown): Record<string, unknown> {
+  if (Array.isArray(payload) && payload.length > 0 && typeof payload[0] === "object") {
+    return asObject(payload[0]);
+  }
+  const root = asObject(payload);
+  const candidates = ["data", "result", "Foretag", "foretag", "company", "item", "items", "records", "Hits"];
+  for (const key of candidates) {
+    const val = root[key];
+    if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object") return asObject(val[0]);
+    if (val && typeof val === "object" && !Array.isArray(val)) return asObject(val);
+  }
+  return root;
 }
 
 function normalizeOrgNumber(input: string): string | null {
@@ -192,15 +299,6 @@ function asObject(v: unknown): Record<string, unknown> {
   return {};
 }
 
-function findNestedObject(root: Record<string, unknown>): Record<string, unknown> | null {
-  const candidates = ["data", "result", "foretag", "company", "item", "items", "records"];
-  for (const key of candidates) {
-    const val = root[key];
-    if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object") return asObject(val[0]);
-    if (val && typeof val === "object" && !Array.isArray(val)) return asObject(val);
-  }
-  return null;
-}
 
 function pickFirst(obj: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
@@ -231,7 +329,12 @@ function pickMany(obj: Record<string, unknown>, keys: string[]): string[] {
 }
 
 function normalizeKey(k: string): string {
-  return k.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return k
+    .toLowerCase()
+    .replace(/å|ä/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/é|è/g, "e")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function json(body: unknown, status = 200) {
