@@ -87,21 +87,42 @@ Deno.serve(async (req) => {
   }
 });
 
-function loadPem(rawEnv: string, b64Env: string): string | null {
-  const raw = Deno.env.get(rawEnv)?.trim();
-  if (raw && raw.includes("-----BEGIN")) return raw;
-  const b64 = Deno.env.get(b64Env)?.trim();
-  if (b64) {
-    try {
-      return new TextDecoder().decode(
-        Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0)),
-      );
-    } catch (_) {
-      return null;
+function sanitizePem(input: string, kinds: string[]): string {
+  const blocks: string[] = [];
+  for (const kind of kinds) {
+    const re = new RegExp(
+      `-----BEGIN ${kind}-----[\\s\\S]*?-----END ${kind}-----`,
+      "g",
+    );
+    const matches = input.match(re);
+    if (matches) blocks.push(...matches);
+  }
+  return blocks.join("\n");
+}
+
+function loadPem(
+  rawEnv: string,
+  b64Env: string,
+  kinds: string[],
+): string | null {
+  let raw = Deno.env.get(rawEnv)?.trim();
+  if (!raw) {
+    const b64 = Deno.env.get(b64Env)?.trim();
+    if (b64) {
+      try {
+        raw = new TextDecoder().decode(
+          Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0)),
+        );
+      } catch (_) {
+        return null;
+      }
     }
   }
-  return null;
+  if (!raw) return null;
+  const cleaned = sanitizePem(raw, kinds);
+  return cleaned.length > 0 ? cleaned : null;
 }
+
 
 async function fetchScb(org: string): Promise<unknown> {
   const url = "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtaforetag";
