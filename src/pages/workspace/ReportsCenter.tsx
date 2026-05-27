@@ -21,6 +21,16 @@ type ArtifactRow = {
   payload: Record<string, any>;
 };
 
+type PresetRow = {
+  id: string;
+  name: string;
+  created_at: string;
+  payload: {
+    period: string;
+    comparison: string;
+  };
+};
+
 type AuditLens = {
   healthScore: number | null;
   headline: string;
@@ -103,6 +113,9 @@ export default function ReportsCenter() {
   const [comparison, setComparison] = useState("previous_period");
   const [artifacts, setArtifacts] = useState<ArtifactRow[]>([]);
   const [loadingArtifacts, setLoadingArtifacts] = useState(false);
+  const [presets, setPresets] = useState<PresetRow[]>([]);
+  const [loadingPresets, setLoadingPresets] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [preview, setPreview] = useState<ArtifactRow | null>(null);
   const [auditLens, setAuditLens] = useState<AuditLens | null>(null);
@@ -140,6 +153,56 @@ export default function ReportsCenter() {
       return;
     }
     setArtifacts((data as ArtifactRow[]) || []);
+  };
+
+  const loadPresets = async () => {
+    if (!workspace?.id) return;
+    setLoadingPresets(true);
+    const { data, error } = await supabase
+      .from("workspace_artifacts")
+      .select("id,name,created_at,payload")
+      .eq("project_id", workspace.id)
+      .eq("artifact_type", "report_preset")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setLoadingPresets(false);
+    if (error) {
+      toast.error(`Kunde inte hamta presets: ${error.message}`);
+      return;
+    }
+    setPresets((data as PresetRow[]) || []);
+  };
+
+  const savePreset = async () => {
+    if (!workspace?.id) return;
+    const defaultName = `Preset ${new Date().toLocaleDateString("sv-SE")}`;
+    const name = window.prompt("Namn pa preset", defaultName);
+    if (!name) return;
+
+    setSavingPreset(true);
+    const { error } = await supabase.from("workspace_artifacts").insert({
+      project_id: workspace.id,
+      artifact_type: "report_preset",
+      name,
+      description: "Rapportinstallning",
+      payload: {
+        period,
+        comparison,
+      },
+    });
+    setSavingPreset(false);
+    if (error) {
+      toast.error(`Kunde inte spara preset: ${error.message}`);
+      return;
+    }
+    toast.success("Preset sparad");
+    loadPresets();
+  };
+
+  const applyPreset = (preset: PresetRow) => {
+    setPeriod(preset.payload?.period || "last_28_days");
+    setComparison(preset.payload?.comparison || "previous_period");
+    toast.success(`Preset laddad: ${preset.name}`);
   };
 
   const loadAuditLens = async () => {
@@ -193,6 +256,7 @@ export default function ReportsCenter() {
 
   useEffect(() => {
     loadArtifacts();
+    loadPresets();
     loadAuditLens();
   }, [workspace?.id]);
 
@@ -245,6 +309,60 @@ export default function ReportsCenter() {
     downloadCsv(`${artifact.name}.csv`, csv);
   };
 
+  const exportArtifactPdf = async (artifact: ArtifactRow) => {
+    const jsPdfMod = await import("jspdf");
+    const doc = new jsPdfMod.jsPDF();
+
+    let y = 16;
+    const next = (inc = 8) => {
+      y += inc;
+      if (y > 280) {
+        doc.addPage();
+        y = 16;
+      }
+    };
+
+    doc.setFontSize(16);
+    doc.text(artifact.name, 14, y);
+    next(8);
+    doc.setFontSize(10);
+    doc.text(`Rapporttyp: ${artifact.payload?.report_type || "report"}`, 14, y);
+    next(6);
+    doc.text(`Skapad: ${new Date(artifact.created_at).toLocaleString("sv-SE")}`, 14, y);
+    next(10);
+
+    const issues = artifact.payload?.issues || [];
+    doc.setFontSize(12);
+    doc.text("Issues", 14, y);
+    next(7);
+    doc.setFontSize(10);
+    if (!issues.length) {
+      doc.text("Inga issues registrerade.", 14, y);
+      next(7);
+    } else {
+      issues.slice(0, 12).forEach((it: any) => {
+        const line = `- ${it.section || "section"}: ${it.message || ""}`;
+        const lines = doc.splitTextToSize(line, 180);
+        doc.text(lines, 14, y);
+        next(lines.length * 5);
+      });
+    }
+
+    const sections = Object.entries((artifact.payload?.sections || {}) as Record<string, any>);
+    doc.setFontSize(12);
+    doc.text("Sections", 14, y);
+    next(7);
+    doc.setFontSize(10);
+    sections.slice(0, 20).forEach(([name, sec]) => {
+      const line = `- ${name}: ${sec?.status || "unknown"}${sec?.reason ? ` (${sec.reason})` : ""}`;
+      const lines = doc.splitTextToSize(line, 180);
+      doc.text(lines, 14, y);
+      next(lines.length * 5);
+    });
+
+    doc.save(`${artifact.name}.pdf`);
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
       <header className="space-y-3">
@@ -294,6 +412,15 @@ export default function ReportsCenter() {
               <Calendar className="mr-2 inline h-4 w-4" />
               {freshnessText}
             </div>
+          </div>
+
+          <div className="md:col-span-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={savePreset} disabled={savingPreset}>
+              {savingPreset ? "Sparar..." : "Spara preset"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={loadPresets} disabled={loadingPresets}>
+              {loadingPresets ? "Laddar presets..." : "Uppdatera presets"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -361,8 +488,20 @@ export default function ReportsCenter() {
             <CardDescription>Period, jamforelse, kallor och format som kan ateranvandas.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p className="rounded-md border p-2">Standard ledningsrapport · 28 dagar · Foregaende period · PDF</p>
-            <p className="rounded-md border p-2">Ops djupdyk · 7 dagar · Foregaende period · CSV</p>
+            {!presets.length && <p className="text-muted-foreground">Inga sparade presets an.</p>}
+            {presets.map((p) => (
+              <div key={p.id} className="rounded-md border p-2">
+                <p className="font-medium">{p.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {p.payload?.period || "-"} · {p.payload?.comparison || "-"} · {new Date(p.created_at).toLocaleString("sv-SE")}
+                </p>
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" onClick={() => applyPreset(p)}>
+                    Anvand preset
+                  </Button>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -393,6 +532,9 @@ export default function ReportsCenter() {
                   <Button size="sm" variant="outline" onClick={() => exportArtifact(item, "csv")}>
                     <Download className="mr-2 h-4 w-4" />
                     CSV
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => exportArtifactPdf(item)}>
+                    PDF
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => exportArtifact(item, "json")}>
                     JSON
@@ -425,6 +567,25 @@ export default function ReportsCenter() {
               <div className="rounded-md border p-2">
                 <p className="text-xs text-muted-foreground">F) Segmentation</p>
                 <p className="mt-1">Auction rows: {auditLens.latestAuctionRows}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">C) Performance drivers</p>
+                <p className="mt-1 text-muted-foreground">Hamtas fran audit issues + auction snapshot.</p>
+              </div>
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">D) Waste & leakage</p>
+                <p className="mt-1 text-muted-foreground">Flaggas via issue-lista och actions av kategori ads/audit.</p>
+              </div>
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">E) Quality & relevance</p>
+                <p className="mt-1 text-muted-foreground">Kvalitetsrisker visas som severity i issue-listan.</p>
+              </div>
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">G) Opportunities & risks</p>
+                <p className="mt-1 text-muted-foreground">Prioriteras via expected_impact_sek och severity.</p>
               </div>
             </div>
 
