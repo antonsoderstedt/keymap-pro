@@ -87,24 +87,56 @@ Deno.serve(async (req) => {
   }
 });
 
-async function fetchScb(org: string): Promise<unknown> {
-  const apiId = Deno.env.get("SCB_API_ID")?.trim();
-  if (!apiId) throw new Error("SCB_API_ID saknas");
+function loadPem(rawEnv: string, b64Env: string): string | null {
+  const raw = Deno.env.get(rawEnv)?.trim();
+  if (raw && raw.includes("-----BEGIN")) return raw;
+  const b64 = Deno.env.get(b64Env)?.trim();
+  if (b64) {
+    try {
+      return new TextDecoder().decode(
+        Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0)),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
 
+async function fetchScb(org: string): Promise<unknown> {
   const url = "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtaforetag";
+
+  const cert = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
+  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
+  if (!cert || !key) throw new Error("SCB klientcert/key saknas i secrets");
+
+  const payload = JSON.stringify({
+    ["Företagsstatus"]: "1",
+    Registreringsstatus: "1",
+    AntalPoster: 1,
+    StartPost: 1,
+    Kategorier: [{ Kategori: "OrgNr", Kod: [org] }],
+  });
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json,text/plain,*/*",
+  };
+  const apiId = Deno.env.get("SCB_API_ID")?.trim();
+  if (apiId) headers["X-Api-Id"] = apiId;
+
+  // mTLS via Deno.createHttpClient (Supabase Edge runtime supports cert/key)
+  // deno-lint-ignore no-explicit-any
+  const client = (Deno as any).createHttpClient?.({ cert, key });
+  if (!client) throw new Error("Deno.createHttpClient ej tillgänglig i denna runtime");
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Id": apiId,
-      Accept: "application/json,text/plain,*/*",
-    },
-    body: JSON.stringify({
-      AntalPoster: 1,
-      OrgNrFran: org,
-    }),
-  });
+    headers,
+    body: payload,
+    // deno-lint-ignore no-explicit-any
+    client,
+  } as any);
 
   const text = await res.text();
   if (!res.ok) {
