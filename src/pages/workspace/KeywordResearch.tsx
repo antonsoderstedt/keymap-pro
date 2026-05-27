@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { RefreshCw, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +17,7 @@ type ResearchRow = {
   keyword: string;
   score: number;
   confidence: number;
+  customerRelevance: number;
   sources: string[];
   volume: number;
   cpc: number | null;
@@ -58,6 +60,75 @@ function sourceBadgeTone(status: string): "secondary" | "destructive" | "outline
   return "outline";
 }
 
+const STOPWORDS = new Set([
+  "och", "att", "för", "med", "som", "det", "den", "ett", "till", "från", "inom", "utan", "samt", "eller",
+  "your", "our", "the", "and", "for", "with", "from", "you", "vi", "ni", "oss", "er", "av", "på", "i",
+]);
+
+function unique<T>(items: T[]) {
+  return Array.from(new Set(items));
+}
+
+function tokenizeTerms(input: string | null | undefined): string[] {
+  return unique(
+    String(input || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9åäö\s-]/gi, " ")
+      .split(/\s+/)
+      .map((v) => v.trim())
+      .filter((v) => v.length >= 3 && !STOPWORDS.has(v)),
+  );
+}
+
+function parseCsvish(input: string | null | undefined): string[] {
+  return unique(
+    String(input || "")
+      .split(/[\n,;|]+/)
+      .map((v) => v.trim().toLowerCase())
+      .filter((v) => v.length >= 3),
+  );
+}
+
+function sniTermHints(code: string): string[] {
+  const normalized = code.replace(/\s+/g, "").trim();
+  if (!normalized) return [];
+  if (normalized.startsWith("43")) return ["installation", "renovering", "service", "offert", "pris", "företag"];
+  if (normalized.startsWith("47")) return ["köpa", "butik", "online", "pris", "erbjudande", "leverans"];
+  if (normalized.startsWith("62")) return ["system", "integration", "konsult", "plattform", "automation", "api"];
+  if (normalized.startsWith("69")) return ["rådgivning", "konsult", "expert", "hjälp", "pris", "företag"];
+  if (normalized.startsWith("70")) return ["strategi", "analys", "konsult", "byrå", "upplägg", "företag"];
+  return ["tjänst", "företag", "pris", "offert", "lösning"];
+}
+
+function buildCustomerSeedKeywords(params: {
+  terms: string[];
+  market: string;
+  notes: string;
+  sni: string;
+  languageHints: string[];
+}): string[] {
+  const intentSuffix = ["pris", "kostnad", "offert", "bäst", "företag", "guide", "jämförelse"];
+  const baseTerms = unique([
+    ...params.terms,
+    ...tokenizeTerms(params.notes),
+    ...sniTermHints(params.sni),
+  ]).slice(0, 40);
+
+  const market = params.market.trim().toLowerCase();
+  const seeds: string[] = [];
+  for (const term of baseTerms) {
+    seeds.push(term);
+    if (market) seeds.push(`${term} ${market}`);
+    for (const suffix of intentSuffix) {
+      seeds.push(`${term} ${suffix}`);
+    }
+    for (const hint of params.languageHints.slice(0, 4)) {
+      seeds.push(`${term} ${hint}`);
+    }
+  }
+  return unique(seeds.filter((v) => v.length >= 3)).slice(0, 300);
+}
+
 export default function KeywordResearch() {
   const { id } = useParams<{ id: string }>();
   const { data: sourceStatus } = useDataSourcesStatus(id);
@@ -65,6 +136,10 @@ export default function KeywordResearch() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ResearchRow[]>([]);
   const [query, setQuery] = useState("");
+  const [sniCode, setSniCode] = useState("");
+  const [customerNotes, setCustomerNotes] = useState("");
+  const [generatedSeeds, setGeneratedSeeds] = useState<string[]>([]);
+  const [profilePreview, setProfilePreview] = useState<string>("");
   const [goals, setGoals] = useState<GoalsData>({
     conversion_rate_pct: 2.5,
     conversion_value: 1200,
@@ -75,7 +150,7 @@ export default function KeywordResearch() {
     if (!id) return;
     setLoading(true);
     try {
-      const [dfsRes, semrushRes, plannerRes, gscRes, ga4Res, goalsRes] = await Promise.all([
+      const [dfsRes, semrushRes, plannerRes, gscRes, ga4Res, goalsRes, projectRes] = await Promise.all([
         supabase
           .from("keyword_metrics")
           .select("keyword,search_volume,cpc_sek,competition,updated_at")
@@ -109,9 +184,14 @@ export default function KeywordResearch() {
           .select("conversion_rate_pct,conversion_value,currency")
           .eq("project_id", id)
           .maybeSingle(),
+        supabase
+          .from("projects")
+          .select("name,company,description,products,known_segments,competitors,market,domain")
+          .eq("id", id)
+          .maybeSingle(),
       ]);
 
-      if (dfsRes.error || semrushRes.error || plannerRes.error || gscRes.error || ga4Res.error || goalsRes.error) {
+      if (dfsRes.error || semrushRes.error || plannerRes.error || gscRes.error || ga4Res.error || goalsRes.error || projectRes.error) {
         throw new Error(
           dfsRes.error?.message ||
             semrushRes.error?.message ||
@@ -119,9 +199,42 @@ export default function KeywordResearch() {
             gscRes.error?.message ||
             ga4Res.error?.message ||
             goalsRes.error?.message ||
+            projectRes.error?.message ||
             "Kunde inte köra keyword research",
         );
       }
+
+      const project = projectRes.data;
+      const projectTerms = unique([
+        ...tokenizeTerms(project?.name),
+        ...tokenizeTerms(project?.company),
+        ...tokenizeTerms(project?.description),
+        ...parseCsvish(project?.products),
+        ...parseCsvish(project?.known_segments),
+        ...parseCsvish(project?.competitors),
+      ]).slice(0, 80);
+
+      const gscRows = ((gscRes.data?.rows as any[]) || []).slice(0, 5000);
+      const languageHintCounts = new Map<string, number>();
+      for (const row of gscRows) {
+        const parts = tokenizeTerms(row.query);
+        const first = parts[0];
+        if (first) languageHintCounts.set(first, (languageHintCounts.get(first) || 0) + 1);
+      }
+      const languageHints = Array.from(languageHintCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([word]) => word);
+
+      const customerSeedKeywords = buildCustomerSeedKeywords({
+        terms: projectTerms,
+        market: project?.market || "",
+        notes: customerNotes,
+        sni: sniCode,
+        languageHints,
+      });
+      setGeneratedSeeds(customerSeedKeywords);
+      setProfilePreview([project?.company, project?.market, project?.domain].filter(Boolean).join(" · "));
 
       const goalsData = {
         conversion_rate_pct: toNum(goalsRes.data?.conversion_rate_pct) || 2.5,
@@ -173,7 +286,6 @@ export default function KeywordResearch() {
         map.set(keyword, existing);
       }
 
-      const gscRows = ((gscRes.data?.rows as any[]) || []).slice(0, 5000);
       for (const row of gscRows) {
         const keyword = toLowerKeyword(row.query);
         if (!keyword) continue;
@@ -182,6 +294,21 @@ export default function KeywordResearch() {
         if (existing.gscCtr == null && row.ctr != null) existing.gscCtr = toNum(row.ctr);
         if (existing.gscPosition == null && row.position != null) existing.gscPosition = toNum(row.position);
         existing.sources = Array.from(new Set([...(existing.sources || []), "Search Console"]));
+        map.set(keyword, existing);
+      }
+
+      const existingVolumes = Array.from(map.values()).map((v) => toNum(v.volume)).filter((v) => v > 0);
+      const fallbackVolume = existingVolumes.length
+        ? Math.max(10, Math.round(existingVolumes.reduce((sum, n) => sum + n, 0) / existingVolumes.length * 0.05))
+        : 15;
+
+      for (const seed of customerSeedKeywords) {
+        const keyword = toLowerKeyword(seed);
+        if (!keyword) continue;
+        const existing = map.get(keyword) || { keyword, sources: [] };
+        if (toNum(existing.volume) === 0) existing.volume = fallbackVolume;
+        existing.sources = Array.from(new Set([...(existing.sources || []), "Customer Profile"]));
+        existing.updatedAt = existing.updatedAt || new Date().toISOString();
         map.set(keyword, existing);
       }
 
@@ -199,21 +326,25 @@ export default function KeywordResearch() {
           const gscClicks = toNum(entry.gscClicks);
           const gscCtr = entry.gscCtr ?? null;
           const gscPos = entry.gscPosition ?? null;
+          const keywordTerms = tokenizeTerms(entry.keyword);
+          const overlap = keywordTerms.filter((term) => projectTerms.includes(term)).length;
+          const customerRelevance = clamp(overlap / Math.max(1, Math.min(4, keywordTerms.length)), 0, 1);
 
           const demandScore = clamp(Math.log10(volume + 1) * 24, 0, 40);
           const intentScore = clamp(toNum(cpc) * 2.8, 0, 22);
           const tractionScore = clamp(Math.log10(gscClicks + 1) * 9, 0, 18);
           const positionBoost = gscPos != null ? clamp((20 - gscPos) * 0.6, 0, 10) : 0;
+          const customerBoost = customerRelevance * 18;
           const difficultyPenalty = clamp((toNum(kd) * 0.2) + (toNum(plannerComp) * 0.08), 0, 28);
           const sourceBonus = clamp((entry.sources?.length || 0) * 3, 0, 15);
 
           const score = clamp(
-            demandScore + intentScore + tractionScore + positionBoost + ga4BusinessSignal + sourceBonus - difficultyPenalty,
+            demandScore + intentScore + tractionScore + positionBoost + customerBoost + ga4BusinessSignal + sourceBonus - difficultyPenalty,
             0,
             100,
           );
 
-          const confidence = clamp(((entry.sources?.length || 0) / 5) * 100, 15, 100);
+          const confidence = clamp(((entry.sources?.length || 0) / 6) * 100, 15, 100);
 
           const convRate = goalsData.conversion_rate_pct / 100;
           const convValue = goalsData.conversion_value;
@@ -224,6 +355,7 @@ export default function KeywordResearch() {
             keyword: entry.keyword || "",
             score,
             confidence,
+            customerRelevance,
             sources: entry.sources || [],
             volume,
             cpc,
@@ -269,6 +401,7 @@ export default function KeywordResearch() {
       "Semrush": 0,
       "Search Console": 0,
       "GA4": 0,
+      "Customer Profile": 0,
     };
     for (const row of rows) {
       for (const source of row.sources) {
@@ -298,7 +431,27 @@ export default function KeywordResearch() {
             Systemet hämtar alla tillgängliga källor och beräknar score, confidence och estimerat månadsvärde.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">SNI-kod (valfritt)</p>
+              <Input
+                value={sniCode}
+                onChange={(e) => setSniCode(e.target.value)}
+                placeholder="t.ex. 43210"
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">Kundinsikt / noteringar</p>
+              <Textarea
+                value={customerNotes}
+                onChange={(e) => setCustomerNotes(e.target.value)}
+                placeholder="Vad är viktigast för kunden, hur köper de, vilka tjänster/produkter driver affären?"
+                className="min-h-20"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
           <Button onClick={runResearch} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Kör analys..." : "Kör keyword research"}
@@ -329,8 +482,31 @@ export default function KeywordResearch() {
           <div className="ml-auto text-xs text-muted-foreground">
             Modell: score 0-100, confidence baserad på källtäckning.
           </div>
+          </div>
+          {profilePreview && (
+            <p className="text-xs text-muted-foreground">Kundprofil: {profilePreview}</p>
+          )}
         </CardContent>
       </Card>
+
+      {!!generatedSeeds.length && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Kundgenererade seed-sökord</CardTitle>
+            <CardDescription>
+              Byggs från kunddata, SNI-hints, produkter/segment och språk i befintliga sökningar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 text-xs text-muted-foreground">{generatedSeeds.length} seed-sökord genererade</div>
+            <div className="flex flex-wrap gap-1.5">
+              {generatedSeeds.slice(0, 60).map((seed) => (
+                <Badge key={seed} variant="outline" className="text-[10px]">{seed}</Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         <Card>
@@ -408,6 +584,7 @@ export default function KeywordResearch() {
                 <TableHead>Keyword</TableHead>
                 <TableHead className="text-right">Score</TableHead>
                 <TableHead className="text-right">Confidence</TableHead>
+                <TableHead className="text-right">Kundfit</TableHead>
                 <TableHead className="text-right">Volym</TableHead>
                 <TableHead className="text-right">CPC</TableHead>
                 <TableHead className="text-right">KD</TableHead>
@@ -422,6 +599,7 @@ export default function KeywordResearch() {
                   <TableCell className="font-medium">{row.keyword}</TableCell>
                   <TableCell className="text-right">{Math.round(row.score)}</TableCell>
                   <TableCell className="text-right">{Math.round(row.confidence)}%</TableCell>
+                  <TableCell className="text-right">{Math.round(row.customerRelevance * 100)}%</TableCell>
                   <TableCell className="text-right">{row.volume.toLocaleString("sv-SE")}</TableCell>
                   <TableCell className="text-right">{row.cpc == null ? "-" : row.cpc.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{row.kd == null ? "-" : Math.round(row.kd)}</TableCell>
