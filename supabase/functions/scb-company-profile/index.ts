@@ -129,6 +129,9 @@ async function fetchScb(org: string): Promise<unknown> {
     Accept: "application/json,text/plain,*/*",
   };
 
+  const apiId = Deno.env.get("SCB_API_ID")?.trim();
+  if (apiId) headers["X-Api-Id"] = apiId;
+
   const authHeader = Deno.env.get("SCB_API_AUTH_HEADER")?.trim();
   if (authHeader) {
     headers.Authorization = authHeader;
@@ -142,27 +145,6 @@ async function fetchScb(org: string): Promise<unknown> {
 
   const apiKey = Deno.env.get("SCB_API_KEY")?.trim();
   if (apiKey) headers["x-api-key"] = apiKey;
-
-  const certChainRaw = readSecretPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
-  const privateKeyRaw = readSecretPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
-
-  const certChain = certChainRaw ? extractPemBlocks(certChainRaw, "CERTIFICATE", "SCB cert") : null;
-  const privateKey = privateKeyRaw
-    ? extractPemBlocks(privateKeyRaw, "PRIVATE KEY", "SCB key") ||
-      extractPemBlocks(privateKeyRaw, "RSA PRIVATE KEY", "SCB key")
-    : null;
-
-  const forceHttp1 = parseBoolEnv("SCB_API_HTTP1_ONLY", true);
-
-  let client: Deno.HttpClient | undefined;
-  if (certChain && privateKey) {
-    client = Deno.createHttpClient({
-      certChain,
-      privateKey,
-      http1: forceHttp1,
-      http2: !forceHttp1,
-    });
-  }
 
   let body: string | undefined;
   if (method !== "GET") {
@@ -183,7 +165,7 @@ async function fetchScb(org: string): Promise<unknown> {
     }
   }
 
-  const res = await fetch(target, { method, headers, body, client });
+  const res = await fetch(target, { method, headers, body });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`SCB_API_ERROR [${res.status}]: ${text.slice(0, 400)}`);
