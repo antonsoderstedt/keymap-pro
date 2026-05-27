@@ -51,10 +51,15 @@ supabase secrets set \
   SCB_API_BASE_URL="https://privateapi.scb.se" \
   SCB_API_PATH_TEMPLATE="/nv0101/v1/sokpavar/api/je/hamtaforetag" \
   SCB_API_METHOD="POST" \
+  SCB_API_HTTP1_ONLY="true" \
   SCB_API_CLIENT_CERT_PEM_B64="$CERT_B64" \
   SCB_API_CLIENT_KEY_PEM_B64="$KEY_B64" \
   --project-ref mejxsgutoonckmwnxvdp
 ```
+
+Tips: om du satter `SCB_API_CLIENT_CERT_PEM` / `SCB_API_CLIENT_KEY_PEM` (raw PEM), klistra bara in PEM-blocken:
+- `-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----`
+- `-----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----`
 
 Valfritt: satt explicit payload-template om du vill styra queryn helt sjalv.
 
@@ -100,6 +105,7 @@ supabase functions deploy scb-company-profile --project-ref mejxsgutoonckmwnxvdp
 - `SCB_API_ERROR [401/403]`: kontrollera auth-header / user-pass och cert
 - TLS-fel: kontrollera att cert/key hor ihop och ar korrekt extraherade ur samma .pfx
 - Tomt payload-format: kontrollera `SCB_API_PATH_TEMPLATE` och `SCB_API_POST_PAYLOAD_TEMPLATE`
+- TLS-fel med Deno runtime: satt `SCB_API_HTTP1_ONLY=true` och deploya om funktionen
 
 ### Om mTLS fungerar lokalt men fallerar i Edge runtime
 

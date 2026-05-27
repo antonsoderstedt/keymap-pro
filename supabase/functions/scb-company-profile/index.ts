@@ -143,12 +143,25 @@ async function fetchScb(org: string): Promise<unknown> {
   const apiKey = Deno.env.get("SCB_API_KEY")?.trim();
   if (apiKey) headers["x-api-key"] = apiKey;
 
-  const certChain = readSecretPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
-  const privateKey = readSecretPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
+  const certChainRaw = readSecretPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
+  const privateKeyRaw = readSecretPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
+
+  const certChain = certChainRaw ? extractPemBlocks(certChainRaw, "CERTIFICATE", "SCB cert") : null;
+  const privateKey = privateKeyRaw
+    ? extractPemBlocks(privateKeyRaw, "PRIVATE KEY", "SCB key") ||
+      extractPemBlocks(privateKeyRaw, "RSA PRIVATE KEY", "SCB key")
+    : null;
+
+  const forceHttp1 = parseBoolEnv("SCB_API_HTTP1_ONLY", true);
 
   let client: Deno.HttpClient | undefined;
   if (certChain && privateKey) {
-    client = Deno.createHttpClient({ certChain, privateKey });
+    client = Deno.createHttpClient({
+      certChain,
+      privateKey,
+      http1: forceHttp1,
+      http2: !forceHttp1,
+    });
   }
 
   let body: string | undefined;
@@ -203,6 +216,26 @@ function readSecretPem(plainKey: string, b64Key: string): string | null {
     }
   }
   return null;
+}
+
+function extractPemBlocks(input: string, blockType: string, label: string): string | null {
+  const re = new RegExp(
+    `-----BEGIN ${blockType}-----[\\s\\S]*?-----END ${blockType}-----`,
+    "g",
+  );
+  const matches = input.match(re);
+  if (!matches || matches.length === 0) return null;
+  const cleaned = matches.map((m) => m.trim()).join("\n");
+  if (!cleaned.includes(`-----BEGIN ${blockType}-----`)) {
+    throw new Error(`Kunde inte tolka ${label}`);
+  }
+  return cleaned;
+}
+
+function parseBoolEnv(key: string, defaultValue: boolean): boolean {
+  const raw = Deno.env.get(key)?.trim().toLowerCase();
+  if (!raw) return defaultValue;
+  return ["1", "true", "yes", "on"].includes(raw);
 }
 
 function normalizeScbPayload(org: string, payload: unknown): ScbProfile {
