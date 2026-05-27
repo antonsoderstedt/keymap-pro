@@ -29,6 +29,7 @@ import ReportsCenter from "./pages/workspace/ReportsCenter";
 import RawDataExplorer from "./pages/workspace/RawDataExplorer";
 import DataForSeoWorkbench from "./pages/workspace/DataForSeoWorkbench";
 import SemrushWorkbench from "./pages/workspace/SemrushWorkbench";
+import KeywordResearch from "./pages/workspace/KeywordResearch";
 
 
 
@@ -100,6 +101,7 @@ const App = () => (
             <Route path="ads-history" element={<AdsHistory />} />
 
             <Route path="reports" element={<ReportsCenter />} />
+            <Route path="keyword-research" element={<KeywordResearch />} />
             <Route path="raw-data" element={<RawDataExplorer />} />
             <Route path="dataforseo" element={<DataForSeoWorkbench />} />
             <Route path="semrush" element={<SemrushWorkbench />} />

@@ -34,6 +34,7 @@ export type WorkspaceRoute = {
 
 export const WORKSPACE_ROUTES: WorkspaceRoute[] = [
   { sub: "",                     label: "Idag",                icon: LayoutDashboard, keywords: "today start hem dashboard idag", primary: true, end: true },
+  { sub: "keyword-research",     label: "Keyword Research",    icon: Search,          keywords: "keyword research studio planner dataforseo semrush ga4 gsc", primary: true },
   { sub: "reports",              label: "Rapporter",           icon: FileText,        keywords: "reports rapporter audit export pdf csv pptx artifacts", primary: true },
   { sub: "raw-data",             label: "Källdata",            icon: Database,        keywords: "raw data kalldata rows tabell export drilldown", primary: true },
   { sub: "dataforseo",           label: "DataForSEO",          icon: Search,          keywords: "dataforseo keyword lookup volume cpc kd serp trend", primary: true },
