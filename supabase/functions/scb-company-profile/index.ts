@@ -156,11 +156,8 @@ async function fetchScb(org: string): Promise<unknown> {
       body = customPayload.replaceAll("{orgnr}", org);
     } else {
       body = JSON.stringify({
-        ["F\u00f6retagsstatus"]: "1",
-        Registreringsstatus: "1",
         AntalPoster: 1,
-        StartPost: 1,
-        Kategorier: [{ Kategori: "OrgNr", Kod: [org] }],
+        OrgNrFran: org,
       });
     }
   }
