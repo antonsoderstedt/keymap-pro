@@ -127,8 +127,8 @@ function loadPem(
 async function fetchScb(org: string): Promise<unknown> {
   const url = "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtaforetag";
 
-  const cert = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
-  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
+  const cert = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64", ["CERTIFICATE"]);
+  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64", ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"]);
   if (!cert || !key) throw new Error("SCB klientcert/key saknas i secrets");
 
   const payload = JSON.stringify({
