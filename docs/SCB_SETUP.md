@@ -101,6 +101,27 @@ supabase functions deploy scb-company-profile --project-ref mejxsgutoonckmwnxvdp
 - TLS-fel: kontrollera att cert/key hor ihop och ar korrekt extraherade ur samma .pfx
 - Tomt payload-format: kontrollera `SCB_API_PATH_TEMPLATE` och `SCB_API_POST_PAYLOAD_TEMPLATE`
 
+### Om mTLS fungerar lokalt men fallerar i Edge runtime
+
+Om du far TLS-fel i Edge-funktionen men lokal `openssl s_client` fungerar, anvand proxy-lage.
+
+Satt secrets:
+
+```bash
+supabase secrets set \
+  SCB_PROXY_URL="https://din-proxy.example.com/scb" \
+  SCB_PROXY_AUTH_HEADER="Bearer ..." \
+  --project-ref mejxsgutoonckmwnxvdp
+```
+
+Nar `SCB_PROXY_URL` ar satt skickar funktionen `POST` med body:
+
+```json
+{"org_number":"2021000837"}
+```
+
+Proxytjansten gor mTLS-anropet till SCB och returnerar JSON tillbaka till funktionen.
+
 ## 9) Sakerhet
 
 - Lagg inte PEM-filer i git

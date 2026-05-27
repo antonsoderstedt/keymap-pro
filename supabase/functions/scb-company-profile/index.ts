@@ -88,6 +88,31 @@ Deno.serve(async (req) => {
 });
 
 async function fetchScb(org: string): Promise<unknown> {
+  const proxyUrl = Deno.env.get("SCB_PROXY_URL")?.trim();
+  if (proxyUrl) {
+    const proxyHeaders: Record<string, string> = {
+      Accept: "application/json,text/plain,*/*",
+      "Content-Type": "application/json",
+    };
+    const proxyAuth = Deno.env.get("SCB_PROXY_AUTH_HEADER")?.trim();
+    if (proxyAuth) proxyHeaders.Authorization = proxyAuth;
+
+    const proxyRes = await fetch(proxyUrl, {
+      method: "POST",
+      headers: proxyHeaders,
+      body: JSON.stringify({ org_number: org }),
+    });
+    const proxyText = await proxyRes.text();
+    if (!proxyRes.ok) {
+      throw new Error(`SCB_PROXY_ERROR [${proxyRes.status}]: ${proxyText.slice(0, 400)}`);
+    }
+    try {
+      return JSON.parse(proxyText);
+    } catch {
+      return { raw_text: proxyText };
+    }
+  }
+
   const base = Deno.env.get("SCB_API_BASE_URL")?.trim();
   if (!base) {
     throw new Error("SCB_API_BASE_URL saknas");
