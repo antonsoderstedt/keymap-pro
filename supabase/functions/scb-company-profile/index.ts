@@ -88,86 +88,28 @@ Deno.serve(async (req) => {
 });
 
 async function fetchScb(org: string): Promise<unknown> {
-  const proxyUrl = Deno.env.get("SCB_PROXY_URL")?.trim();
-  if (proxyUrl) {
-    const proxyHeaders: Record<string, string> = {
-      Accept: "application/json,text/plain,*/*",
-      "Content-Type": "application/json",
-    };
-    const proxyAuth = Deno.env.get("SCB_PROXY_AUTH_HEADER")?.trim();
-    if (proxyAuth) proxyHeaders.Authorization = proxyAuth;
-
-    const proxyRes = await fetch(proxyUrl, {
-      method: "POST",
-      headers: proxyHeaders,
-      body: JSON.stringify({ org_number: org }),
-    });
-    const proxyText = await proxyRes.text();
-    if (!proxyRes.ok) {
-      throw new Error(`SCB_PROXY_ERROR [${proxyRes.status}]: ${proxyText.slice(0, 400)}`);
-    }
-    try {
-      return JSON.parse(proxyText);
-    } catch {
-      return { raw_text: proxyText };
-    }
-  }
-
-  const base = Deno.env.get("SCB_API_BASE_URL")?.trim();
-  if (!base) {
-    throw new Error("SCB_API_BASE_URL saknas");
-  }
-
-  const pathTemplate =
-    Deno.env.get("SCB_API_PATH_TEMPLATE")?.trim() ||
-    "/nv0101/v1/sokpavar/api/je/hamtaforetag";
-  const method = (Deno.env.get("SCB_API_METHOD") || "POST").trim().toUpperCase();
-  const path = pathTemplate.replaceAll("{orgnr}", encodeURIComponent(org));
-  const target = `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-
-  const headers: Record<string, string> = {
-    Accept: "application/json,text/plain,*/*",
-  };
-
   const apiId = Deno.env.get("SCB_API_ID")?.trim();
-  if (apiId) headers["X-Api-Id"] = apiId;
+  if (!apiId) throw new Error("SCB_API_ID saknas");
 
-  const authHeader = Deno.env.get("SCB_API_AUTH_HEADER")?.trim();
-  if (authHeader) {
-    headers.Authorization = authHeader;
-  } else {
-    const username = Deno.env.get("SCB_API_USERNAME")?.trim();
-    const password = Deno.env.get("SCB_API_PASSWORD")?.trim();
-    if (username && password) {
-      headers.Authorization = `Basic ${btoa(`${username}:${password}`)}`;
-    }
-  }
+  const url = "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtaforetag";
 
-  const apiKey = Deno.env.get("SCB_API_KEY")?.trim();
-  if (apiKey) headers["x-api-key"] = apiKey;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Api-Id": apiId,
+      Accept: "application/json,text/plain,*/*",
+    },
+    body: JSON.stringify({
+      AntalPoster: 1,
+      OrgNrFran: org,
+    }),
+  });
 
-  let body: string | undefined;
-  if (method !== "GET") {
-    headers["Content-Type"] = "application/json";
-
-    // Default payload for SokPaVar endpoint. Can be fully overridden by env.
-    const customPayload = Deno.env.get("SCB_API_POST_PAYLOAD_TEMPLATE")?.trim();
-    if (customPayload) {
-      body = customPayload.replaceAll("{orgnr}", org);
-    } else {
-      body = JSON.stringify({
-        AntalPoster: 1,
-        OrgNrFran: org,
-      });
-    }
-  }
-
-  const res = await fetch(target, { method, headers, body });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`SCB_API_ERROR [${res.status}]: ${text.slice(0, 400)}`);
   }
-
   try {
     return JSON.parse(text);
   } catch {
@@ -175,47 +117,7 @@ async function fetchScb(org: string): Promise<unknown> {
   }
 }
 
-function readSecretPem(plainKey: string, b64Key: string): string | null {
-  const plain = Deno.env.get(plainKey);
-  if (plain && plain.trim()) return plain;
 
-  const b64 = Deno.env.get(b64Key);
-  if (b64 && b64.trim()) {
-    const value = b64.trim();
-
-    // Be permissive: some environments may accidentally store raw PEM in *_B64 secrets.
-    if (value.includes("-----BEGIN")) {
-      return value;
-    }
-
-    try {
-      return atob(value.replace(/\s+/g, ""));
-    } catch {
-      throw new Error(`Ogiltig base64 i ${b64Key}`);
-    }
-  }
-  return null;
-}
-
-function extractPemBlocks(input: string, blockType: string, label: string): string | null {
-  const re = new RegExp(
-    `-----BEGIN ${blockType}-----[\\s\\S]*?-----END ${blockType}-----`,
-    "g",
-  );
-  const matches = input.match(re);
-  if (!matches || matches.length === 0) return null;
-  const cleaned = matches.map((m) => m.trim()).join("\n");
-  if (!cleaned.includes(`-----BEGIN ${blockType}-----`)) {
-    throw new Error(`Kunde inte tolka ${label}`);
-  }
-  return cleaned;
-}
-
-function parseBoolEnv(key: string, defaultValue: boolean): boolean {
-  const raw = Deno.env.get(key)?.trim().toLowerCase();
-  if (!raw) return defaultValue;
-  return ["1", "true", "yes", "on"].includes(raw);
-}
 
 function normalizeScbPayload(org: string, payload: unknown): ScbProfile {
   const root = asObject(payload);
