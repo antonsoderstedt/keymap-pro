@@ -165,7 +165,7 @@ async function fetchScb(org: string): Promise<unknown> {
     }
   }
 
-  const res = await fetch(target, { method, headers, body, client });
+  const res = await fetch(target, { method, headers, body });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`SCB_API_ERROR [${res.status}]: ${text.slice(0, 400)}`);
