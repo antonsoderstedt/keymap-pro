@@ -4,12 +4,15 @@
 import {
   LayoutDashboard,
   Search,
+  Database,
   ListChecks,
   Settings,
   BarChart3,
   Archive,
   History,
   Activity,
+  FileText,
+  Radar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +34,10 @@ export type WorkspaceRoute = {
 
 export const WORKSPACE_ROUTES: WorkspaceRoute[] = [
   { sub: "",                     label: "Idag",                icon: LayoutDashboard, keywords: "today start hem dashboard idag", primary: true, end: true },
+  { sub: "reports",              label: "Rapporter",           icon: FileText,        keywords: "reports rapporter audit export pdf csv pptx artifacts", primary: true },
+  { sub: "raw-data",             label: "Källdata",            icon: Database,        keywords: "raw data kalldata rows tabell export drilldown", primary: true },
+  { sub: "dataforseo",           label: "DataForSEO",          icon: Search,          keywords: "dataforseo keyword lookup volume cpc kd serp trend", primary: true },
+  { sub: "semrush",              label: "Semrush",             icon: Radar,           keywords: "semrush keyword gap competitors visibility top pages", primary: true },
   { sub: "actions",              label: "Åtgärder",            icon: ListChecks,      keywords: "actions pipeline queue todo förslag åtgärder audit", primary: true },
   { sub: "account-intelligence", label: "Account Intelligence", icon: Activity,        keywords: "account intelligence health kampanj jämförelse timeline ändringar översikt", primary: true },
   { sub: "performance",          label: "Performance",         icon: BarChart3,       keywords: "performance kpi seo ads ga4 trafik auction kampanj", primary: true },

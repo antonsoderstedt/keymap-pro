@@ -25,6 +25,10 @@ import ActionsPipeline from "./pages/workspace/ActionsPipeline";
 import Performance from "./pages/workspace/Performance";
 import AdsHistory from "./pages/workspace/AdsHistory";
 import AccountIntelligence from "./pages/workspace/AccountIntelligence";
+import ReportsCenter from "./pages/workspace/ReportsCenter";
+import RawDataExplorer from "./pages/workspace/RawDataExplorer";
+import DataForSeoWorkbench from "./pages/workspace/DataForSeoWorkbench";
+import SemrushWorkbench from "./pages/workspace/SemrushWorkbench";
 
 
 
@@ -95,8 +99,12 @@ const App = () => (
             {/* Situationsspecifikt — endast via command bar */}
             <Route path="ads-history" element={<AdsHistory />} />
 
+            <Route path="reports" element={<ReportsCenter />} />
+            <Route path="raw-data" element={<RawDataExplorer />} />
+            <Route path="dataforseo" element={<DataForSeoWorkbench />} />
+            <Route path="semrush" element={<SemrushWorkbench />} />
+
             {/* Bakåtkompatibilitet — gamla rutter redirectar */}
-            <Route path="reports" element={<WorkspaceRedirect to={(id) => `/clients/${id}`} />} />
             <Route path="google-ads" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
             <Route path="google-ads-legacy" element={<WorkspaceRedirect to={(id) => `/clients/${id}/performance`} />} />
             <Route path="data-sources" element={<WorkspaceRedirect to={(id) => `/clients/${id}/settings`} />} />
