@@ -247,32 +247,44 @@ async function fetchScbCategories(): Promise<unknown> {
 
 
 function normalizeScbPayload(org: string, payload: unknown): ScbProfile {
-  const root = asObject(payload);
-  const firstObj = findNestedObject(root);
-  const node = firstObj || root;
+  const node = findCompanyNode(payload);
 
   const phones = pickMany(node, [
-    "telefon", "phone", "telefonnummer", "tg22tel_je", "tg22tel_ae", "tel",
+    "HAE_Telefon", "Telefon", "telefon", "telefonnummer", "phone", "tel",
   ]);
   const emails = pickMany(node, [
-    "epost", "email", "e-post", "tg09epost_je", "tg09epost_ae", "mail",
+    "HAE_Epost", "E-post", "Epost", "epost", "email", "mail",
   ]);
 
   return {
     org_number: org,
-    company_name: pickFirst(node, ["foretagsnamn", "namn", "company_name", "foretag", "juridiskt_namn"]),
-    sni_code: pickFirst(node, ["sni", "sni_kod", "snikod", "naringsgren_kod", "branschkod"]),
-    sni_text: pickFirst(node, ["sni_text", "naringsgren", "bransch", "naringsgren_namn"]),
-    municipality: pickFirst(node, ["kommun", "kommun_namn", "municipality"]),
-    county: pickFirst(node, ["lan", "lansnamn", "county"]),
-    status: pickFirst(node, ["bolagsstatus", "status", "tg15stat_bol"]),
-    owner_category: pickFirst(node, ["agarkategori", "agarkat", "tg08agkat"]),
-    turnover_class: pickFirst(node, ["omsattning", "oms_klass", "tg07oms"]),
+    company_name: pickFirst(node, ["Företagsnamn", "foretagsnamn", "Firma", "namn", "juridiskt_namn"]),
+    sni_code: pickFirst(node, ["Bransch_1, kod", "HAE_Bransch_1, kod", "sni_kod", "branschkod"]),
+    sni_text: pickFirst(node, ["Bransch_1", "HAE_Bransch_1", "naringsgren", "bransch"]),
+    municipality: pickFirst(node, ["HAE_kommun", "Kommun", "kommun"]),
+    county: pickFirst(node, ["HAE_län", "Län", "lan", "lansnamn"]),
+    status: pickFirst(node, ["Företagsstatus", "Bolagsstatus", "bolagsstatus", "status"]),
+    owner_category: pickFirst(node, ["Juridisk form", "agarkategori", "agarkat"]),
+    turnover_class: pickFirst(node, ["Omsättning, år", "omsattning", "oms_klass"]),
     phones,
     emails,
     raw: payload,
     fetched_at: new Date().toISOString(),
   };
+}
+
+function findCompanyNode(payload: unknown): Record<string, unknown> {
+  if (Array.isArray(payload) && payload.length > 0 && typeof payload[0] === "object") {
+    return asObject(payload[0]);
+  }
+  const root = asObject(payload);
+  const candidates = ["data", "result", "Foretag", "foretag", "company", "item", "items", "records", "Hits"];
+  for (const key of candidates) {
+    const val = root[key];
+    if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object") return asObject(val[0]);
+    if (val && typeof val === "object" && !Array.isArray(val)) return asObject(val);
+  }
+  return root;
 }
 
 function normalizeOrgNumber(input: string): string | null {
@@ -287,15 +299,6 @@ function asObject(v: unknown): Record<string, unknown> {
   return {};
 }
 
-function findNestedObject(root: Record<string, unknown>): Record<string, unknown> | null {
-  const candidates = ["data", "result", "foretag", "company", "item", "items", "records"];
-  for (const key of candidates) {
-    const val = root[key];
-    if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object") return asObject(val[0]);
-    if (val && typeof val === "object" && !Array.isArray(val)) return asObject(val);
-  }
-  return null;
-}
 
 function pickFirst(obj: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
