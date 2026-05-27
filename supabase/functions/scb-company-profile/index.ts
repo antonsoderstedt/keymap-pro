@@ -219,9 +219,14 @@ async function fetchScbCategories(): Promise<unknown> {
   const client = (Deno as any).createHttpClient(clientOpts);
 
   const urls = [
-    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtakategorier",
-    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/HamtaKategorier",
-    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtakoder",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Je/HamtaKategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Kategori",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Kategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/HamtaAllaKategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/Metadata",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/help",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/Help",
   ];
   const out: Record<string, unknown> = {};
   for (const u of urls) {
