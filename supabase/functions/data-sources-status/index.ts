@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       const stored = (statusRows || []).find((r: any) => r.source === source);
       const ttlSec = stored?.ttl_seconds ?? TTL[source];
       const lastSyncedAt = source === "keyword_planner"
-        ? ((latestKpi as any)?.fetched_at ?? null)
+        ? ((latestKpi as any)?.fetched_at ?? stored?.last_synced_at ?? null)
         : (stored?.last_synced_at as string | null | undefined ?? null);
       const ageSec = lastSyncedAt ? (Date.now() - new Date(lastSyncedAt).getTime()) / 1000 : null;
 
@@ -84,6 +84,9 @@ Deno.serve(async (req) => {
         } else if (!selection.id) {
           status = "not_connected";
           reason = "Inget Ads-konto valt";
+        } else if (stored?.status === "error" || stored?.status === "reauth_required") {
+          status = stored.status;
+          reason = stored.last_error;
         } else if (ageSec === null) {
           status = "stale";
           reason = "Inga keyword planner-idéer hämtade ännu";

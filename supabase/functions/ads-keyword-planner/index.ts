@@ -28,6 +28,27 @@ interface RequestBody {
   max_ideas?: number;
 }
 
+async function markPlannerStatus(
+  sbAdmin: ReturnType<typeof createClient>,
+  projectId: string,
+  status: "ok" | "error" | "reauth_required",
+  options?: { lastError?: string | null; meta?: Record<string, unknown>; bumpSynced?: boolean },
+) {
+  const { lastError = null, meta = {}, bumpSynced = true } = options || {};
+  try {
+    await sbAdmin.rpc("mark_source_status", {
+      _project_id: projectId,
+      _source: "keyword_planner",
+      _status: status,
+      _last_error: lastError,
+      _meta: meta,
+      _bump_synced: bumpSynced,
+    });
+  } catch (e) {
+    console.error("markPlannerStatus failed", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -61,6 +82,7 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sbUser = createClient(url, anon, { global: { headers: { Authorization: auth ?? "" } } });
+    const sbAdmin = createClient(url, service);
     const { data: project, error: projErr } = await sbUser
       .from("projects")
       .select("id")
@@ -83,8 +105,18 @@ Deno.serve(async (req) => {
     } catch (e: any) {
       const msg = String(e?.message || e);
       if (msg.includes("GOOGLE_REAUTH_REQUIRED") || msg.includes("MISSING_ADS_SCOPE") || msg.includes("Not authenticated")) {
+        await markPlannerStatus(sbAdmin, project_id, "reauth_required", {
+          lastError: msg,
+          bumpSynced: false,
+          meta: { reason: "reauth_required" },
+        });
         return json({ ok: false, reason: "reauth_required", error: msg }, 200);
       }
+      await markPlannerStatus(sbAdmin, project_id, "error", {
+        lastError: msg,
+        bumpSynced: false,
+        meta: { reason: "context_error" },
+      });
       return json({ ok: false, error: msg }, 500);
     }
 
@@ -119,9 +151,19 @@ Deno.serve(async (req) => {
     const text = await apiRes.text();
     if (!apiRes.ok) {
       if (apiRes.status === 401) {
+        await markPlannerStatus(sbAdmin, project_id, "reauth_required", {
+          lastError: text.slice(0, 400),
+          bumpSynced: false,
+          meta: { reason: "ads_api_401" },
+        });
         return json({ ok: false, reason: "reauth_required", error: text.slice(0, 400) }, 200);
       }
       if (apiRes.status === 403 && /DEVELOPER_TOKEN_NOT_APPROVED/i.test(text)) {
+        await markPlannerStatus(sbAdmin, project_id, "error", {
+          lastError: "DEVELOPER_TOKEN_NOT_APPROVED",
+          bumpSynced: false,
+          meta: { reason: "developer_token_not_approved" },
+        });
         return json({
           ok: false,
           reason: "developer_token_not_approved",
@@ -129,6 +171,11 @@ Deno.serve(async (req) => {
         }, 200);
       }
       console.error("generateKeywordIdeas failed", { status: apiRes.status, body: text.slice(0, 500) });
+      await markPlannerStatus(sbAdmin, project_id, "error", {
+        lastError: `ADS_API_ERROR [${apiRes.status}]`,
+        bumpSynced: false,
+        meta: { reason: "ads_api_error", status: apiRes.status },
+      });
       return json({ ok: false, error: `ADS_API_ERROR [${apiRes.status}]: ${text.slice(0, 400)}` }, 502);
     }
 
@@ -167,7 +214,6 @@ Deno.serve(async (req) => {
     const seen = new Set<string>();
     const unique = ideas.filter((i) => (seen.has(i.keyword) ? false : (seen.add(i.keyword), true)));
 
-    const sbAdmin = createClient(url, service);
     if (unique.length > 0) {
       // chunked insert
       const CHUNK = 500;
@@ -176,10 +222,21 @@ Deno.serve(async (req) => {
         const { error: insErr } = await sbAdmin.from("keyword_planner_ideas").insert(slice);
         if (insErr) {
           console.error("kpi insert failed", insErr);
+          await markPlannerStatus(sbAdmin, project_id, "error", {
+            lastError: insErr.message,
+            bumpSynced: false,
+            meta: { reason: "insert_error" },
+          });
           return json({ ok: false, error: insErr.message }, 500);
         }
       }
     }
+
+    await markPlannerStatus(sbAdmin, project_id, "ok", {
+      lastError: null,
+      bumpSynced: true,
+      meta: { run_id, count: unique.length, fetched_at: fetchedAt },
+    });
 
     return json({ ok: true, run_id, count: unique.length, ideas: unique });
   } catch (e: any) {
