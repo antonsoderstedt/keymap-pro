@@ -18,6 +18,7 @@ type ResearchRow = {
   score: number;
   confidence: number;
   customerRelevance: number;
+  intentClass: "problem" | "jämförelse" | "köp" | "retention";
   sources: string[];
   volume: number;
   cpc: number | null;
@@ -64,6 +65,24 @@ const STOPWORDS = new Set([
   "och", "att", "för", "med", "som", "det", "den", "ett", "till", "från", "inom", "utan", "samt", "eller",
   "your", "our", "the", "and", "for", "with", "from", "you", "vi", "ni", "oss", "er", "av", "på", "i",
 ]);
+
+const SWEDISH_CITY_TERMS = [
+  "stockholm", "göteborg", "malmö", "uppsala", "västerås", "örebro", "linköping", "helsingborg", "jönköping", "norrköping",
+];
+
+const PERSONA_SUFFIXES: Array<{ label: string; phrases: string[] }> = [
+  { label: "inköpare", phrases: ["för inköpare", "upphandling", "ramavtal", "leverantör"] },
+  { label: "vd", phrases: ["för vd", "affärsnytta", "kostnadseffektiv", "strategisk"] },
+  { label: "drift", phrases: ["för driftansvarig", "drift", "underhåll", "support"] },
+  { label: "marknad", phrases: ["för marknadschef", "leadgenerering", "kampanj", "konvertering"] },
+];
+
+const INTENT_PATTERNS = {
+  problem: ["problem", "felsök", "varför", "hur", "guide", "hjälp", "lösning"],
+  jämförelse: ["jämför", "bäst", "skillnad", "alternativ", "vs", "omdöme", "recension"],
+  köp: ["pris", "kostnad", "offert", "köpa", "beställ", "leverantör", "erbjudande"],
+  retention: ["support", "service", "uppgradering", "förläng", "underhåll", "manual"],
+} as const;
 
 function unique<T>(items: T[]) {
   return Array.from(new Set(items));
@@ -140,12 +159,51 @@ function sniBehaviorPatterns(code: string, terms: string[]): string[] {
   return unique(patterns);
 }
 
+function buildGeoVariants(market: string, gscRows: any[]): string[] {
+  const marketTerm = market.trim().toLowerCase();
+  const geo = new Map<string, number>();
+  if (marketTerm) geo.set(marketTerm, 3);
+  for (const city of SWEDISH_CITY_TERMS) geo.set(city, 1);
+
+  for (const row of (gscRows || []).slice(0, 2000)) {
+    const q = toLowerKeyword(row.query);
+    for (const city of SWEDISH_CITY_TERMS) {
+      if (q.includes(city)) geo.set(city, (geo.get(city) || 0) + 1);
+    }
+  }
+  return Array.from(geo.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name]) => name);
+}
+
+function buildPersonaPatterns(terms: string[]): string[] {
+  const base = terms.slice(0, 16);
+  const out: string[] = [];
+  for (const term of base) {
+    for (const persona of PERSONA_SUFFIXES) {
+      for (const phrase of persona.phrases.slice(0, 2)) {
+        out.push(`${term} ${phrase}`);
+      }
+    }
+  }
+  return unique(out);
+}
+
+function classifyIntentClass(keyword: string): "problem" | "jämförelse" | "köp" | "retention" {
+  const k = toLowerKeyword(keyword);
+  const has = (arr: readonly string[]) => arr.some((p) => k.includes(p));
+  if (has(INTENT_PATTERNS.retention)) return "retention";
+  if (has(INTENT_PATTERNS.köp)) return "köp";
+  if (has(INTENT_PATTERNS.jämförelse)) return "jämförelse";
+  return "problem";
+}
+
 function buildCustomerSeedKeywords(params: {
   terms: string[];
   market: string;
   notes: string;
   sni: string;
   languageHints: string[];
+  geoHints: string[];
+  personaHints: string[];
 }): string[] {
   const intentSuffix = ["pris", "kostnad", "offert", "bäst", "företag", "guide", "jämförelse"];
   const baseTerms = unique([
@@ -160,6 +218,10 @@ function buildCustomerSeedKeywords(params: {
   for (const term of baseTerms) {
     seeds.push(term);
     if (market) seeds.push(`${term} ${market}`);
+    for (const geo of params.geoHints.slice(0, 5)) {
+      seeds.push(`${term} ${geo}`);
+      seeds.push(`${term} i ${geo}`);
+    }
     for (const suffix of intentSuffix) {
       seeds.push(`${term} ${suffix}`);
     }
@@ -167,6 +229,7 @@ function buildCustomerSeedKeywords(params: {
       seeds.push(`${term} ${hint}`);
     }
   }
+  seeds.push(...params.personaHints);
   seeds.push(...behaviorPatterns);
   return unique(seeds.filter((v) => v.length >= 3)).slice(0, 300);
 }
@@ -178,6 +241,7 @@ export default function KeywordResearch() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ResearchRow[]>([]);
   const [query, setQuery] = useState("");
+  const [intentFilter, setIntentFilter] = useState<"all" | "problem" | "jämförelse" | "köp" | "retention">("all");
   const [sniCode, setSniCode] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
   const [generatedSeeds, setGeneratedSeeds] = useState<string[]>([]);
@@ -268,12 +332,17 @@ export default function KeywordResearch() {
         .slice(0, 8)
         .map(([word]) => word);
 
+      const geoHints = buildGeoVariants(project?.market || "", gscRows);
+      const personaHints = buildPersonaPatterns(projectTerms);
+
       const customerSeedKeywords = buildCustomerSeedKeywords({
         terms: projectTerms,
         market: project?.market || "",
         notes: customerNotes,
         sni: sniCode,
         languageHints,
+        geoHints,
+        personaHints,
       });
       setGeneratedSeeds(customerSeedKeywords);
       setProfilePreview([project?.company, project?.market, project?.domain].filter(Boolean).join(" · "));
@@ -371,6 +440,7 @@ export default function KeywordResearch() {
           const keywordTerms = tokenizeTerms(entry.keyword);
           const overlap = keywordTerms.filter((term) => projectTerms.includes(term)).length;
           const customerRelevance = clamp(overlap / Math.max(1, Math.min(4, keywordTerms.length)), 0, 1);
+          const intentClass = classifyIntentClass(entry.keyword || "");
 
           const demandScore = clamp(Math.log10(volume + 1) * 24, 0, 40);
           const intentScore = clamp(toNum(cpc) * 2.8, 0, 22);
@@ -398,6 +468,7 @@ export default function KeywordResearch() {
             score,
             confidence,
             customerRelevance,
+            intentClass,
             sources: entry.sources || [],
             volume,
             cpc,
@@ -425,9 +496,12 @@ export default function KeywordResearch() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => r.keyword.includes(q));
-  }, [rows, query]);
+    return rows.filter((r) => {
+      if (intentFilter !== "all" && r.intentClass !== intentFilter) return false;
+      if (!q) return true;
+      return r.keyword.includes(q);
+    });
+  }, [rows, query, intentFilter]);
 
   const avgConfidence = useMemo(() => {
     if (!rows.length) return 0;
@@ -507,6 +581,7 @@ export default function KeywordResearch() {
                   keyword: r.keyword,
                   score: r.score,
                   confidence: r.confidence,
+                  intent_class: r.intentClass,
                   volume: r.volume,
                   cpc: r.cpc,
                   kd: r.kd,
@@ -620,10 +695,24 @@ export default function KeywordResearch() {
             />
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            {(["all", "problem", "jämförelse", "köp", "retention"] as const).map((kind) => (
+              <Button
+                key={kind}
+                size="sm"
+                variant={intentFilter === kind ? "secondary" : "outline"}
+                onClick={() => setIntentFilter(kind)}
+              >
+                {kind === "all" ? "Alla intent" : kind}
+              </Button>
+            ))}
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Keyword</TableHead>
+                <TableHead>Intent</TableHead>
                 <TableHead className="text-right">Score</TableHead>
                 <TableHead className="text-right">Confidence</TableHead>
                 <TableHead className="text-right">Kundfit</TableHead>
@@ -639,6 +728,9 @@ export default function KeywordResearch() {
               {filtered.slice(0, 200).map((row) => (
                 <TableRow key={row.keyword}>
                   <TableCell className="font-medium">{row.keyword}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px]">{row.intentClass}</Badge>
+                  </TableCell>
                   <TableCell className="text-right">{Math.round(row.score)}</TableCell>
                   <TableCell className="text-right">{Math.round(row.confidence)}%</TableCell>
                   <TableCell className="text-right">{Math.round(row.customerRelevance * 100)}%</TableCell>
