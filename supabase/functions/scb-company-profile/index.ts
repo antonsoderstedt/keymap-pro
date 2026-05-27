@@ -149,7 +149,7 @@ async function fetchScb(org: string): Promise<unknown> {
     Registreringsstatus: "1",
     AntalPoster: 1,
     StartPost: 1,
-    Kategorier: [{ Kategori: "Org.nr", Kod: [org] }],
+    Kategorier: [{ Kategori: "PeOrgNr", Kod: [org] }],
   });
 
   const headers: Record<string, string> = {
