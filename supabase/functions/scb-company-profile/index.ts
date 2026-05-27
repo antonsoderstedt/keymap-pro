@@ -127,9 +127,15 @@ function loadPem(
 async function fetchScb(org: string): Promise<unknown> {
   const url = "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtaforetag";
 
-  const cert = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64", ["CERTIFICATE"]);
+  const certFull = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64", ["CERTIFICATE"]);
   const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64", ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"]);
-  if (!cert || !key) throw new Error("SCB klientcert/key saknas i secrets");
+  if (!certFull || !key) throw new Error("SCB klientcert/key saknas i secrets");
+
+  // Split chain: leaf = first cert, rest = CA chain
+  const certBlocks = certFull.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+  if (certBlocks.length === 0) throw new Error("Inga CERTIFICATE-block i SCB_API_CLIENT_CERT_PEM");
+  const leafCert = certBlocks[0];
+  const caCerts = certBlocks.slice(1);
 
   const payload = JSON.stringify({
     ["Företagsstatus"]: "1",
@@ -146,10 +152,14 @@ async function fetchScb(org: string): Promise<unknown> {
   const apiId = Deno.env.get("SCB_API_ID")?.trim();
   if (apiId) headers["X-Api-Id"] = apiId;
 
-  // mTLS via Deno.createHttpClient (Supabase Edge runtime supports cert/key)
+  // mTLS via Deno.createHttpClient
   // deno-lint-ignore no-explicit-any
-  const client = (Deno as any).createHttpClient?.({ cert, key });
+  const clientOpts: any = { cert: leafCert, key };
+  if (caCerts.length > 0) clientOpts.caCerts = caCerts;
+  // deno-lint-ignore no-explicit-any
+  const client = (Deno as any).createHttpClient?.(clientOpts);
   if (!client) throw new Error("Deno.createHttpClient ej tillgänglig i denna runtime");
+
 
   const res = await fetch(url, {
     method: "POST",
