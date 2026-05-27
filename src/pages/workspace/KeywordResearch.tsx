@@ -89,15 +89,55 @@ function parseCsvish(input: string | null | undefined): string[] {
   );
 }
 
+const SNI_V2_TERMS: Array<{ prefix: string; terms: string[]; useCases: string[] }> = [
+  { prefix: "41", terms: ["nybyggnation", "byggföretag", "entreprenad", "totalentreprenad", "byggprojekt", "byggnation"], useCases: ["bygga", "renovera", "projektledning"] },
+  { prefix: "42", terms: ["anläggning", "infrastruktur", "markarbete", "asfaltering", "vägbygge", "ledning"], useCases: ["upphandling", "entreprenad", "drift"] },
+  { prefix: "43", terms: ["installation", "elinstallation", "vvs", "renovering", "service", "offert"], useCases: ["reparation", "akut", "underhåll"] },
+  { prefix: "45", terms: ["bilservice", "verkstad", "däck", "bilreparation", "reservdelar", "begagnad bil"], useCases: ["boka tid", "jämför pris", "närservice"] },
+  { prefix: "46", terms: ["grossist", "partihandel", "leverantör", "inköp", "distribution", "lager"], useCases: ["b2b", "volymköp", "leverans"] },
+  { prefix: "47", terms: ["köpa", "butik", "online", "erbjudande", "leverans", "fri frakt"], useCases: ["jämföra", "beställa", "recension"] },
+  { prefix: "55", terms: ["hotell", "boende", "övernattning", "weekend", "spa", "konferens"], useCases: ["boka", "nära", "paket"] },
+  { prefix: "56", terms: ["restaurang", "catering", "lunch", "middag", "takeaway", "bordsbokning"], useCases: ["boka bord", "meny", "öppet idag"] },
+  { prefix: "62", terms: ["system", "integration", "it konsult", "automation", "api", "plattform"], useCases: ["implementation", "migrering", "support"] },
+  { prefix: "63", terms: ["digital marknadsföring", "seo", "analys", "data", "spårning", "insikter"], useCases: ["optimera", "mäta", "rapportera"] },
+  { prefix: "68", terms: ["mäklare", "fastighet", "lokal", "hyra", "värdering", "bostad"], useCases: ["sälja", "köpa", "investera"] },
+  { prefix: "69", terms: ["redovisning", "bokföring", "juridik", "rådgivning", "deklaration", "konsult"], useCases: ["hjälp", "outsourcing", "företag"] },
+  { prefix: "70", terms: ["strategi", "management", "konsult", "förändring", "tillväxt", "ledning"], useCases: ["workshop", "roadmap", "upplägg"] },
+  { prefix: "71", terms: ["arkitekt", "konstruktion", "projektering", "ritning", "teknikkonsult", "besiktning"], useCases: ["planera", "bygga", "krav"] },
+  { prefix: "73", terms: ["byrå", "annonsering", "kampanj", "branding", "innehåll", "kommunikation"], useCases: ["generera leads", "öka försäljning", "bygga varumärke"] },
+  { prefix: "74", terms: ["design", "foto", "produktion", "kreativ", "grafisk", "varumärke"], useCases: ["ta fram", "förnya", "paketera"] },
+  { prefix: "81", terms: ["städning", "facility", "kontorsstäd", "fönsterputs", "skötsel", "serviceavtal"], useCases: ["abonnemang", "upphandling", "pris per timme"] },
+  { prefix: "85", terms: ["utbildning", "kurs", "certifiering", "lärande", "workshop", "kompetens"], useCases: ["online", "företag", "distans"] },
+  { prefix: "86", terms: ["hälsovård", "klinik", "behandling", "vård", "specialist", "mottagning"], useCases: ["boka", "symptom", "nära mig"] },
+  { prefix: "96", terms: ["frisör", "skönhet", "wellness", "massage", "behandling", "bokning"], useCases: ["tid", "prislista", "erbjudande"] },
+];
+
 function sniTermHints(code: string): string[] {
   const normalized = code.replace(/\s+/g, "").trim();
   if (!normalized) return [];
-  if (normalized.startsWith("43")) return ["installation", "renovering", "service", "offert", "pris", "företag"];
-  if (normalized.startsWith("47")) return ["köpa", "butik", "online", "pris", "erbjudande", "leverans"];
-  if (normalized.startsWith("62")) return ["system", "integration", "konsult", "plattform", "automation", "api"];
-  if (normalized.startsWith("69")) return ["rådgivning", "konsult", "expert", "hjälp", "pris", "företag"];
-  if (normalized.startsWith("70")) return ["strategi", "analys", "konsult", "byrå", "upplägg", "företag"];
-  return ["tjänst", "företag", "pris", "offert", "lösning"];
+  const match = SNI_V2_TERMS.find((item) => normalized.startsWith(item.prefix));
+  if (!match) return ["tjänst", "företag", "pris", "offert", "lösning"];
+  return [...match.terms, ...match.useCases];
+}
+
+function sniBehaviorPatterns(code: string, terms: string[]): string[] {
+  const normalized = code.replace(/\s+/g, "").trim();
+  const match = SNI_V2_TERMS.find((item) => normalized.startsWith(item.prefix));
+  const domainTerms = terms.slice(0, 12);
+  const useCases = match?.useCases || ["hjälp", "pris", "offert"];
+  const patterns: string[] = [];
+
+  for (const term of domainTerms) {
+    patterns.push(`hur fungerar ${term}`);
+    patterns.push(`vad kostar ${term}`);
+    patterns.push(`${term} för företag`);
+    patterns.push(`${term} guide`);
+    patterns.push(`bästa ${term}`);
+    for (const useCase of useCases.slice(0, 3)) {
+      patterns.push(`${term} ${useCase}`);
+    }
+  }
+  return unique(patterns);
 }
 
 function buildCustomerSeedKeywords(params: {
@@ -113,6 +153,7 @@ function buildCustomerSeedKeywords(params: {
     ...tokenizeTerms(params.notes),
     ...sniTermHints(params.sni),
   ]).slice(0, 40);
+  const behaviorPatterns = sniBehaviorPatterns(params.sni, baseTerms);
 
   const market = params.market.trim().toLowerCase();
   const seeds: string[] = [];
@@ -126,6 +167,7 @@ function buildCustomerSeedKeywords(params: {
       seeds.push(`${term} ${hint}`);
     }
   }
+  seeds.push(...behaviorPatterns);
   return unique(seeds.filter((v) => v.length >= 3)).slice(0, 300);
 }
 
