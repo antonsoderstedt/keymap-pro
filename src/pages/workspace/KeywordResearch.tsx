@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { RefreshCw, Download, Search } from "lucide-react";
+import { RefreshCw, Download, Search, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useDataSourcesStatus } from "@/hooks/useDataSourcesStatus";
@@ -35,6 +35,21 @@ type GoalsData = {
   conversion_rate_pct: number;
   conversion_value: number;
   currency: string;
+};
+
+type ScbProfile = {
+  org_number: string;
+  company_name: string | null;
+  sni_code: string | null;
+  sni_text: string | null;
+  municipality: string | null;
+  county: string | null;
+  status: string | null;
+  owner_category: string | null;
+  turnover_class: string | null;
+  phones: string[];
+  emails: string[];
+  fetched_at: string;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -196,6 +211,27 @@ function classifyIntentClass(keyword: string): "problem" | "jämförelse" | "kö
   return "problem";
 }
 
+function normalizeOrgNumber(input: string): string {
+  const digits = input.replace(/[^0-9]/g, "");
+  if (digits.length === 10) return digits;
+  if (digits.length === 12 && (digits.startsWith("19") || digits.startsWith("20"))) return digits.slice(2);
+  return digits;
+}
+
+function scbTerms(profile: ScbProfile | null): string[] {
+  if (!profile) return [];
+  return unique([
+    ...tokenizeTerms(profile.company_name),
+    ...tokenizeTerms(profile.sni_text),
+    ...tokenizeTerms(profile.status),
+    ...tokenizeTerms(profile.owner_category),
+    ...tokenizeTerms(profile.turnover_class),
+    ...tokenizeTerms(profile.municipality),
+    ...tokenizeTerms(profile.county),
+    ...(profile.sni_code ? sniTermHints(profile.sni_code) : []),
+  ]).slice(0, 80);
+}
+
 function buildCustomerSeedKeywords(params: {
   terms: string[];
   market: string;
@@ -242,6 +278,9 @@ export default function KeywordResearch() {
   const [rows, setRows] = useState<ResearchRow[]>([]);
   const [query, setQuery] = useState("");
   const [intentFilter, setIntentFilter] = useState<"all" | "problem" | "jämförelse" | "köp" | "retention">("all");
+  const [orgNumber, setOrgNumber] = useState("");
+  const [loadingScb, setLoadingScb] = useState(false);
+  const [scbProfile, setScbProfile] = useState<ScbProfile | null>(null);
   const [sniCode, setSniCode] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
   const [generatedSeeds, setGeneratedSeeds] = useState<string[]>([]);
@@ -251,6 +290,33 @@ export default function KeywordResearch() {
     conversion_value: 1200,
     currency: "SEK",
   });
+
+  const fetchScbProfile = async (projectId: string, org: string, force = false): Promise<ScbProfile | null> => {
+    const normalized = normalizeOrgNumber(org);
+    if (!normalized || normalized.length !== 10) {
+      toast.error("Ange giltigt organisationsnummer (10 siffror)");
+      return null;
+    }
+    setLoadingScb(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scb-company-profile", {
+        body: { project_id: projectId, org_number: normalized, force },
+      });
+      if (error || !data?.ok) {
+        throw new Error(data?.error || error?.message || "SCB-anrop misslyckades");
+      }
+      const profile = data.profile as ScbProfile;
+      setScbProfile(profile);
+      if (!sniCode && profile.sni_code) setSniCode(profile.sni_code);
+      toast.success(data.cached ? "SCB-profil laddad från cache" : "SCB-profil hämtad");
+      return profile;
+    } catch (e: any) {
+      toast.error(e?.message || "Kunde inte hämta SCB-profil");
+      return null;
+    } finally {
+      setLoadingScb(false);
+    }
+  };
 
   const runResearch = async () => {
     if (!id) return;
@@ -311,6 +377,13 @@ export default function KeywordResearch() {
       }
 
       const project = projectRes.data;
+      let activeScbProfile = scbProfile;
+      if (orgNumber.trim()) {
+        const fetched = await fetchScbProfile(id, orgNumber.trim());
+        if (fetched) activeScbProfile = fetched;
+      }
+
+      const scbDerivedTerms = scbTerms(activeScbProfile);
       const projectTerms = unique([
         ...tokenizeTerms(project?.name),
         ...tokenizeTerms(project?.company),
@@ -318,6 +391,7 @@ export default function KeywordResearch() {
         ...parseCsvish(project?.products),
         ...parseCsvish(project?.known_segments),
         ...parseCsvish(project?.competitors),
+        ...scbDerivedTerms,
       ]).slice(0, 80);
 
       const gscRows = ((gscRes.data?.rows as any[]) || []).slice(0, 5000);
@@ -339,7 +413,7 @@ export default function KeywordResearch() {
         terms: projectTerms,
         market: project?.market || "",
         notes: customerNotes,
-        sni: sniCode,
+        sni: activeScbProfile?.sni_code || sniCode,
         languageHints,
         geoHints,
         personaHints,
@@ -419,6 +493,9 @@ export default function KeywordResearch() {
         const existing = map.get(keyword) || { keyword, sources: [] };
         if (toNum(existing.volume) === 0) existing.volume = fallbackVolume;
         existing.sources = Array.from(new Set([...(existing.sources || []), "Customer Profile"]));
+        if (activeScbProfile) {
+          existing.sources = Array.from(new Set([...(existing.sources || []), "SCB Register"]));
+        }
         existing.updatedAt = existing.updatedAt || new Date().toISOString();
         map.set(keyword, existing);
       }
@@ -518,6 +595,7 @@ export default function KeywordResearch() {
       "Search Console": 0,
       "GA4": 0,
       "Customer Profile": 0,
+      "SCB Register": 0,
     };
     for (const row of rows) {
       for (const source of row.sources) {
@@ -548,7 +626,26 @@ export default function KeywordResearch() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">Organisationsnummer (SCB)</p>
+              <div className="flex gap-2">
+                <Input
+                  value={orgNumber}
+                  onChange={(e) => setOrgNumber(e.target.value)}
+                  placeholder="t.ex. 5565588653"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => id && fetchScbProfile(id, orgNumber.trim(), true)}
+                  disabled={loadingScb || !orgNumber.trim()}
+                >
+                  <Building2 className={`mr-1.5 h-3.5 w-3.5 ${loadingScb ? "animate-pulse" : ""}`} />
+                  SCB
+                </Button>
+              </div>
+            </div>
             <div>
               <p className="mb-1 text-xs text-muted-foreground">SNI-kod (valfritt)</p>
               <Input
@@ -557,7 +654,7 @@ export default function KeywordResearch() {
                 placeholder="t.ex. 43210"
               />
             </div>
-            <div>
+            <div className="md:col-span-1">
               <p className="mb-1 text-xs text-muted-foreground">Kundinsikt / noteringar</p>
               <Textarea
                 value={customerNotes}
@@ -567,6 +664,17 @@ export default function KeywordResearch() {
               />
             </div>
           </div>
+          {scbProfile && (
+            <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">SCB-profil: {scbProfile.company_name || scbProfile.org_number}</p>
+              <p>
+                SNI: {scbProfile.sni_code || "-"} {scbProfile.sni_text ? `· ${scbProfile.sni_text}` : ""}
+              </p>
+              <p>
+                Ort: {scbProfile.municipality || "-"} {scbProfile.county ? `(${scbProfile.county})` : ""} · Status: {scbProfile.status || "-"}
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
           <Button onClick={runResearch} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -668,7 +776,7 @@ export default function KeywordResearch() {
               </Badge>
             ))}
           </div>
-          <div className="grid gap-2 md:grid-cols-5 text-sm">
+          <div className="grid gap-2 md:grid-cols-6 text-sm">
             {Object.entries(sourceCoverage).map(([name, count]) => (
               <div key={name} className="rounded border px-3 py-2">
                 <div className="text-muted-foreground text-xs">{name}</div>
