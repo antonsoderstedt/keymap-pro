@@ -206,6 +206,36 @@ async function fetchScb(org: string): Promise<unknown> {
   }
 }
 
+async function fetchScbCategories(): Promise<unknown> {
+  const certFull = loadPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64", ["CERTIFICATE"]);
+  const key = loadPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64", ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"]);
+  if (!certFull || !key) throw new Error("SCB klientcert/key saknas i secrets");
+  const certBlocks = certFull.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+  const leafCert = certBlocks[0];
+  const caCerts = certBlocks.slice(1);
+  // deno-lint-ignore no-explicit-any
+  const clientOpts: any = { cert: leafCert, key };
+  if (caCerts.length > 0) clientOpts.caCerts = caCerts;
+  const client = (Deno as any).createHttpClient(clientOpts);
+
+  const urls = [
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtakategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/HamtaKategorier",
+    "https://privateapi.scb.se/nv0101/v1/sokpavar/api/je/hamtakoder",
+  ];
+  const out: Record<string, unknown> = {};
+  for (const u of urls) {
+    try {
+      const r = await fetch(u, { method: "GET", client } as any);
+      const t = await r.text();
+      out[u] = { status: r.status, body: t.slice(0, 2000) };
+    } catch (e) {
+      out[u] = { error: String(e) };
+    }
+  }
+  return out;
+}
+
 
 
 function normalizeScbPayload(org: string, payload: unknown): ScbProfile {
