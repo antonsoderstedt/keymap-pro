@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { toCsv, downloadCsv } from "@/lib/csv";
 
-type Source = "ads" | "ga4" | "gsc" | "dataforseo" | "semrush";
+type Source = "ads" | "ga4" | "gsc" | "keyword_planner" | "dataforseo" | "semrush";
 
 type Row = {
   id: string;
@@ -132,6 +132,26 @@ export default function RawDataExplorer() {
         }
       };
 
+      const loadKeywordPlanner = async () => {
+        const { data } = await supabase
+          .from("keyword_planner_ideas")
+          .select("id,keyword,avg_monthly_searches,competition,competition_index,fetched_at,seed_keyword,seed_url")
+          .eq("project_id", workspace.id)
+          .order("fetched_at", { ascending: false })
+          .limit(250);
+        for (const r of data || []) {
+          results.push({
+            id: `kpi-${r.id}`,
+            source: "keyword_planner",
+            entity: `Keyword: ${r.keyword}`,
+            metric: "avg_monthly_searches",
+            value: r.avg_monthly_searches == null ? "-" : String(toNum(r.avg_monthly_searches).toLocaleString("sv-SE")),
+            observedAt: r.fetched_at,
+            payload: r as unknown as Record<string, any>,
+          });
+        }
+      };
+
       const loadSemrush = async () => {
         const { data } = await supabase
           .from("semrush_metrics")
@@ -154,6 +174,7 @@ export default function RawDataExplorer() {
       if (source === "all" || source === "ads") await loadAds();
       if (source === "all" || source === "ga4") await loadGa4();
       if (source === "all" || source === "gsc") await loadGsc();
+      if (source === "all" || source === "keyword_planner") await loadKeywordPlanner();
       if (source === "all" || source === "dataforseo") await loadDataForSeo();
       if (source === "all" || source === "semrush") await loadSemrush();
 
@@ -207,6 +228,7 @@ export default function RawDataExplorer() {
               <SelectItem value="ads">Google Ads</SelectItem>
               <SelectItem value="ga4">GA4</SelectItem>
               <SelectItem value="gsc">GSC</SelectItem>
+              <SelectItem value="keyword_planner">Keyword Planner</SelectItem>
               <SelectItem value="dataforseo">DataForSEO</SelectItem>
               <SelectItem value="semrush">Semrush</SelectItem>
             </SelectContent>

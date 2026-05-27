@@ -42,6 +42,7 @@ import { StrategyTab } from "@/components/universe/StrategyTab";
 import { ClusterActionsTab } from "@/components/universe/ClusterActionsTab";
 import { AdsExportModal } from "@/components/universe/AdsExportModal";
 import { SeoDiagnosisPanel } from "@/components/keywords/SeoDiagnosisPanel";
+import { KeywordPlannerPanel } from "@/components/universe/KeywordPlannerPanel";
 import { useProjectGoals } from "@/hooks/useProjectGoals";
 import { monthlyKeywordValue, classifyKeyword } from "@/lib/goalsEngine";
 import type { UniverseKeyword, UniverseScale } from "@/lib/types";
@@ -810,6 +811,7 @@ export default function KeywordsHub() {
 
           {/* Sökord */}
           <TabsContent value="keywords" className="mt-4 space-y-4">
+            <KeywordPlannerPanel projectId={id!} />
             <Tabs defaultValue="universe">
               <TabsList className="h-auto flex-wrap">
                 <TabsTrigger value="universe" className="gap-1"><Network className="h-3 w-3" />Universe</TabsTrigger>

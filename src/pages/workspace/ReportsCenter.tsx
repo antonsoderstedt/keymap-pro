@@ -46,7 +46,7 @@ type ReportCard = {
   title: string;
   description: string;
   sources: string[];
-  sourceKeys: Array<"ga4" | "gsc" | "ads">;
+  sourceKeys: Array<"ga4" | "gsc" | "ads" | "keyword_planner">;
   reportType: string;
   formats: string[];
 };
@@ -56,8 +56,8 @@ const REPORTS: ReportCard[] = [
     key: "ads-audit",
     title: "Google Ads Audit",
     description: "Visar vad som andrats, varfor det spelar roll och vad som bor goras nu.",
-    sources: ["Google Ads"],
-    sourceKeys: ["ads"],
+    sources: ["Google Ads", "Keyword Planner"],
+    sourceKeys: ["ads", "keyword_planner"],
     reportType: "auction_insights",
     formats: ["PDF", "CSV", "PPTX", "HTML"],
   },
@@ -82,9 +82,9 @@ const REPORTS: ReportCard[] = [
   {
     key: "cross-source",
     title: "Cross-source Overview",
-    description: "Samlad bild over Ads, GA4 och GSC med deltas och riskflaggor.",
-    sources: ["Google Ads", "GA4", "GSC"],
-    sourceKeys: ["ads", "ga4", "gsc"],
+    description: "Samlad bild over Ads, GA4, GSC och Keyword Planner med deltas och riskflaggor.",
+    sources: ["Google Ads", "GA4", "GSC", "Keyword Planner"],
+    sourceKeys: ["ads", "ga4", "gsc", "keyword_planner"],
     reportType: "executive",
     formats: ["PDF", "CSV", "PPTX"],
   },
@@ -121,14 +121,14 @@ export default function ReportsCenter() {
   const [auditLens, setAuditLens] = useState<AuditLens | null>(null);
 
   const statusBySource = useMemo(() => {
-    const out: Partial<Record<"ga4" | "gsc" | "ads", DsStatus>> = {};
+    const out: Partial<Record<"ga4" | "gsc" | "ads" | "keyword_planner", DsStatus>> = {};
     for (const s of sourcePayload?.sources || []) {
-      if (s.source === "ga4" || s.source === "gsc" || s.source === "ads") out[s.source] = s.status;
+      if (s.source === "ga4" || s.source === "gsc" || s.source === "ads" || s.source === "keyword_planner") out[s.source] = s.status;
     }
     return out;
   }, [sourcePayload]);
 
-  const reportStatus = (keys: Array<"ga4" | "gsc" | "ads">): SourceStatus => {
+  const reportStatus = (keys: Array<"ga4" | "gsc" | "ads" | "keyword_planner">): SourceStatus => {
     const statuses = keys.map((k) => statusBySource[k] ?? "not_connected");
     if (statuses.includes("error")) return "error";
     if (statuses.includes("reauth_required")) return "reauth_required";

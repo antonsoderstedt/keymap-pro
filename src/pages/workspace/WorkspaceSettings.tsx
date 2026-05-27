@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import MembersCard from "@/components/workspace/MembersCard";
 import ClientInfoCard from "@/components/workspace/ClientInfoCard";
 import BrandKit from "./BrandKit";
 import { OnboardingChecklist } from "@/components/workspace/OnboardingChecklist";
-import { KeywordPlannerPanel } from "@/components/universe/KeywordPlannerPanel";
 import GoogleDataPanel from "@/components/GoogleDataPanel";
 
 interface KpiTarget {
@@ -217,7 +216,19 @@ export default function WorkspaceSettings() {
         <GoogleAdsConnection projectId={id!} />
         <Ga4Filters projectId={id!} />
         <Ga4ConversionFilters projectId={id!} />
-        <KeywordPlannerPanel projectId={id!} />
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-serif text-lg">Keyword Planner</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Keyword Planner hanteras nu primart under Sökord for lookup, run-historik och aktivering.
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/clients/${id}/keywords`}>Oppna Sökord</Link>
+            </Button>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="font-serif text-lg">GA4 & Search Console</CardTitle>
