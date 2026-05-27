@@ -1,19 +1,43 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Download, Eye, FilePlus2, Database, Calendar } from "lucide-react";
+import { Download, Eye, FilePlus2, Database, Calendar, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useDataSourcesStatus, type SourceStatus as DsStatus } from "@/hooks/useDataSourcesStatus";
+import { toCsv, downloadCsv, ymd } from "@/lib/csv";
 
 type SourceStatus = "ok" | "stale" | "error" | "reauth_required" | "not_connected";
+type ArtifactRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  payload: Record<string, any>;
+};
+
+type AuditLens = {
+  healthScore: number | null;
+  headline: string;
+  strengths: string[];
+  issues: Array<{ title?: string; severity?: string; detail?: string; fix?: string; impact_sek?: number }>;
+  openActions: Array<{ title: string; priority: string; expected_impact_sek: number | null }>;
+  latestAuctionRows: number;
+  updatedAt: string | null;
+};
 
 type ReportCard = {
   key: string;
   title: string;
   description: string;
   sources: string[];
-  status: SourceStatus;
+  sourceKeys: Array<"ga4" | "gsc" | "ads">;
+  reportType: string;
   formats: string[];
 };
 
@@ -23,7 +47,8 @@ const REPORTS: ReportCard[] = [
     title: "Google Ads Audit",
     description: "Visar vad som andrats, varfor det spelar roll och vad som bor goras nu.",
     sources: ["Google Ads"],
-    status: "ok",
+    sourceKeys: ["ads"],
+    reportType: "auction_insights",
     formats: ["PDF", "CSV", "PPTX", "HTML"],
   },
   {
@@ -31,7 +56,8 @@ const REPORTS: ReportCard[] = [
     title: "GA4 Performance",
     description: "Trafik, engagement och konverteringsutveckling med jamforelseperiod.",
     sources: ["GA4"],
-    status: "ok",
+    sourceKeys: ["ga4"],
+    reportType: "ga4_traffic",
     formats: ["PDF", "CSV"],
   },
   {
@@ -39,7 +65,8 @@ const REPORTS: ReportCard[] = [
     title: "GSC Search Performance",
     description: "Synlighet, klick och query-landningssida utveckling.",
     sources: ["GSC"],
-    status: "stale",
+    sourceKeys: ["gsc"],
+    reportType: "seo_performance",
     formats: ["PDF", "CSV"],
   },
   {
@@ -47,14 +74,10 @@ const REPORTS: ReportCard[] = [
     title: "Cross-source Overview",
     description: "Samlad bild over Ads, GA4 och GSC med deltas och riskflaggor.",
     sources: ["Google Ads", "GA4", "GSC"],
-    status: "ok",
+    sourceKeys: ["ads", "ga4", "gsc"],
+    reportType: "executive",
     formats: ["PDF", "CSV", "PPTX"],
   },
-];
-
-const HISTORY = [
-  { name: "TryggaRor_ads_audit_2026-05-01_2026-05-27.pdf", generatedAt: "2026-05-27 09:14", version: "v1" },
-  { name: "TryggaRor_cross_source_2026-05-01_2026-05-27.csv", generatedAt: "2026-05-27 09:20", version: "v1" },
 ];
 
 function statusTone(status: SourceStatus): "default" | "secondary" | "destructive" | "outline" {
@@ -73,14 +96,154 @@ function statusTone(status: SourceStatus): "default" | "secondary" | "destructiv
 }
 
 export default function ReportsCenter() {
+  const navigate = useNavigate();
+  const { workspace } = useWorkspace();
+  const { data: sourcePayload, refresh: refreshSources } = useDataSourcesStatus(workspace?.id);
   const [period, setPeriod] = useState("last_28_days");
   const [comparison, setComparison] = useState("previous_period");
+  const [artifacts, setArtifacts] = useState<ArtifactRow[]>([]);
+  const [loadingArtifacts, setLoadingArtifacts] = useState(false);
+  const [generatingKey, setGeneratingKey] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ArtifactRow | null>(null);
+  const [auditLens, setAuditLens] = useState<AuditLens | null>(null);
+
+  const statusBySource = useMemo(() => {
+    const out: Partial<Record<"ga4" | "gsc" | "ads", DsStatus>> = {};
+    for (const s of sourcePayload?.sources || []) {
+      if (s.source === "ga4" || s.source === "gsc" || s.source === "ads") out[s.source] = s.status;
+    }
+    return out;
+  }, [sourcePayload]);
+
+  const reportStatus = (keys: Array<"ga4" | "gsc" | "ads">): SourceStatus => {
+    const statuses = keys.map((k) => statusBySource[k] ?? "not_connected");
+    if (statuses.includes("error")) return "error";
+    if (statuses.includes("reauth_required")) return "reauth_required";
+    if (statuses.includes("not_connected")) return "not_connected";
+    if (statuses.includes("stale")) return "stale";
+    return "ok";
+  };
+
+  const loadArtifacts = async () => {
+    if (!workspace?.id) return;
+    setLoadingArtifacts(true);
+    const { data, error } = await supabase
+      .from("workspace_artifacts")
+      .select("id,name,description,created_at,payload")
+      .eq("project_id", workspace.id)
+      .eq("artifact_type", "report")
+      .order("created_at", { ascending: false })
+      .limit(25);
+    setLoadingArtifacts(false);
+    if (error) {
+      toast.error(`Kunde inte hamta artifacts: ${error.message}`);
+      return;
+    }
+    setArtifacts((data as ArtifactRow[]) || []);
+  };
+
+  const loadAuditLens = async () => {
+    if (!workspace?.id) return;
+    const [auditRes, actionsRes, auctionRes] = await Promise.all([
+      supabase
+        .from("ads_audits")
+        .select("health_score,summary,created_at")
+        .eq("project_id", workspace.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("action_items")
+        .select("title,priority,expected_impact_sek,status")
+        .eq("project_id", workspace.id)
+        .neq("status", "done")
+        .in("category", ["ads", "audit"])
+        .order("expected_impact_sek", { ascending: false, nullsFirst: false })
+        .limit(8),
+      supabase
+        .from("auction_insights_snapshots")
+        .select("rows,created_at")
+        .eq("project_id", workspace.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (auditRes.error || actionsRes.error || auctionRes.error) {
+      return;
+    }
+
+    const summary = (auditRes.data?.summary as any) || {};
+    const auctionRows = (auctionRes.data?.rows as any)?.campaigns || [];
+    const lens: AuditLens = {
+      healthScore: auditRes.data?.health_score ?? null,
+      headline: summary?.headline || "Ingen audit-headline tillganglig an",
+      strengths: (summary?.strengths || []).slice(0, 4),
+      issues: (summary?.issues || []).slice(0, 6),
+      openActions: ((actionsRes.data as any[]) || []).map((a) => ({
+        title: a.title,
+        priority: a.priority,
+        expected_impact_sek: a.expected_impact_sek,
+      })),
+      latestAuctionRows: Array.isArray(auctionRows) ? auctionRows.length : 0,
+      updatedAt: auditRes.data?.created_at || auctionRes.data?.created_at || null,
+    };
+    setAuditLens(lens);
+  };
+
+  useEffect(() => {
+    loadArtifacts();
+    loadAuditLens();
+  }, [workspace?.id]);
 
   const freshnessText = useMemo(() => {
     if (period === "last_7_days") return "Senast synkat: idag 07:40";
     if (period === "this_month") return "Senast synkat: idag 07:40";
     return "Senast synkat: idag 07:40";
   }, [period]);
+
+  const generateReport = async (report: ReportCard) => {
+    if (!workspace?.id) return;
+    setGeneratingKey(report.key);
+    const name = `${workspace.name}_${report.key}_${ymd()}`;
+    const { data, error } = await supabase.functions.invoke("generate-report", {
+      body: {
+        project_id: workspace.id,
+        report_type: report.reportType,
+        name,
+      },
+    });
+    setGeneratingKey(null);
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Rapportgenerering misslyckades");
+      return;
+    }
+    toast.success("Rapport genererad och sparad i artifact history");
+    refreshSources();
+    loadArtifacts();
+  };
+
+  const exportArtifact = (artifact: ArtifactRow, mode: "json" | "csv") => {
+    if (mode === "json") {
+      const blob = new Blob([JSON.stringify(artifact.payload || {}, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${artifact.name}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+    const sections = (artifact.payload?.sections || {}) as Record<string, any>;
+    const rows = Object.entries(sections).map(([section, value]) => ({
+      section,
+      status: value?.status || "unknown",
+      reason: value?.reason || "",
+      fix: value?.fix || "",
+    }));
+    const csv = toCsv(rows, ["section", "status", "reason", "fix"]);
+    downloadCsv(`${artifact.name}.csv`, csv);
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
@@ -141,7 +304,7 @@ export default function ReportsCenter() {
             <CardHeader className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base">{report.title}</CardTitle>
-                <Badge variant={statusTone(report.status)}>{report.status}</Badge>
+                <Badge variant={statusTone(reportStatus(report.sourceKeys))}>{reportStatus(report.sourceKeys)}</Badge>
               </div>
               <CardDescription>{report.description}</CardDescription>
             </CardHeader>
@@ -150,19 +313,36 @@ export default function ReportsCenter() {
                 Kallor: {report.sources.join(", ")} · Format: {report.formats.join(", ")}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm">
+                <Button size="sm" disabled={generatingKey === report.key} onClick={() => generateReport(report)}>
                   <FilePlus2 className="mr-2 h-4 w-4" />
-                  Generera
+                  {generatingKey === report.key ? "Genererar..." : "Generera"}
                 </Button>
-                <Button size="sm" variant="outline">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!artifacts.length}
+                  onClick={() => setPreview(artifacts.find((a) => (a.payload?.report_type || "") === report.reportType) || artifacts[0] || null)}
+                >
                   <Eye className="mr-2 h-4 w-4" />
                   Forhandsvisa
                 </Button>
-                <Button size="sm" variant="outline">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!artifacts.length}
+                  onClick={() => {
+                    const latest = artifacts.find((a) => (a.payload?.report_type || "") === report.reportType);
+                    if (!latest) {
+                      toast.error("Ingen artifact hittades for rapporttypen");
+                      return;
+                    }
+                    exportArtifact(latest, "csv");
+                  }}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Ladda ner
                 </Button>
-                <Button size="sm" variant="ghost">
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/clients/${workspace?.id}/raw-data`)}>
                   <Database className="mr-2 h-4 w-4" />
                   Visa kalldata
                 </Button>
@@ -192,15 +372,135 @@ export default function ReportsCenter() {
             <CardDescription>Tidigare genererade filer med version och tidpunkt.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {HISTORY.map((item) => (
-              <div key={item.name} className="rounded-md border p-2">
+            <div className="mb-2">
+              <Button size="sm" variant="outline" onClick={loadArtifacts} disabled={loadingArtifacts}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {loadingArtifacts ? "Laddar..." : "Uppdatera"}
+              </Button>
+            </div>
+            {!artifacts.length && <p className="text-muted-foreground">Inga rapport-artifacts an sa lange.</p>}
+            {artifacts.map((item) => (
+              <div key={item.id} className="rounded-md border p-2">
                 <p className="font-medium">{item.name}</p>
-                <p className="text-xs text-muted-foreground">{item.generatedAt} · {item.version}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(item.created_at).toLocaleString("sv-SE")} · {(item.payload?.report_type || "report") as string}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setPreview(item)}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Forhandsvisa
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => exportArtifact(item, "csv")}>
+                    <Download className="mr-2 h-4 w-4" />
+                    CSV
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => exportArtifact(item, "json")}>
+                    JSON
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
         </Card>
       </section>
+
+      {auditLens && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Google Ads Audit Preview (A-I)</CardTitle>
+            <CardDescription>
+              Senast uppdaterad: {auditLens.updatedAt ? new Date(auditLens.updatedAt).toLocaleString("sv-SE") : "okand"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">A) Executive summary</p>
+                <p className="mt-1">{auditLens.headline}</p>
+              </div>
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">B) Account health</p>
+                <p className="mt-1">Health score: {auditLens.healthScore ?? "-"}/10</p>
+              </div>
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">F) Segmentation</p>
+                <p className="mt-1">Auction rows: {auditLens.latestAuctionRows}</p>
+              </div>
+            </div>
+
+            <div className="rounded-md border p-2">
+              <p className="text-xs text-muted-foreground mb-1">C-D-E-G) Drivers, waste, quality, risks</p>
+              {auditLens.issues.length ? (
+                <ul className="space-y-1">
+                  {auditLens.issues.map((it, idx) => (
+                    <li key={idx}>• [{it.severity || "info"}] {it.title || "Issue"} {it.impact_sek ? `(~${Math.round(it.impact_sek)} SEK)` : ""}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Inga issues i senaste audit-summary.</p>
+              )}
+            </div>
+
+            <div className="rounded-md border p-2">
+              <p className="text-xs text-muted-foreground mb-1">H) Action plan</p>
+              {auditLens.openActions.length ? (
+                <ul className="space-y-1">
+                  {auditLens.openActions.slice(0, 6).map((a, idx) => (
+                    <li key={idx}>• {a.title} · {a.priority} {a.expected_impact_sek ? `· ${Math.round(a.expected_impact_sek)} SEK` : ""}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Inga oppna ads/audit-action items.</p>
+              )}
+            </div>
+
+            <div className="rounded-md border p-2">
+              <p className="text-xs text-muted-foreground mb-1">I) Appendix signals</p>
+              {auditLens.strengths.length ? (
+                <ul className="space-y-1">
+                  {auditLens.strengths.map((s, idx) => (
+                    <li key={idx}>• {s}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Inga styrkor i summary hittades.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {preview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Forhandsvisning: {preview.name}</CardTitle>
+            <CardDescription>
+              {(preview.payload?.report_type || "report") as string} · {new Date(preview.created_at).toLocaleString("sv-SE")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {preview.payload?.issues?.length > 0 && (
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium mb-1">Dataluckor / issues</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  {preview.payload.issues.slice(0, 8).map((it: any, idx: number) => (
+                    <li key={idx}>• {it.section}: {it.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="grid gap-2 md:grid-cols-2">
+              {Object.entries((preview.payload?.sections || {}) as Record<string, any>).slice(0, 12).map(([section, value]) => (
+                <div key={section} className="rounded-md border p-2 text-sm">
+                  <p className="font-medium">{section}</p>
+                  <p className="text-xs text-muted-foreground">status: {value?.status || "unknown"}</p>
+                  {value?.reason && <p className="text-xs mt-1">{value.reason}</p>}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

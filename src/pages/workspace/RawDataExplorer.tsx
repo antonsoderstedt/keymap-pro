@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Download, Filter } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { toCsv, downloadCsv } from "@/lib/csv";
 
 type Source = "ads" | "ga4" | "gsc" | "dataforseo" | "semrush";
 
@@ -23,30 +28,156 @@ type Row = {
   metric: string;
   value: string;
   observedAt: string;
+  payload?: Record<string, any>;
 };
 
-const SAMPLE_ROWS: Row[] = [
-  { id: "1", source: "ads", entity: "Campaign: Brand SE", metric: "Cost", value: "12 430", observedAt: "2026-05-27" },
-  { id: "2", source: "ga4", entity: "Landing: /pris", metric: "Sessions", value: "2 146", observedAt: "2026-05-27" },
-  { id: "3", source: "gsc", entity: "Query: rormokare stockholm", metric: "Clicks", value: "328", observedAt: "2026-05-27" },
-  { id: "4", source: "dataforseo", entity: "Keyword: stambyte pris", metric: "Volume", value: "1 900", observedAt: "2026-05-27" },
-  { id: "5", source: "semrush", entity: "Competitor: konkurrent.se", metric: "Visibility", value: "48.2", observedAt: "2026-05-27" },
-];
-
 export default function RawDataExplorer() {
+  const { workspace } = useWorkspace();
   const [source, setSource] = useState<Source | "all">("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [rowsRaw, setRowsRaw] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Row | null>(null);
   const pageSize = 4;
+
+  const toNum = (v: any) => (typeof v === "number" ? v : Number(v || 0));
+
+  const loadRows = async () => {
+    if (!workspace?.id) return;
+    setLoading(true);
+    try {
+      const results: Row[] = [];
+      const loadAds = async () => {
+        const { data } = await supabase
+          .from("ads_mutations")
+          .select("id,action_type,status,created_at,payload")
+          .eq("project_id", workspace.id)
+          .order("created_at", { ascending: false })
+          .limit(150);
+        for (const row of data || []) {
+          results.push({
+            id: `ads-${row.id}`,
+            source: "ads",
+            entity: `Mutation: ${row.action_type}`,
+            metric: "status",
+            value: row.status,
+            observedAt: row.created_at,
+            payload: (row.payload as Record<string, any>) || {},
+          });
+        }
+      };
+
+      const loadGa4 = async () => {
+        const { data } = await supabase
+          .from("ga4_snapshots")
+          .select("id,created_at,rows")
+          .eq("project_id", workspace.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const rows = ((data?.rows as any[]) || []).slice(0, 200);
+        rows.forEach((r, idx) => {
+          results.push({
+            id: `ga4-${data?.id || "snapshot"}-${idx}`,
+            source: "ga4",
+            entity: `Page: ${r.page || r.pagePath || r.sessionDefaultChannelGroup || "n/a"}`,
+            metric: r.sessions != null ? "sessions" : "value",
+            value: String(toNum(r.sessions || r.totalUsers || r.conversions || 0).toLocaleString("sv-SE")),
+            observedAt: data?.created_at || new Date().toISOString(),
+            payload: r,
+          });
+        });
+      };
+
+      const loadGsc = async () => {
+        const { data } = await supabase
+          .from("gsc_snapshots")
+          .select("id,created_at,rows")
+          .eq("project_id", workspace.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const rows = ((data?.rows as any[]) || []).slice(0, 200);
+        rows.forEach((r, idx) => {
+          const entity = r.query ? `Query: ${r.query}` : r.page ? `Page: ${r.page}` : "GSC row";
+          results.push({
+            id: `gsc-${data?.id || "snapshot"}-${idx}`,
+            source: "gsc",
+            entity,
+            metric: "clicks",
+            value: String(toNum(r.clicks).toLocaleString("sv-SE")),
+            observedAt: data?.created_at || new Date().toISOString(),
+            payload: r,
+          });
+        });
+      };
+
+      const loadDataForSeo = async () => {
+        const { data } = await supabase
+          .from("keyword_metrics")
+          .select("keyword,search_volume,cpc_sek,competition,updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(250);
+        for (const r of data || []) {
+          results.push({
+            id: `dfs-${r.keyword}-${r.updated_at}`,
+            source: "dataforseo",
+            entity: `Keyword: ${r.keyword}`,
+            metric: "search_volume",
+            value: String(toNum(r.search_volume).toLocaleString("sv-SE")),
+            observedAt: r.updated_at,
+            payload: r as unknown as Record<string, any>,
+          });
+        }
+      };
+
+      const loadSemrush = async () => {
+        const { data } = await supabase
+          .from("semrush_metrics")
+          .select("keyword,kd,updated_at,serp_features,top_domains")
+          .order("updated_at", { ascending: false })
+          .limit(250);
+        for (const r of data || []) {
+          results.push({
+            id: `sem-${r.keyword}-${r.updated_at}`,
+            source: "semrush",
+            entity: `Keyword: ${r.keyword}`,
+            metric: "kd",
+            value: r.kd == null ? "-" : String(Math.round(r.kd)),
+            observedAt: r.updated_at,
+            payload: r as unknown as Record<string, any>,
+          });
+        }
+      };
+
+      if (source === "all" || source === "ads") await loadAds();
+      if (source === "all" || source === "ga4") await loadGa4();
+      if (source === "all" || source === "gsc") await loadGsc();
+      if (source === "all" || source === "dataforseo") await loadDataForSeo();
+      if (source === "all" || source === "semrush") await loadSemrush();
+
+      setRowsRaw(results);
+      if (!results.length) setSelected(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Kunde inte hamta kalldata");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setPage(1);
+    loadRows();
+  }, [workspace?.id, source]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return SAMPLE_ROWS.filter((row) => {
-      if (source !== "all" && row.source !== source) return false;
+    return rowsRaw.filter((row) => {
       if (!q) return true;
       return [row.entity, row.metric, row.value, row.source].join(" ").toLowerCase().includes(q);
     });
-  }, [source, query]);
+  }, [rowsRaw, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -95,7 +226,19 @@ export default function RawDataExplorer() {
               <Filter className="mr-2 h-4 w-4" />
               Fler filter
             </Button>
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                const csv = toCsv(filtered.map((r) => ({
+                  source: r.source,
+                  entity: r.entity,
+                  metric: r.metric,
+                  value: r.value,
+                  observed_at: r.observedAt,
+                })));
+                downloadCsv(`raw-data-${source}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+              }}
+            >
               <Download className="mr-2 h-4 w-4" />
               Export raw rows
             </Button>
@@ -106,7 +249,7 @@ export default function RawDataExplorer() {
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
         <Badge variant="outline">Rows: {filtered.length}</Badge>
         <Badge variant="outline">Coverage: synced fields</Badge>
-        <Badge variant="outline">Freshness: synced today</Badge>
+        <Badge variant="outline">Freshness: {loading ? "loading" : "latest snapshot"}</Badge>
       </div>
 
       <Card>
@@ -123,12 +266,12 @@ export default function RawDataExplorer() {
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} onClick={() => setSelected(row)} className="cursor-pointer">
                   <TableCell className="capitalize">{row.source}</TableCell>
                   <TableCell>{row.entity}</TableCell>
                   <TableCell>{row.metric}</TableCell>
                   <TableCell>{row.value}</TableCell>
-                  <TableCell>{row.observedAt}</TableCell>
+                  <TableCell>{new Date(row.observedAt).toLocaleDateString("sv-SE")}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -157,6 +300,20 @@ export default function RawDataExplorer() {
           </div>
         </CardContent>
       </Card>
+
+      {selected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Raddetalj</CardTitle>
+            <CardDescription>{selected.entity}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="max-h-80 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
+              {JSON.stringify(selected.payload || {}, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
