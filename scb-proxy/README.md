@@ -12,6 +12,14 @@ Runtime command:
 npm install && npm start
 ```
 
+### Render one-click via blueprint
+
+This folder includes [render.yaml](render.yaml). In Render:
+
+1. Create `Blueprint` service from your repo.
+2. Keep root as repository root (the blueprint sets `rootDir: scb-proxy`).
+3. Fill secret env vars in Render dashboard after creation.
+
 ## 2) Required environment variables
 
 - `PROXY_TOKEN`: shared bearer token used by Supabase function
