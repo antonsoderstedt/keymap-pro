@@ -38,7 +38,12 @@ Deno.serve(async (req) => {
     } = await sbUser.auth.getUser();
     if (!user) return json({ error: "unauthenticated" }, 401);
 
-    const { project_id, org_number, force = false } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({} as any));
+    const { project_id, org_number, force = false, debug } = body;
+    if (debug === "categories") {
+      const cats = await fetchScbCategories();
+      return json({ categories: cats });
+    }
     if (!project_id) return json({ error: "project_id required" }, 400);
 
     const { data: project } = await sbUser
