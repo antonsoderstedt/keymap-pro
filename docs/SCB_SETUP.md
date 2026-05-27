@@ -48,10 +48,19 @@ Minsta setup for mTLS + endpoint:
 
 ```bash
 supabase secrets set \
-  SCB_API_BASE_URL="https://DIN_SCB_HOST" \
-  SCB_API_PATH_TEMPLATE="/foretag/{orgnr}" \
+  SCB_API_BASE_URL="https://privateapi.scb.se" \
+  SCB_API_PATH_TEMPLATE="/nv0101/v1/sokpavar/api/je/hamtaforetag" \
+  SCB_API_METHOD="POST" \
   SCB_API_CLIENT_CERT_PEM_B64="$CERT_B64" \
   SCB_API_CLIENT_KEY_PEM_B64="$KEY_B64" \
+  --project-ref mejxsgutoonckmwnxvdp
+```
+
+Valfritt: satt explicit payload-template om du vill styra queryn helt sjalv.
+
+```bash
+supabase secrets set \
+  SCB_API_POST_PAYLOAD_TEMPLATE='{"F\u00f6retagsstatus":"1","Registreringsstatus":"1","AntalPoster":1,"StartPost":1,"Kategorier":[{"Kategori":"OrgNr","Kod":["{orgnr}"]}]}' \
   --project-ref mejxsgutoonckmwnxvdp
 ```
 
@@ -90,7 +99,7 @@ supabase functions deploy scb-company-profile --project-ref mejxsgutoonckmwnxvdp
 - `Access token not provided`: kor `supabase login` eller satt `SUPABASE_ACCESS_TOKEN`
 - `SCB_API_ERROR [401/403]`: kontrollera auth-header / user-pass och cert
 - TLS-fel: kontrollera att cert/key hor ihop och ar korrekt extraherade ur samma .pfx
-- Tomt payload-format: kontrollera `SCB_API_PATH_TEMPLATE` sa den matchar aktuell SCB-endpoint
+- Tomt payload-format: kontrollera `SCB_API_PATH_TEMPLATE` och `SCB_API_POST_PAYLOAD_TEMPLATE`
 
 ## 9) Sakerhet
 

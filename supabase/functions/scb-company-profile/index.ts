@@ -93,7 +93,10 @@ async function fetchScb(org: string): Promise<unknown> {
     throw new Error("SCB_API_BASE_URL saknas");
   }
 
-  const pathTemplate = Deno.env.get("SCB_API_PATH_TEMPLATE")?.trim() || "/foretag/{orgnr}";
+  const pathTemplate =
+    Deno.env.get("SCB_API_PATH_TEMPLATE")?.trim() ||
+    "/nv0101/v1/sokpavar/api/je/hamtaforetag";
+  const method = (Deno.env.get("SCB_API_METHOD") || "POST").trim().toUpperCase();
   const path = pathTemplate.replaceAll("{orgnr}", encodeURIComponent(org));
   const target = `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -123,7 +126,26 @@ async function fetchScb(org: string): Promise<unknown> {
     client = Deno.createHttpClient({ certChain, privateKey });
   }
 
-  const res = await fetch(target, { method: "GET", headers, client });
+  let body: string | undefined;
+  if (method !== "GET") {
+    headers["Content-Type"] = "application/json";
+
+    // Default payload for SokPaVar endpoint. Can be fully overridden by env.
+    const customPayload = Deno.env.get("SCB_API_POST_PAYLOAD_TEMPLATE")?.trim();
+    if (customPayload) {
+      body = customPayload.replaceAll("{orgnr}", org);
+    } else {
+      body = JSON.stringify({
+        ["F\u00f6retagsstatus"]: "1",
+        Registreringsstatus: "1",
+        AntalPoster: 1,
+        StartPost: 1,
+        Kategorier: [{ Kategori: "OrgNr", Kod: [org] }],
+      });
+    }
+  }
+
+  const res = await fetch(target, { method, headers, body, client });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`SCB_API_ERROR [${res.status}]: ${text.slice(0, 400)}`);
@@ -142,8 +164,15 @@ function readSecretPem(plainKey: string, b64Key: string): string | null {
 
   const b64 = Deno.env.get(b64Key);
   if (b64 && b64.trim()) {
+    const value = b64.trim();
+
+    // Be permissive: some environments may accidentally store raw PEM in *_B64 secrets.
+    if (value.includes("-----BEGIN")) {
+      return value;
+    }
+
     try {
-      return atob(b64.trim());
+      return atob(value.replace(/\s+/g, ""));
     } catch {
       throw new Error(`Ogiltig base64 i ${b64Key}`);
     }
