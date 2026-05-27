@@ -154,8 +154,8 @@ async function fetchScb(org: string): Promise<unknown> {
     Registreringsstatus: "1",
     AntalPoster: 1,
     StartPost: 1,
-    Kategorier: [{ Kategori: "PeOrgNr", Kod: [org] }],
-  });
+    Kategorier: [],
+    OrgNr: [org],
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
