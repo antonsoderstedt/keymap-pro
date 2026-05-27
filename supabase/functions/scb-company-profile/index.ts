@@ -115,7 +115,15 @@ async function fetchScb(org: string): Promise<unknown> {
   const apiKey = Deno.env.get("SCB_API_KEY")?.trim();
   if (apiKey) headers["x-api-key"] = apiKey;
 
-  const res = await fetch(target, { method: "GET", headers });
+  const certChain = readSecretPem("SCB_API_CLIENT_CERT_PEM", "SCB_API_CLIENT_CERT_PEM_B64");
+  const privateKey = readSecretPem("SCB_API_CLIENT_KEY_PEM", "SCB_API_CLIENT_KEY_PEM_B64");
+
+  let client: Deno.HttpClient | undefined;
+  if (certChain && privateKey) {
+    client = Deno.createHttpClient({ certChain, privateKey });
+  }
+
+  const res = await fetch(target, { method: "GET", headers, client });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`SCB_API_ERROR [${res.status}]: ${text.slice(0, 400)}`);
@@ -126,6 +134,21 @@ async function fetchScb(org: string): Promise<unknown> {
   } catch {
     return { raw_text: text };
   }
+}
+
+function readSecretPem(plainKey: string, b64Key: string): string | null {
+  const plain = Deno.env.get(plainKey);
+  if (plain && plain.trim()) return plain;
+
+  const b64 = Deno.env.get(b64Key);
+  if (b64 && b64.trim()) {
+    try {
+      return atob(b64.trim());
+    } catch {
+      throw new Error(`Ogiltig base64 i ${b64Key}`);
+    }
+  }
+  return null;
 }
 
 function normalizeScbPayload(org: string, payload: unknown): ScbProfile {
