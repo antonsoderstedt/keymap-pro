@@ -329,7 +329,12 @@ function pickMany(obj: Record<string, unknown>, keys: string[]): string[] {
 }
 
 function normalizeKey(k: string): string {
-  return k.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return k
+    .toLowerCase()
+    .replace(/å|ä/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/é|è/g, "e")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function json(body: unknown, status = 200) {
