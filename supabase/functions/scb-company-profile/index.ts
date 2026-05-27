@@ -156,8 +156,22 @@ async function fetchScb(org: string): Promise<unknown> {
   // deno-lint-ignore no-explicit-any
   const clientOpts: any = { cert: leafCert, key };
   if (caCerts.length > 0) clientOpts.caCerts = caCerts;
-  // deno-lint-ignore no-explicit-any
-  const client = (Deno as any).createHttpClient?.(clientOpts);
+  let client: unknown;
+  try {
+    client = (Deno as any).createHttpClient?.(clientOpts);
+  } catch (e) {
+    console.error("createHttpClient failed", {
+      err: String(e instanceof Error ? e.message : e),
+      leafLen: leafCert.length,
+      leafHead: leafCert.slice(0, 40),
+      leafTail: leafCert.slice(-40),
+      keyLen: key.length,
+      keyHead: key.slice(0, 40),
+      keyTail: key.slice(-40),
+      caCount: caCerts.length,
+    });
+    throw e;
+  }
   if (!client) throw new Error("Deno.createHttpClient ej tillgänglig i denna runtime");
 
 
