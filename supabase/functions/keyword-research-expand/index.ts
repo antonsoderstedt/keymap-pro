@@ -57,24 +57,34 @@ Deno.serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseService);
 
     const seedTerms = tokenize(body.seed);
-    const domainTerm = mode === "url" ? normalize(body.seed).replace(/^https?:\/\//, "").split("/")[0]?.split(".")[0] : "";
+    const domainTerm = mode === "url"
+      ? normalize(body.seed).replace(/^https?:\/\//, "").split("/")[0]?.split(".")[0]
+      : "";
 
-    const [scoreRowsRes, metricsRes, semrushRes, plannerRes] = await Promise.all([
-      sb.from("keyword_scores").select("keyword,score,confidence,kundfit,intent_class,dimension,volume,cpc,kd,monthly_value_sek").eq("project_id", body.project_id).order("score", { ascending: false }).limit(2000),
+    const [metricsRes, semrushRes, plannerRes] = await Promise.all([
       sb.from("keyword_metrics").select("keyword,search_volume,cpc_sek,updated_at").limit(3000),
       sb.from("semrush_metrics").select("keyword,kd,updated_at").limit(3000),
-      sb.from("keyword_planner_ideas").select("keyword,avg_monthly_searches,competition_index,low_top_of_page_bid_micros,high_top_of_page_bid_micros").eq("project_id", body.project_id).order("fetched_at", { ascending: false }).limit(3000),
+      sb.from("keyword_planner_ideas")
+        .select("keyword,avg_monthly_searches,competition_index,low_top_of_page_bid_micros,high_top_of_page_bid_micros")
+        .eq("project_id", body.project_id)
+        .order("fetched_at", { ascending: false })
+        .limit(3000),
     ]);
 
-    if (scoreRowsRes.error) throw scoreRowsRes.error;
+    if (metricsRes.error) console.error("keyword_metrics error", metricsRes.error);
+    if (semrushRes.error) console.error("semrush_metrics error", semrushRes.error);
+    if (plannerRes.error) console.error("keyword_planner_ideas error", plannerRes.error);
 
     const byKeyword = new Map<string, any>();
-    for (const row of scoreRowsRes.data || []) byKeyword.set(normalize((row as any).keyword), { ...(row as any), sources: ["keyword_scores"] });
 
     for (const row of plannerRes.data || []) {
       const keyword = normalize((row as any).keyword);
       if (!keyword) continue;
-      const item = byKeyword.get(keyword) || { keyword, score: 0, confidence: 0, kundfit: 0, intent_class: "problem", dimension: "service", volume: 0, cpc: null, kd: null, monthly_value_sek: 0, sources: [] };
+      const item = byKeyword.get(keyword) || {
+        keyword, score: 0, confidence: 0, kundfit: 0,
+        intent_class: "problem", dimension: "service",
+        volume: 0, cpc: null, kd: null, monthly_value_sek: 0, sources: [],
+      };
       item.volume = Math.max(Number(item.volume || 0), Number((row as any).avg_monthly_searches || 0));
       if (item.cpc == null) {
         const low = Number((row as any).low_top_of_page_bid_micros || 0);
@@ -89,7 +99,11 @@ Deno.serve(async (req) => {
     for (const row of metricsRes.data || []) {
       const keyword = normalize((row as any).keyword);
       if (!keyword) continue;
-      const item = byKeyword.get(keyword) || { keyword, score: 0, confidence: 0, kundfit: 0, intent_class: "problem", dimension: "service", volume: 0, cpc: null, kd: null, monthly_value_sek: 0, sources: [] };
+      const item = byKeyword.get(keyword) || {
+        keyword, score: 0, confidence: 0, kundfit: 0,
+        intent_class: "problem", dimension: "service",
+        volume: 0, cpc: null, kd: null, monthly_value_sek: 0, sources: [],
+      };
       item.volume = Math.max(Number(item.volume || 0), Number((row as any).search_volume || 0));
       item.cpc = item.cpc ?? (row as any).cpc_sek ?? null;
       item.sources = Array.from(new Set([...(item.sources || []), "keyword_metrics"]));
@@ -99,7 +113,11 @@ Deno.serve(async (req) => {
     for (const row of semrushRes.data || []) {
       const keyword = normalize((row as any).keyword);
       if (!keyword) continue;
-      const item = byKeyword.get(keyword) || { keyword, score: 0, confidence: 0, kundfit: 0, intent_class: "problem", dimension: "service", volume: 0, cpc: null, kd: null, monthly_value_sek: 0, sources: [] };
+      const item = byKeyword.get(keyword) || {
+        keyword, score: 0, confidence: 0, kundfit: 0,
+        intent_class: "problem", dimension: "service",
+        volume: 0, cpc: null, kd: null, monthly_value_sek: 0, sources: [],
+      };
       item.kd = item.kd ?? (row as any).kd ?? null;
       item.sources = Array.from(new Set([...(item.sources || []), "semrush_metrics"]));
       byKeyword.set(keyword, item);
@@ -116,13 +134,19 @@ Deno.serve(async (req) => {
         const overlap = scoreMatch(row.keyword, seedTerms);
         return {
           ...row,
-          research_relevance: Math.min(100, Math.round((overlap * 18) + Number(row.kundfit || 0) * 0.5 + Number(row.confidence || 0) * 0.2 + Number(row.score || 0) * 0.2)),
+          research_relevance: Math.min(100, Math.round(
+            overlap * 18 +
+            Number(row.kundfit || 0) * 0.5 +
+            Number(row.confidence || 0) * 0.2 +
+            Number(row.score || 0) * 0.2,
+          )),
           channel: Number(row.cpc || 0) > 15 ? "Google Ads" : "SEO",
         };
       })
       .sort((a, b) => b.research_relevance - a.research_relevance)
       .slice(0, limit);
 
+    // Persist session if the table exists; ignore if it doesn't.
     const { error: sessionError } = await sb.from("keyword_research_sessions").insert({
       project_id: body.project_id,
       seed: body.seed,
@@ -131,7 +155,9 @@ Deno.serve(async (req) => {
       result_count: allRows.length,
       results: allRows,
     } as any);
-    if (sessionError) throw sessionError;
+    if (sessionError && sessionError.code !== "PGRST205" && sessionError.code !== "42P01") {
+      console.warn("keyword_research_sessions insert warning", sessionError);
+    }
 
     return json({ ok: true, mode, depth, count: allRows.length, rows: allRows });
   } catch (e) {
