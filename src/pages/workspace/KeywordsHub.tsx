@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Sökord & innehåll Hub — V2
 // Migrerar all funktionalitet från /project/:id/results (Results.tsx + KeywordUniverse.tsx)
 // in i workspace. 6 tabbar: Översikt / Sökord / Briefs / Strategi / Teknisk SEO / Google Ads-export.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +27,7 @@ import {
 import {
   Search, BarChart3, BookOpen, Target, ShieldCheck, Megaphone,
   Download, RefreshCw, Loader2, Sparkles, FileText, MapPin, Ban,
-  Network, FileType, Presentation, LayoutGrid, List, CheckCircle2, X,
+  Network, FileType, Presentation, LayoutGrid, List, CheckCircle2, X, Database,
   Layers, Stethoscope, ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +50,28 @@ import { monthlyKeywordValue, classifyKeyword } from "@/lib/goalsEngine";
 import type { UniverseKeyword, UniverseScale } from "@/lib/types";
 
 type ExportFormat = "pptx" | "pdf";
+type RegisterRow = {
+  keyword: string;
+  status: string;
+  ads_campaign: string | null;
+  ads_adgroup: string | null;
+  ads_match_type: string | null;
+  ads_status: string | null;
+  ads_spend_30d: number | null;
+  ads_conversions_30d: number | null;
+  ads_is_negative: boolean | null;
+  gsc_position: number | null;
+  gsc_clicks_30d: number | null;
+  kundfit: number | null;
+  volume: number | null;
+  cpc: number | null;
+  kd: number | null;
+  dimension: string | null;
+  intent_class: string | null;
+  conflict_flag: boolean | null;
+  notes: string | null;
+  updated_at: string | null;
+};
 
 export default function KeywordsHub() {
   const { id } = useParams<{ id: string }>();
@@ -240,6 +264,14 @@ export default function KeywordsHub() {
   const [clusterSearch, setClusterSearch] = useState("");
   const [selectedCluster, setSelectedCluster] = useState<ClusterData | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [registerRows, setRegisterRows] = useState<RegisterRow[]>([]);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerSyncing, setRegisterSyncing] = useState(false);
+  const [registerQuery, setRegisterQuery] = useState("");
+  const [registerStatusFilter, setRegisterStatusFilter] = useState<string>("all");
+  const [registerSelected, setRegisterSelected] = useState<Set<string>>(new Set());
+  const [registerExpanded, setRegisterExpanded] = useState<string | null>(null);
+  const [registerNotes, setRegisterNotes] = useState<Record<string, string>>({});
 
   const filtered = useMemo<UniverseKeyword[]>(() => {
     if (!universe) return [];
@@ -362,6 +394,160 @@ export default function KeywordsHub() {
       return 0;
     });
   }, [clusters, clusterSort, clusterSearch]);
+
+  const loadRegister = async () => {
+    if (!id) return;
+    setRegisterLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("keyword_master")
+        .select("keyword,status,ads_campaign,ads_adgroup,ads_match_type,ads_status,ads_spend_30d,ads_conversions_30d,ads_is_negative,gsc_position,gsc_clicks_30d,kundfit,volume,cpc,kd,dimension,intent_class,conflict_flag,notes,updated_at")
+        .eq("project_id", id)
+        .order("updated_at", { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      const rows = (data || []) as RegisterRow[];
+      setRegisterRows(rows);
+      const notesMap: Record<string, string> = {};
+      for (const r of rows) if (r.notes) notesMap[r.keyword] = r.notes;
+      setRegisterNotes(notesMap);
+    } catch (e: any) {
+      toast({ title: "Kunde inte ladda register", description: e?.message || "Okänt fel", variant: "destructive" });
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  const syncRegister = async () => {
+    if (!id) return;
+    setRegisterSyncing(true);
+    try {
+      const { data: syncData, error } = await supabase.functions.invoke("sync-keyword-master", {
+        body: { project_id: id },
+      });
+      if (error) throw error;
+      await loadRegister();
+      toast({
+        title: "Register synkat",
+        description: `${syncData?.count ?? 0} sökord uppdaterade${syncData?.gap_count != null ? `, gap: ${syncData.gap_count}` : ""}`,
+      });
+    } catch (e: any) {
+      toast({ title: "Sync misslyckades", description: e?.message || "Okänt fel", variant: "destructive" });
+    } finally {
+      setRegisterSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRegister();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const filteredRegisterRows = useMemo(() => {
+    const q = registerQuery.trim().toLowerCase();
+    return registerRows.filter((row) => {
+      if (registerStatusFilter !== "all" && row.status !== registerStatusFilter) return false;
+      if (q && !row.keyword.toLowerCase().includes(q) && !(row.ads_campaign || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [registerRows, registerQuery, registerStatusFilter]);
+
+  const registerStats = useMemo(() => {
+    let active = 0, organic = 0, suggested = 0, negative = 0, conflict = 0;
+    for (const r of registerRows) {
+      if (r.status === "active_ads") active++;
+      else if (r.status === "organic_only") organic++;
+      else if (r.status === "suggested") suggested++;
+      else if (r.status === "negative") negative++;
+      if (r.conflict_flag) conflict++;
+    }
+    return { active, organic, suggested, negative, conflict };
+  }, [registerRows]);
+
+  const registerGapRows = useMemo(
+    () => registerRows.filter((r) => r.status === "organic_only" && (r.kundfit ?? 0) >= 50),
+    [registerRows],
+  );
+
+  const toggleRegisterRow = (keyword: string) => {
+    setRegisterSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(keyword)) next.delete(keyword); else next.add(keyword);
+      return next;
+    });
+  };
+
+  const toggleAllRegister = () => {
+    if (registerSelected.size === filteredRegisterRows.length) setRegisterSelected(new Set());
+    else setRegisterSelected(new Set(filteredRegisterRows.map((r) => r.keyword)));
+  };
+
+  const bulkUpdateRegister = async (patch: Partial<RegisterRow>) => {
+    if (!id || registerSelected.size === 0) return;
+    try {
+      const { error } = await (supabase as any)
+        .from("keyword_master")
+        .update(patch)
+        .eq("project_id", id)
+        .in("keyword", Array.from(registerSelected));
+      if (error) throw error;
+      toast({ title: "Uppdaterat", description: `${registerSelected.size} sökord uppdaterade` });
+      setRegisterSelected(new Set());
+      await loadRegister();
+    } catch (e: any) {
+      toast({ title: "Kunde inte uppdatera", description: e?.message || "Okänt fel", variant: "destructive" });
+    }
+  };
+
+  const exportRegisterCsv = () => {
+    const rowsToExport = registerSelected.size > 0
+      ? filteredRegisterRows.filter((r) => registerSelected.has(r.keyword))
+      : filteredRegisterRows;
+    if (rowsToExport.length === 0) {
+      toast({ title: "Inget att exportera", variant: "destructive" });
+      return;
+    }
+    const header = ["Sökord", "Status", "Matchtyp", "Kampanj", "Annonsgrupp", "SEO-rank", "GSC clicks 30d", "Kundfit", "Volym", "CPC", "Spend 30d", "Konverteringar 30d", "Konflikt"];
+    const lines = [header.join(",")];
+    for (const r of rowsToExport) {
+      lines.push([
+        `"${r.keyword.replace(/"/g, '""')}"`,
+        r.status,
+        r.ads_match_type || "",
+        `"${(r.ads_campaign || "").replace(/"/g, '""')}"`,
+        `"${(r.ads_adgroup || "").replace(/"/g, '""')}"`,
+        r.gsc_position != null ? r.gsc_position.toFixed(1) : "",
+        r.gsc_clicks_30d ?? "",
+        r.kundfit != null ? Math.round(r.kundfit) : "",
+        r.volume ?? "",
+        r.cpc != null ? Number(r.cpc).toFixed(2) : "",
+        r.ads_spend_30d ?? "",
+        r.ads_conversions_30d ?? "",
+        r.conflict_flag ? "Ja" : "",
+      ].join(","));
+    }
+    const csv = "\uFEFF" + lines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `register-${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const saveRegisterNote = async (keyword: string) => {
+    if (!id) return;
+    try {
+      const { error } = await (supabase as any)
+        .from("keyword_master")
+        .update({ notes: registerNotes[keyword] || null })
+        .eq("project_id", id)
+        .eq("keyword", keyword);
+      if (error) throw error;
+      toast({ title: "Notering sparad" });
+    } catch (e: any) {
+      toast({ title: "Kunde inte spara", description: e?.message || "Okänt fel", variant: "destructive" });
+    }
+  };
 
   // ── Aggregate stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -815,6 +1001,7 @@ export default function KeywordsHub() {
             <Tabs defaultValue="universe">
               <TabsList className="h-auto flex-wrap">
                 <TabsTrigger value="universe" className="gap-1"><Network className="h-3 w-3" />Universe</TabsTrigger>
+                <TabsTrigger value="register" className="gap-1"><Database className="h-3 w-3" />Register</TabsTrigger>
                 <TabsTrigger value="priority" className="gap-1"><Sparkles className="h-3 w-3" />Prioriterade</TabsTrigger>
                 <TabsTrigger value="seo" className="gap-1"><FileText className="h-3 w-3" />SEO</TabsTrigger>
                 <TabsTrigger value="ads" className="gap-1"><Megaphone className="h-3 w-3" />Google Ads</TabsTrigger>
@@ -822,6 +1009,246 @@ export default function KeywordsHub() {
                 <TabsTrigger value="local" className="gap-1"><MapPin className="h-3 w-3" />Lokal</TabsTrigger>
                 <TabsTrigger value="negatives" className="gap-1"><Ban className="h-3 w-3" />Negativa</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="register" className="space-y-4 mt-4">
+                {/* Stat cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card><CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Aktiva i Ads</div>
+                    <div className="text-2xl font-semibold tabular-nums">{registerStats.active}</div>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Organiska möjligheter</div>
+                    <div className="text-2xl font-semibold tabular-nums">{registerStats.organic}</div>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Förslag</div>
+                    <div className="text-2xl font-semibold tabular-nums">{registerStats.suggested}</div>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Negativa</div>
+                    <div className="text-2xl font-semibold tabular-nums">{registerStats.negative}</div>
+                  </CardContent></Card>
+                </div>
+
+                {/* GAP callout */}
+                {registerGapRows.length > 0 && (
+                  <Card className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/20">
+                    <CardContent className="p-3 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="text-sm">
+                        <strong>{registerGapRows.length}</strong> sökord rankar organiskt men saknas i Ads
+                        <span className="text-muted-foreground"> (kundfit ≥ 50)</span>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setRegisterStatusFilter("organic_only")}>
+                        Visa gap-sökord <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Filter bar */}
+                <Card className="border-border bg-card">
+                  <CardContent className="p-3 space-y-3">
+                    <Tabs value={registerStatusFilter} onValueChange={setRegisterStatusFilter}>
+                      <TabsList className="h-auto flex-wrap">
+                        <TabsTrigger value="all">Alla ({registerRows.length})</TabsTrigger>
+                        <TabsTrigger value="active_ads">Aktiva ({registerStats.active})</TabsTrigger>
+                        <TabsTrigger value="organic_only">Organiska ({registerStats.organic})</TabsTrigger>
+                        <TabsTrigger value="suggested">Förslag ({registerStats.suggested})</TabsTrigger>
+                        <TabsTrigger value="negative">Negativa ({registerStats.negative})</TabsTrigger>
+                        <TabsTrigger value="archived">Arkiverade</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative max-w-sm flex-1 min-w-[220px]">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          value={registerQuery}
+                          onChange={(e) => setRegisterQuery(e.target.value)}
+                          placeholder="Filtrera sökord eller kampanj"
+                          className="pl-8 h-9"
+                        />
+                      </div>
+                      <Button variant="outline" size="sm" onClick={loadRegister} disabled={registerLoading}>
+                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${registerLoading ? "animate-spin" : ""}`} /> Uppdatera
+                      </Button>
+                      <Button size="sm" onClick={syncRegister} disabled={registerSyncing}>
+                        <Database className={`mr-1.5 h-3.5 w-3.5 ${registerSyncing ? "animate-pulse" : ""}`} />
+                        {registerSyncing ? "Synkar..." : "Synca register"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={exportRegisterCsv}>
+                        <Download className="h-3.5 w-3.5 mr-1.5" /> CSV
+                      </Button>
+                    </div>
+
+                    <div className="rounded-md border border-border/70 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[40px]">
+                              <input
+                                type="checkbox"
+                                className="h-3.5 w-3.5"
+                                checked={filteredRegisterRows.length > 0 && registerSelected.size === filteredRegisterRows.length}
+                                onChange={toggleAllRegister}
+                              />
+                            </TableHead>
+                            <TableHead>Sökord</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Matchtyp</TableHead>
+                            <TableHead>Kampanj</TableHead>
+                            <TableHead className="text-right">SEO-rank</TableHead>
+                            <TableHead className="w-[120px]">KundFit</TableHead>
+                            <TableHead className="text-right">Spend 30d</TableHead>
+                            <TableHead className="text-right">Åtgärd</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredRegisterRows.slice(0, 300).map((row) => {
+                            const checked = registerSelected.has(row.keyword);
+                            const expanded = registerExpanded === row.keyword;
+                            const kundfit = row.kundfit ?? 0;
+                            const isOrganic = row.status === "organic_only";
+                            const isActive = row.status === "active_ads";
+                            const isBroad = (row.ads_match_type || "").toLowerCase() === "broad";
+                            const isSuggested = row.status === "suggested";
+
+                            let action: { label: string; tone: "default" | "secondary" | "destructive" | "outline" } | null = null;
+                            if (row.conflict_flag) action = { label: "Lös konflikt →", tone: "destructive" };
+                            else if (isOrganic && kundfit > 60) action = { label: "Lägg till i Ads →", tone: "default" };
+                            else if (isActive && isBroad && kundfit < 40) action = { label: "Granska matchtyp", tone: "outline" };
+                            else if (isSuggested) action = { label: "Besluta", tone: "secondary" };
+
+                            return (
+                              <Fragment key={row.keyword}>
+                                <TableRow className={checked ? "bg-primary/5" : ""}>
+                                  <TableCell>
+                                    <input
+                                      type="checkbox"
+                                      className="h-3.5 w-3.5"
+                                      checked={checked}
+                                      onChange={() => toggleRegisterRow(row.keyword)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    <button
+                                      onClick={() => setRegisterExpanded(expanded ? null : row.keyword)}
+                                      className="text-left hover:underline underline-offset-2"
+                                    >
+                                      {row.keyword}
+                                    </button>
+                                    {row.conflict_flag && (
+                                      <Badge variant="destructive" className="ml-2 text-[10px]">Konflikt</Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell><Badge variant="outline" className="text-[10px]">{row.status}</Badge></TableCell>
+                                  <TableCell className="text-xs">{row.ads_match_type || "-"}</TableCell>
+                                  <TableCell className="text-xs">{row.ads_campaign || "-"}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-xs">
+                                    {row.gsc_position != null ? row.gsc_position.toFixed(1) : "-"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-1.5 w-[60px] rounded-full bg-muted overflow-hidden">
+                                        <div className="h-full bg-primary" style={{ width: `${Math.min(100, kundfit)}%` }} />
+                                      </div>
+                                      <span className="text-xs tabular-nums">{Math.round(kundfit)}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-xs">
+                                    {row.ads_spend_30d != null ? `${Math.round(Number(row.ads_spend_30d)).toLocaleString("sv-SE")} kr` : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {action ? (
+                                      <Button size="sm" variant={action.tone === "default" ? "default" : action.tone === "destructive" ? "destructive" : "outline"} className="h-7 text-xs">
+                                        {action.label}
+                                      </Button>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                                {expanded && (
+                                  <TableRow className="bg-muted/30">
+                                    <TableCell colSpan={9} className="p-4">
+                                      <div className="grid md:grid-cols-3 gap-4 text-xs">
+                                        <div>
+                                          <div className="font-medium mb-1">Google Ads</div>
+                                          <div>Kampanj: {row.ads_campaign || "-"}</div>
+                                          <div>Annonsgrupp: {row.ads_adgroup || "-"}</div>
+                                          <div>Matchtyp: {row.ads_match_type || "-"}</div>
+                                          <div>Status: {row.ads_status || "-"}</div>
+                                          <div>Konverteringar 30d: {row.ads_conversions_30d ?? "-"}</div>
+                                        </div>
+                                        <div>
+                                          <div className="font-medium mb-1">Search Console</div>
+                                          <div>Snittposition: {row.gsc_position != null ? row.gsc_position.toFixed(1) : "-"}</div>
+                                          <div>Klick 30d: {row.gsc_clicks_30d ?? "-"}</div>
+                                          <div>Volym: {row.volume?.toLocaleString("sv-SE") ?? "-"}</div>
+                                          <div>CPC: {row.cpc != null ? `${Number(row.cpc).toFixed(2)} kr` : "-"}</div>
+                                          <div>KD: {row.kd ?? "-"}</div>
+                                        </div>
+                                        <div>
+                                          <div className="font-medium mb-1">Notering</div>
+                                          <textarea
+                                            value={registerNotes[row.keyword] || ""}
+                                            onChange={(e) => setRegisterNotes((prev) => ({ ...prev, [row.keyword]: e.target.value }))}
+                                            className="w-full h-20 rounded border border-border bg-background p-2 text-xs"
+                                            placeholder="Lägg till en kommentar..."
+                                          />
+                                          <Button size="sm" variant="outline" className="h-7 text-xs mt-1" onClick={() => saveRegisterNote(row.keyword)}>
+                                            Spara notering
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {filteredRegisterRows.length === 0 && !registerLoading && (
+                      <p className="text-center text-sm text-muted-foreground py-6">
+                        Inga sökord i registret. Kör "Synca register" för att fylla på.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Bulk bar */}
+                {registerSelected.size > 0 && (
+                  <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 shadow-lg rounded-lg border border-border bg-background px-4 py-3 flex items-center gap-2">
+                    <span className="text-sm font-medium">{registerSelected.size} valda</span>
+                    <Button size="sm" variant="outline" onClick={() => bulkUpdateRegister({ status: "archived" })}>
+                      Arkivera
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => bulkUpdateRegister({ status: "negative", ads_is_negative: true })}>
+                      Lägg som negativ
+                    </Button>
+                    <Select onValueChange={(v) => bulkUpdateRegister({ ads_match_type: v })}>
+                      <SelectTrigger className="w-[150px] h-8 text-xs">
+                        <SelectValue placeholder="Ändra matchtyp" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="exact">Exact</SelectItem>
+                        <SelectItem value="phrase">Phrase</SelectItem>
+                        <SelectItem value="broad">Broad</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" onClick={exportRegisterCsv}>
+                      <Download className="h-3.5 w-3.5 mr-1.5" /> CSV
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setRegisterSelected(new Set())}>
+                      Avbryt
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
 
               <TabsContent value="universe" className="space-y-4 mt-4">
                 {/* Grid-header: sökning + sortering + vy-växlare */}

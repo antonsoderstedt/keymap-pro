@@ -3,7 +3,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PRIMARY_ROUTES, pathForRoute } from "@/lib/workspaceRoutes";
 
 interface SidebarProps {
@@ -39,22 +39,28 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
             const Icon = item.icon;
             const to = pathForRoute(workspaceId, item.sub);
             return (
-              <NavLink
-                key={item.sub || "index"}
-                to={to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
-                    isActive
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  )
-                }
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{item.label}</span>
-              </NavLink>
+              <Tooltip key={item.sub || "index"}>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to={to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  <p className="max-w-[220px] text-xs">{item.keywords}</p>
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </nav>

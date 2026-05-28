@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -11,6 +12,8 @@ import { ArrowRight } from "lucide-react";
 import RoiOverview from "@/components/workspace/RoiOverview";
 import { ContextSheet } from "@/components/context";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { useDailyPulse } from "@/hooks/useDailyPulse";
 
 // Action source types that map to a real Google Ads mutation. Mirrors
 // ADS_PUSHABLE_SOURCES in src/lib/actionsPipeline.ts — kept in sync so Today's
@@ -61,7 +64,9 @@ export default function Today() {
     [items],
   );
   const primary = open[0] ?? null;
+  const secondary = open.slice(1, 3);
   const remaining = Math.max(0, open.length - 1);
+  const { signals, dataAge } = useDailyPulse(workspace?.id);
 
   // "Godkänn" på ett action_item utför ingen mekanisk åtgärd om det inte
   // finns en source_payload kopplad till en pushable källa. Då blir det bara
@@ -169,6 +174,28 @@ export default function Today() {
       </header>
 
       <section aria-labelledby="next-action">
+        <div className="mb-5 flex flex-wrap gap-2">
+          {signals.slice(0, 4).map((signal) => (
+            <span
+              key={signal.label}
+              className="inline-flex items-center rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px]"
+            >
+              <span className="text-muted-foreground">{signal.label}</span>
+              <span
+                className={cn(
+                  "ml-1.5 font-medium",
+                  signal.direction === "up" && "text-emerald-600",
+                  signal.direction === "down" && "text-rose-600",
+                  signal.direction === "flat" && "text-muted-foreground",
+                )}
+              >
+                {signal.direction !== "down" && signal.direction !== "flat" && signal.label !== "Ads hälsa" ? "+" : ""}
+                {signal.value}
+              </span>
+            </span>
+          ))}
+        </div>
+
         <p
           id="next-action"
           className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground"
@@ -256,6 +283,33 @@ export default function Today() {
                 Skickas i pausat läge för säkerhet. Du granskar och aktiverar i Google Ads när du är redo.
               </p>
             )}
+
+            {secondary.length > 0 && (
+              <div className="space-y-2 rounded-md border border-border/60 p-3">
+                {secondary.map((action) => (
+                  <button
+                    key={action.id}
+                    onClick={() => workspace && navigate(`/clients/${workspace.id}/actions?focus=a:${action.id}&from=today`)}
+                    className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-muted/40"
+                  >
+                    <span className="line-clamp-1 text-sm">{action.title}</span>
+                    <span className="ml-3 shrink-0 text-xs text-muted-foreground">
+                      {action.expected_impact_sek
+                        ? `+${action.expected_impact_sek.toLocaleString("sv-SE")} kr/mån`
+                        : categoryLabel(action.category)}
+                    </span>
+                  </button>
+                ))}
+                {workspace && (
+                  <button
+                    onClick={() => navigate(`/clients/${workspace.id}/actions`)}
+                    className="inline-flex items-center gap-1 pl-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Visa alla {open.length} åtgärder <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -293,23 +347,29 @@ export default function Today() {
         />
       )}
 
-      {workspace && !loading && primary && (
+      {workspace && !loading && (
         <div className="mt-16">
           <RoiOverview projectId={workspace.id} />
         </div>
       )}
 
-      {(remaining > 0 || sourceIssues.length > 0) && (
+      {(remaining > 0 || sourceIssues.length > 0 || dataAge.gsc_days != null || dataAge.ads_days != null) && (
         <footer className="mt-12 space-y-2 border-t border-border/40 pt-6 text-xs text-muted-foreground">
-          {remaining > 0 && workspace && (
-            <button
-              onClick={() => navigate(`/clients/${workspace.id}/actions`)}
-              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-            >
-              {remaining} {remaining === 1 ? "till åtgärd" : "fler åtgärder"} väntar
-              <ArrowRight className="h-3 w-3" />
-            </button>
-          )}
+          <p>
+            {open.length} åtgärder
+            {dataAge.gsc_days != null ? ` · GSC ${dataAge.gsc_days}d` : ""}
+            {dataAge.ga4_days != null ? ` · GA4 ${dataAge.ga4_days}d` : ""}
+            {dataAge.ads_days != null ? ` · Ads ${dataAge.ads_days}d` : ""}
+            {sourceIssues.length > 0 ? ` · ${sourceIssues.length} datakällor kräver åtgärd` : ""}
+            {workspace && sourceIssues.length > 0 ? (
+              <button
+                onClick={() => navigate(`/clients/${workspace.id}/settings`)}
+                className="ml-1 underline-offset-4 hover:underline"
+              >
+                Uppdatera →
+              </button>
+            ) : null}
+          </p>
           {sourceIssues.length > 0 && (
             <p>
               Datakällor:{" "}

@@ -11,7 +11,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { useCommandBar } from "@/hooks/useCommandBar";
-import { PRIMARY_ROUTES, LEGACY_ROUTES, pathForRoute } from "@/lib/workspaceRoutes";
+import { LEGACY_ROUTES, PRIMARY_ROUTES, SEARCHABLE_ROUTES, pathForRoute } from "@/lib/workspaceRoutes";
 import { AskAnswerPanel, type AskAnswer } from "./AskAnswerPanel";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -183,6 +183,25 @@ export function CommandBar({ workspaceId, open, setOpen, recent, pushRecent }: C
                   key={r.sub || "index"}
                   value={`${r.label} ${r.keywords}`}
                   onSelect={() => go(r.label, pathFor(r.sub))}
+                >
+                  <Icon className="mr-2 h-4 w-4" />
+                  <span>{r.label}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+
+          <CommandSeparator />
+
+          <CommandGroup heading="Fler vyer">
+            {SEARCHABLE_ROUTES.filter((r) => !r.primary && !r.legacy).map((r) => {
+              const Icon = r.icon;
+              return (
+                <CommandItem
+                  key={`extra-${r.sub || "index"}`}
+                  value={`${r.label} ${r.keywords}`}
+                  onSelect={() => go(r.label, pathFor(r.sub))}
+                  className="text-muted-foreground"
                 >
                   <Icon className="mr-2 h-4 w-4" />
                   <span>{r.label}</span>
