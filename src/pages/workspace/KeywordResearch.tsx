@@ -451,7 +451,7 @@ export default function KeywordResearch() {
             Lägg till i projekt
           </Button>
           {id && (
-            <Link to={`/workspace/${id}/keywords`} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+            <Link to={`/clients/${id}/keywords`} className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
               Visa i Sökord →
             </Link>
           )}
