@@ -76,11 +76,12 @@ async function refreshAllSources(projectId: string): Promise<void> {
 }
 
 export function useAutoSync(projectId: string | undefined | null) {
+  const { user, loading: authLoading } = useAuth();
   const lastRunRef = useRef<number>(0);
   const inFlightRef = useRef<boolean>(false);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || authLoading || !user) return;
     let cancelled = false;
 
     const run = async (reason: string) => {
