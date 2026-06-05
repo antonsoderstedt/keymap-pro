@@ -32,7 +32,7 @@ export function useDataSourcesStatus(projectId: string | null | undefined) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!projectId) return;
+    if (!projectId || !user) return;
     setLoading(true);
     setError(null);
     try {
@@ -46,9 +46,9 @@ export function useDataSourcesStatus(projectId: string | null | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, user]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (!authLoading) refresh(); }, [authLoading, refresh]);
 
   // Realtime: re-fetch when status row ändras
   useEffect(() => {
