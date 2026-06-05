@@ -120,5 +120,5 @@ export function useAutoSync(projectId: string | undefined | null) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
     };
-  }, [projectId]);
+  }, [projectId, authLoading, user]);
 }
