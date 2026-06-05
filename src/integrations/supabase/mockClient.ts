@@ -410,11 +410,14 @@ export function createScreenshotMockClient() {
     from(table: string) {
       return createQuery(table);
     },
-    channel() {
-      return {
-        on() { return this; },
-        subscribe() { return this; },
+    channel(_name?: string, _opts?: Record<string, unknown>) {
+      const ch: any = {
+        on(_event: any, _filter?: any, _cb?: any) { return ch; },
+        subscribe(_cb?: any) { return ch; },
+        send(_msg: any) { return Promise.resolve("ok" as const); },
+        unsubscribe() { return Promise.resolve("ok" as const); },
       };
+      return ch;
     },
     removeChannel() {
       return null;
