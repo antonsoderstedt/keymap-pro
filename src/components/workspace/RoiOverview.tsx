@@ -64,7 +64,7 @@ export default function RoiOverview({ projectId }: Props) {
       clusters,
       ga4Rows,
       gscRows,
-      settings: settingsRes.data || undefined,
+      settings: (settingsRes.data as any) || undefined,
     });
     setOverview(result);
     setLoading(false);
