@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export type SourceStatus = "ok" | "stale" | "error" | "reauth_required" | "not_connected";
 export type SourceKey = "ga4" | "gsc" | "ads" | "keyword_planner";
@@ -25,12 +26,13 @@ export interface DataSourcesPayload {
 }
 
 export function useDataSourcesStatus(projectId: string | null | undefined) {
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<DataSourcesPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!projectId) return;
+    if (!projectId || !user) return;
     setLoading(true);
     setError(null);
     try {
@@ -44,9 +46,9 @@ export function useDataSourcesStatus(projectId: string | null | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, user]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (!authLoading) refresh(); }, [authLoading, refresh]);
 
   // Realtime: re-fetch when status row ändras
   useEffect(() => {
