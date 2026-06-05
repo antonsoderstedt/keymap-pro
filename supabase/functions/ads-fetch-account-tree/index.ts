@@ -304,9 +304,11 @@ Deno.serve(async (req) => {
       tree, fetched_at: tree.fetched_at, cache_hit: false, customer_id: cid, duration_ms: Date.now() - t0,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
-    console.error("ads-fetch-account-tree error", e);
-    return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const msg = String(e instanceof Error ? e.message : e);
+    const notConnected = /Google not connected|Not authenticated|GOOGLE_REAUTH_REQUIRED|MISSING_ADS_SCOPE/i.test(msg);
+    if (!notConnected) console.error("ads-fetch-account-tree error", e);
+    return new Response(JSON.stringify({ error: msg, not_connected: notConnected }), {
+      status: notConnected ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
