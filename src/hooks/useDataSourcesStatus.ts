@@ -26,6 +26,7 @@ export interface DataSourcesPayload {
 }
 
 export function useDataSourcesStatus(projectId: string | null | undefined) {
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<DataSourcesPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
