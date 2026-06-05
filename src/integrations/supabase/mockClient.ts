@@ -382,6 +382,24 @@ const mockAuth = {
   async signOut() {
     return { error: null };
   },
+  async signInWithPassword(_creds: { email: string; password: string }) {
+    return { data: { session: mockSession, user: mockSession.user }, error: null };
+  },
+  async signUp(_creds: { email: string; password: string; options?: Record<string, unknown> }) {
+    return { data: { session: mockSession, user: mockSession.user }, error: null };
+  },
+  async signInWithOAuth(_opts: Record<string, unknown>) {
+    return { data: { url: "", provider: "google" }, error: null };
+  },
+  async resetPasswordForEmail(_email: string, _opts?: Record<string, unknown>) {
+    return { data: {}, error: null };
+  },
+  async updateUser(_attrs: Record<string, unknown>) {
+    return { data: { user: mockSession.user }, error: null };
+  },
+  async getUser() {
+    return { data: { user: mockSession.user }, error: null };
+  },
 };
 
 export function createScreenshotMockClient() {
