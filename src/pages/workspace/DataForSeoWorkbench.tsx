@@ -126,7 +126,7 @@ export default function DataForSeoWorkbench() {
       if (kmRes.error || smRes.error) {
         throw new Error(kmRes.error?.message || smRes.error?.message || "batch failed");
       }
-      const smByKeyword = new Map((smRes.data || []).map((r) => [r.keyword.toLowerCase(), r]));
+      const smByKeyword = new Map(((smRes.data || []) as any[]).map((r) => [r.keyword.toLowerCase(), r]));
       const rows: LookupResult[] = (kmRes.data || []).map((r) => {
         const sm = smByKeyword.get(r.keyword.toLowerCase());
         return {
