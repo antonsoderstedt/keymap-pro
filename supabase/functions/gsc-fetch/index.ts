@@ -54,10 +54,12 @@ Deno.serve(async (req) => {
 
     return json({ error: "unknown action" }, 400);
   } catch (e) {
-    console.error("gsc-fetch error", e);
     const msg = String(e instanceof Error ? e.message : e);
+    const notConnected = /Google not connected|Not authenticated/i.test(msg);
+    if (!notConnected) console.error("gsc-fetch error", e);
     if (projectId) await markSourceStatus({ projectId, source: "gsc", status: classifyGoogleError(msg), lastError: msg, bumpSynced: false });
-    return json({ error: msg }, 500);
+    // Return 200 for "not connected" so frontend can handle gracefully without surfacing as runtime error
+    return json({ error: msg, not_connected: notConnected }, notConnected ? 200 : 500);
   }
 });
 
