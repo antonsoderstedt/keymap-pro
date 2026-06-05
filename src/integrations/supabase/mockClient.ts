@@ -247,6 +247,22 @@ class MockQuery {
 
   select() { return this; }
   eq(column: string, value: unknown) { this.filters.push({ kind: "eq", column, value }); return this; }
+  neq(_column: string, _value: unknown) { return this; }
+  gt(_column: string, _value: unknown) { return this; }
+  gte(_column: string, _value: unknown) { return this; }
+  lt(_column: string, _value: unknown) { return this; }
+  lte(_column: string, _value: unknown) { return this; }
+  like(_column: string, _value: unknown) { return this; }
+  ilike(_column: string, _value: unknown) { return this; }
+  contains(_column: string, _value: unknown) { return this; }
+  containedBy(_column: string, _value: unknown) { return this; }
+  overlaps(_column: string, _value: unknown) { return this; }
+  match(_query: Record<string, unknown>) { return this; }
+  or(_filter: string) { return this; }
+  filter(_column: string, _op: string, _value: unknown) { return this; }
+  range(_from: number, _to: number) { return this; }
+  returns<_T = unknown>() { return this; }
+  abortSignal(_signal: AbortSignal) { return this; }
   in(column: string, value: unknown[]) { this.filters.push({ kind: "in", column, value }); return this; }
   is(column: string, value: unknown) { this.filters.push({ kind: "is", column, value }); return this; }
   not(column: string, op: string, value: unknown) { this.filters.push({ kind: "not", column, value, op }); return this; }
