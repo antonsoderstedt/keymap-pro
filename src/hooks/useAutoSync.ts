@@ -2,6 +2,7 @@
 // on tab focus/visibility, and at scheduled intervals while the tab is open.
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 min
 const MIN_GAP_MS = 60 * 1000; // never run more often than once per minute
