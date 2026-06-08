@@ -1516,6 +1516,104 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_master: {
+        Row: {
+          added_by: string | null
+          ads_adgroup: string | null
+          ads_campaign: string | null
+          ads_conversions_30d: number | null
+          ads_is_negative: boolean
+          ads_match_type: string | null
+          ads_negative_level: string | null
+          ads_spend_30d: number | null
+          ads_status: string | null
+          conflict_flag: boolean
+          cpc: number | null
+          created_at: string
+          decided_at: string | null
+          dimension: string | null
+          gsc_clicks_30d: number | null
+          gsc_impressions_30d: number | null
+          gsc_position: number | null
+          id: string
+          intent_class: string | null
+          kd: number | null
+          keyword: string
+          kundfit: number | null
+          notes: string | null
+          project_id: string
+          status: string
+          updated_at: string
+          volume: number | null
+        }
+        Insert: {
+          added_by?: string | null
+          ads_adgroup?: string | null
+          ads_campaign?: string | null
+          ads_conversions_30d?: number | null
+          ads_is_negative?: boolean
+          ads_match_type?: string | null
+          ads_negative_level?: string | null
+          ads_spend_30d?: number | null
+          ads_status?: string | null
+          conflict_flag?: boolean
+          cpc?: number | null
+          created_at?: string
+          decided_at?: string | null
+          dimension?: string | null
+          gsc_clicks_30d?: number | null
+          gsc_impressions_30d?: number | null
+          gsc_position?: number | null
+          id?: string
+          intent_class?: string | null
+          kd?: number | null
+          keyword: string
+          kundfit?: number | null
+          notes?: string | null
+          project_id: string
+          status?: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Update: {
+          added_by?: string | null
+          ads_adgroup?: string | null
+          ads_campaign?: string | null
+          ads_conversions_30d?: number | null
+          ads_is_negative?: boolean
+          ads_match_type?: string | null
+          ads_negative_level?: string | null
+          ads_spend_30d?: number | null
+          ads_status?: string | null
+          conflict_flag?: boolean
+          cpc?: number | null
+          created_at?: string
+          decided_at?: string | null
+          dimension?: string | null
+          gsc_clicks_30d?: number | null
+          gsc_impressions_30d?: number | null
+          gsc_position?: number | null
+          id?: string
+          intent_class?: string | null
+          kd?: number | null
+          keyword?: string
+          kundfit?: number | null
+          notes?: string | null
+          project_id?: string
+          status?: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_master_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keyword_metrics: {
         Row: {
           competition: number | null
