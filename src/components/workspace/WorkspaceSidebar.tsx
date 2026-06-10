@@ -1,7 +1,7 @@
 // Sidomeny — läser från workspaceRoutes (Sprint 2 — Day 1: single source of truth).
 
 import { NavLink, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PRIMARY_ROUTES, pathForRoute } from "@/lib/workspaceRoutes";
 
