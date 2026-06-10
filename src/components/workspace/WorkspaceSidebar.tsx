@@ -1,7 +1,7 @@
 // Sidomeny — läser från workspaceRoutes (Sprint 2 — Day 1: single source of truth).
 
 import { NavLink, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PRIMARY_ROUTES, pathForRoute } from "@/lib/workspaceRoutes";
 
@@ -55,6 +55,16 @@ export function WorkspaceSidebar({ workspaceId, workspaceName, workspaceCompany 
             </NavLink>
           );
         })}
+
+        <div className="pt-2 mt-2 border-t border-border">
+          <button
+            onClick={() => navigate(`/project/${workspaceId}`)}
+            className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Pencil className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Redigera onboarding</span>
+          </button>
+        </div>
       </nav>
     </aside>
   );
