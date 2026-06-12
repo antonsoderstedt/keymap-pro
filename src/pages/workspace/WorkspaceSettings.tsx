@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Settings as SettingsIcon, Target, Plus, Trash2, Megaphone, RefreshCw, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { handleGoogleReauthError, notifyGoogleReauthRequired } from "@/lib/googleReauth";
+import { reconnectGoogle } from "@/lib/googleOAuth";
 import AutomationRules from "@/components/workspace/AutomationRules";
 import RevenueSettings from "@/components/workspace/RevenueSettings";
 import Ga4Filters from "@/components/workspace/Ga4Filters";
@@ -294,6 +295,8 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
   const [accounts, setAccounts] = useState<AdsAccount[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [saved, setSaved] = useState<{ id: string | null; name: string | null }>({ id: null, name: null });
 
   useEffect(() => {
@@ -309,6 +312,7 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
 
   const fetchAccounts = async () => {
     setLoading(true);
+    setNeedsReconnect(false);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
@@ -325,6 +329,7 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
       });
       const data = await response.json();
       if (data?.reauthRequired) {
+        setNeedsReconnect(true);
         notifyGoogleReauthRequired({
           message:
             data.code === "MISSING_ADS_SCOPE"
@@ -344,6 +349,7 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
       const code = e.code || "";
       const message = e.message || "Kunde inte hämta Ads-konton";
       if (code === "GOOGLE_NOT_CONNECTED" || code === "OAUTH_INVALID" || code === "MISSING_ADS_SCOPE") {
+        setNeedsReconnect(true);
         notifyGoogleReauthRequired({
           message:
             code === "MISSING_ADS_SCOPE"
@@ -372,6 +378,16 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
         duration: 8000,
       });
     } finally { setLoading(false); }
+  };
+
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    try {
+      await reconnectGoogle();
+    } catch (e: any) {
+      setReconnecting(false);
+      toast.error("Kunde inte starta Google-anslutning", { description: e?.message });
+    }
   };
 
   const save = async () => {
@@ -409,6 +425,13 @@ function GoogleAdsConnection({ projectId }: { projectId: string }) {
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
           {loading ? "Hämtar…" : "Hämta mina Ads-konton"}
         </Button>
+
+        {needsReconnect && (
+          <Button size="sm" onClick={handleReconnect} disabled={reconnecting} className="gap-2">
+            <RefreshCw className={`h-3 w-3 ${reconnecting ? "animate-spin" : ""}`} />
+            {reconnecting ? "Startar…" : "Koppla Google igen"}
+          </Button>
+        )}
 
         {accounts.length > 0 && (
           <div className="space-y-2">

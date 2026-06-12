@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BarChart3, Search, RefreshCw, Download, Save, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { reconnectGoogle } from "@/lib/googleOAuth";
+import { handleGoogleReauthError } from "@/lib/googleReauth";
 
 interface GscSite { siteUrl: string; permissionLevel: string }
 interface Ga4Property { property: string; displayName: string; parent: string }
@@ -49,6 +51,8 @@ export default function GoogleDataPanel({ projectId }: Props) {
   const [gscRows, setGscRows] = useState<GscRow[]>([]);
   const [ga4Rows, setGa4Rows] = useState<Ga4Row[]>([]);
   const [ga4Totals, setGa4Totals] = useState<{ sessions: number; users: number } | null>(null);
+  const [needsGoogleReconnect, setNeedsGoogleReconnect] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const [gscFilter, setGscFilter] = useState("");
   const [gscSortKey, setGscSortKey] = useState<keyof GscRow | "query">("clicks");
@@ -83,17 +87,24 @@ export default function GoogleDataPanel({ projectId }: Props) {
 
   const loadLists = async () => {
     setLoadingLists(true);
+    setNeedsGoogleReconnect(false);
     try {
       const [gsc, ga4] = await Promise.all([
-        supabase.functions.invoke("gsc-fetch", { body: { action: "sites" } }),
-        supabase.functions.invoke("ga4-fetch", { body: { action: "properties" } }),
+        supabase.functions.invoke("gsc-fetch", { body: { action: "sites", projectId } }),
+        supabase.functions.invoke("ga4-fetch", { body: { action: "properties", projectId } }),
       ]);
-      const siteList: GscSite[] = (gsc.data as any)?.siteEntry || [];
+      const gscData = gsc.data as any;
+      const ga4Data = ga4.data as any;
+      if (gsc.error || ga4.error || gscData?.reauthRequired || ga4Data?.reauthRequired || gscData?.not_connected || ga4Data?.not_connected) {
+        setNeedsGoogleReconnect(true);
+        handleGoogleReauthError(gsc.error || ga4.error || gscData?.error || ga4Data?.error || "Google not connected");
+      }
+      const siteList: GscSite[] = gscData?.siteEntry || [];
       setSites(siteList);
       if (siteList.length && !selectedSite) setSelectedSite(siteList[0].siteUrl);
 
       const propList: Ga4Property[] = [];
-      ((ga4.data as any)?.accountSummaries || []).forEach((acc: any) => {
+      (ga4Data?.accountSummaries || []).forEach((acc: any) => {
         (acc.propertySummaries || []).forEach((p: any) => {
           propList.push({ property: p.property, displayName: p.displayName, parent: acc.displayName });
         });
@@ -107,15 +118,30 @@ export default function GoogleDataPanel({ projectId }: Props) {
     }
   };
 
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    try {
+      await reconnectGoogle();
+    } catch (e: any) {
+      setReconnecting(false);
+      toast({ title: "Kunde inte starta Google-anslutning", description: e?.message, variant: "destructive" });
+    }
+  };
+
   const fetchGsc = async () => {
     if (!selectedSite) return;
     setGscLoading(true);
     const { startDate, endDate } = rangeDates(range);
     const { data, error } = await supabase.functions.invoke("gsc-fetch", {
-      body: { action: "query", siteUrl: selectedSite, startDate, endDate, dimensions: ["date", "query"], rowLimit: 5000 },
+      body: { action: "query", projectId, siteUrl: selectedSite, startDate, endDate, dimensions: ["date", "query"], rowLimit: 5000 },
     });
     setGscLoading(false);
     if (error) { toast({ title: "GSC-fel", description: error.message, variant: "destructive" }); return; }
+    if ((data as any)?.reauthRequired || (data as any)?.not_connected) {
+      setNeedsGoogleReconnect(true);
+      handleGoogleReauthError((data as any)?.error || "Google not connected");
+      return;
+    }
     const rawRows: GscRow[] = (data as any)?.rows || [];
     setGscRows(rawRows);
 
@@ -153,6 +179,7 @@ export default function GoogleDataPanel({ projectId }: Props) {
     const { data, error } = await supabase.functions.invoke("ga4-fetch", {
       body: {
         action: "report",
+        projectId,
         propertyId: id,
         startDate, endDate,
         dimensions: [{ name: "date" }],
@@ -167,6 +194,11 @@ export default function GoogleDataPanel({ projectId }: Props) {
     });
     setGa4Loading(false);
     if (error) { toast({ title: "GA4-fel", description: error.message, variant: "destructive" }); return; }
+    if ((data as any)?.reauthRequired || (data as any)?.not_connected) {
+      setNeedsGoogleReconnect(true);
+      handleGoogleReauthError((data as any)?.error || "Google not connected");
+      return;
+    }
     const rows: Ga4Row[] = (data as any)?.rows || [];
     setGa4Rows(rows);
     const sessions = rows.reduce((s, r) => s + Number(r.metricValues?.[0]?.value || 0), 0);
@@ -267,6 +299,25 @@ export default function GoogleDataPanel({ projectId }: Props) {
       <Card className="border-border bg-card">
         <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Hämtar Google-konton…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (needsGoogleReconnect) {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="space-y-3 py-6">
+          <div>
+            <p className="text-sm font-medium text-foreground">Google-anslutning krävs</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Koppla Google igen för att hämta och välja Search Console-, GA4- och Ads-konton.
+            </p>
+          </div>
+          <Button size="sm" onClick={handleReconnect} disabled={reconnecting}>
+            {reconnecting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+            {reconnecting ? "Startar…" : "Koppla Google igen"}
+          </Button>
         </CardContent>
       </Card>
     );

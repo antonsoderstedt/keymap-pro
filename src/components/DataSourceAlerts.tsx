@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useDataSourcesStatus, type SourceInfo, type SourceKey } from "@/hooks/useDataSourcesStatus";
 import { reconnectGoogle } from "@/lib/googleOAuth";
+import { syncProjectDataSources } from "@/lib/dataSourceSync";
 
 const LABEL: Record<SourceKey, string> = {
   ga4: "Google Analytics 4",
@@ -19,8 +20,13 @@ const REASON_TEXT: Record<string, string> = {
   reauth_required: "Google-anslutningen behöver förnyas (token utgången eller scope saknas).",
   error: "Senaste synken misslyckades.",
   stale: "Datan är inaktuell — ingen lyckad synk på en stund.",
-  not_connected: "Inget konto valt för denna källa.",
+  not_connected: "Källan är inte ansluten.",
 };
+
+function reasonText(source: SourceInfo): string {
+  if (source.reason) return source.reason;
+  return REASON_TEXT[source.status] || source.status;
+}
 
 function formatAge(sec: number | null): string {
   if (sec === null) return "aldrig";
@@ -37,6 +43,7 @@ interface Props {
 export function DataSourceAlerts({ projectId }: Props) {
   const { data, refresh } = useDataSourcesStatus(projectId);
   const [reconnecting, setReconnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [dismissed, setDismissed] = useState<Record<string, number>>({});
   const [notifiedKey, setNotifiedKey] = useState<string>("");
 
@@ -80,6 +87,9 @@ export function DataSourceAlerts({ projectId }: Props) {
   if (!visible.length) return null;
 
   const needsReauth = visible.some((p) => p.status === "reauth_required");
+  const needsGoogleConnection = !data?.google_connected || visible.some((p) =>
+    p.status === "not_connected" && /google/i.test(`${p.reason ?? ""} ${p.last_error ?? ""}`),
+  );
 
   const handleReconnect = async () => {
     setReconnecting(true);
@@ -89,6 +99,32 @@ export function DataSourceAlerts({ projectId }: Props) {
     } catch (e: any) {
       setReconnecting(false);
       toast.error("Kunde inte starta OAuth", { description: e?.message });
+    }
+  };
+
+  const handleSync = async () => {
+    if (needsGoogleConnection || needsReauth) {
+      await handleReconnect();
+      return;
+    }
+    setSyncing(true);
+    try {
+      const result = await syncProjectDataSources(projectId, data?.sources ?? []);
+      await refresh();
+      if (result.synced.length) {
+        toast.success("Datakällor synkade", { description: result.synced.join(", ") });
+      } else {
+        toast.info("Ingen datakälla kunde synkas automatiskt", {
+          description: result.skipped.join(" · ") || "Kontrollera valda konton i Inställningar.",
+        });
+      }
+      if (result.failed.length) {
+        toast.error("Några datakällor kunde inte synkas", { description: result.failed.join(" · ") });
+      }
+    } catch (e: any) {
+      toast.error("Synken misslyckades", { description: e?.message || String(e) });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -114,7 +150,7 @@ export function DataSourceAlerts({ projectId }: Props) {
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-foreground">{LABEL[p.source]}</span>{" "}
                       <span className="text-muted-foreground">
-                        — {REASON_TEXT[p.status] || p.reason || p.status}
+                        — {reasonText(p)}
                         {p.last_synced_at && ` (synk ${formatAge(p.age_seconds)})`}
                       </span>
                       {p.last_error && (
@@ -137,22 +173,26 @@ export function DataSourceAlerts({ projectId }: Props) {
               })}
             </ul>
             <div className="mt-2 flex flex-wrap gap-2">
-              {needsReauth && (
+              {(needsReauth || needsGoogleConnection) && (
                 <Button size="sm" variant="default" onClick={handleReconnect} disabled={reconnecting}>
                   {reconnecting ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  Koppla om Google
+                  {needsGoogleConnection ? "Koppla Google igen" : "Koppla om Google"}
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => refresh()}>
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                Försök synka igen
+              <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || reconnecting}>
+                {syncing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                {syncing ? "Synkar…" : "Försök synka igen"}
               </Button>
               <Button asChild size="sm" variant="ghost">
-                <Link to={`/clients/${projectId}/data-sources`}>
+                <Link to={`/clients/${projectId}/settings#settings-kopplingar`}>
                   <Plug className="mr-1.5 h-3.5 w-3.5" />
                   Hantera datakällor
                   <ExternalLink className="ml-1 h-3 w-3" />

@@ -2,6 +2,7 @@
 // via GAQL och cachar 15 min i ads_account_tree_cache. Endast läs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getAdsContext, searchGaql } from "../_shared/google-ads.ts";
+import { classifyGoogleError, markSourceStatus } from "../_shared/source-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,8 +41,10 @@ function finalize(m: MetricsTotals): MetricsTotals {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const t0 = Date.now();
+  let projectIdForStatus: string | undefined;
   try {
     const { project_id, force = false } = await req.json();
+    projectIdForStatus = project_id;
     if (!project_id) {
       return new Response(JSON.stringify({ error: "project_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,6 +57,7 @@ Deno.serve(async (req) => {
       .eq("project_id", project_id)
       .maybeSingle();
     if (!settings?.ads_customer_id) {
+      await markSourceStatus({ projectId: project_id, source: "ads", status: "not_connected", lastError: "NO_ADS_CUSTOMER", bumpSynced: false });
       return new Response(JSON.stringify({ error: "NO_ADS_CUSTOMER" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -299,6 +303,7 @@ Deno.serve(async (req) => {
     await admin.from("ads_account_tree_cache").insert({
       project_id, customer_id: cid, tree, ttl_seconds: TTL_SEC,
     });
+    await markSourceStatus({ projectId: project_id, source: "ads", status: "ok", meta: { customerId: cid } });
 
     return new Response(JSON.stringify({
       tree, fetched_at: tree.fetched_at, cache_hit: false, customer_id: cid, duration_ms: Date.now() - t0,
@@ -307,6 +312,7 @@ Deno.serve(async (req) => {
     const msg = String(e instanceof Error ? e.message : e);
     const notConnected = /Google not connected|Not authenticated|GOOGLE_REAUTH_REQUIRED|MISSING_ADS_SCOPE/i.test(msg);
     if (!notConnected) console.error("ads-fetch-account-tree error", e);
+    if (projectIdForStatus) await markSourceStatus({ projectId: projectIdForStatus, source: "ads", status: classifyGoogleError(msg), lastError: msg, bumpSynced: false });
     return new Response(JSON.stringify({ error: msg, not_connected: notConnected }), {
       status: notConnected ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
