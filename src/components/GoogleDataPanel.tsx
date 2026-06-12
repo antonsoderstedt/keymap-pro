@@ -133,10 +133,15 @@ export default function GoogleDataPanel({ projectId }: Props) {
     setGscLoading(true);
     const { startDate, endDate } = rangeDates(range);
     const { data, error } = await supabase.functions.invoke("gsc-fetch", {
-      body: { action: "query", siteUrl: selectedSite, startDate, endDate, dimensions: ["date", "query"], rowLimit: 5000 },
+      body: { action: "query", projectId, siteUrl: selectedSite, startDate, endDate, dimensions: ["date", "query"], rowLimit: 5000 },
     });
     setGscLoading(false);
     if (error) { toast({ title: "GSC-fel", description: error.message, variant: "destructive" }); return; }
+    if ((data as any)?.reauthRequired || (data as any)?.not_connected) {
+      setNeedsGoogleReconnect(true);
+      handleGoogleReauthError((data as any)?.error || "Google not connected");
+      return;
+    }
     const rawRows: GscRow[] = (data as any)?.rows || [];
     setGscRows(rawRows);
 
@@ -174,6 +179,7 @@ export default function GoogleDataPanel({ projectId }: Props) {
     const { data, error } = await supabase.functions.invoke("ga4-fetch", {
       body: {
         action: "report",
+        projectId,
         propertyId: id,
         startDate, endDate,
         dimensions: [{ name: "date" }],
@@ -188,6 +194,11 @@ export default function GoogleDataPanel({ projectId }: Props) {
     });
     setGa4Loading(false);
     if (error) { toast({ title: "GA4-fel", description: error.message, variant: "destructive" }); return; }
+    if ((data as any)?.reauthRequired || (data as any)?.not_connected) {
+      setNeedsGoogleReconnect(true);
+      handleGoogleReauthError((data as any)?.error || "Google not connected");
+      return;
+    }
     const rows: Ga4Row[] = (data as any)?.rows || [];
     setGa4Rows(rows);
     const sessions = rows.reduce((s, r) => s + Number(r.metricValues?.[0]?.value || 0), 0);
