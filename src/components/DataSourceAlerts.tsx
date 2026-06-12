@@ -150,7 +150,7 @@ export function DataSourceAlerts({ projectId }: Props) {
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-foreground">{LABEL[p.source]}</span>{" "}
                       <span className="text-muted-foreground">
-                        — {REASON_TEXT[p.status] || p.reason || p.status}
+                        — {reasonText(p)}
                         {p.last_synced_at && ` (synk ${formatAge(p.age_seconds)})`}
                       </span>
                       {p.last_error && (

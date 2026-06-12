@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BarChart3, Search, RefreshCw, Download, Save, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { reconnectGoogle } from "@/lib/googleOAuth";
+import { handleGoogleReauthError } from "@/lib/googleReauth";
 
 interface GscSite { siteUrl: string; permissionLevel: string }
 interface Ga4Property { property: string; displayName: string; parent: string }
@@ -49,6 +51,8 @@ export default function GoogleDataPanel({ projectId }: Props) {
   const [gscRows, setGscRows] = useState<GscRow[]>([]);
   const [ga4Rows, setGa4Rows] = useState<Ga4Row[]>([]);
   const [ga4Totals, setGa4Totals] = useState<{ sessions: number; users: number } | null>(null);
+  const [needsGoogleReconnect, setNeedsGoogleReconnect] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const [gscFilter, setGscFilter] = useState("");
   const [gscSortKey, setGscSortKey] = useState<keyof GscRow | "query">("clicks");
@@ -83,17 +87,24 @@ export default function GoogleDataPanel({ projectId }: Props) {
 
   const loadLists = async () => {
     setLoadingLists(true);
+    setNeedsGoogleReconnect(false);
     try {
       const [gsc, ga4] = await Promise.all([
-        supabase.functions.invoke("gsc-fetch", { body: { action: "sites" } }),
-        supabase.functions.invoke("ga4-fetch", { body: { action: "properties" } }),
+        supabase.functions.invoke("gsc-fetch", { body: { action: "sites", projectId } }),
+        supabase.functions.invoke("ga4-fetch", { body: { action: "properties", projectId } }),
       ]);
-      const siteList: GscSite[] = (gsc.data as any)?.siteEntry || [];
+      const gscData = gsc.data as any;
+      const ga4Data = ga4.data as any;
+      if (gsc.error || ga4.error || gscData?.reauthRequired || ga4Data?.reauthRequired || gscData?.not_connected || ga4Data?.not_connected) {
+        setNeedsGoogleReconnect(true);
+        handleGoogleReauthError(gsc.error || ga4.error || gscData?.error || ga4Data?.error || "Google not connected");
+      }
+      const siteList: GscSite[] = gscData?.siteEntry || [];
       setSites(siteList);
       if (siteList.length && !selectedSite) setSelectedSite(siteList[0].siteUrl);
 
       const propList: Ga4Property[] = [];
-      ((ga4.data as any)?.accountSummaries || []).forEach((acc: any) => {
+      (ga4Data?.accountSummaries || []).forEach((acc: any) => {
         (acc.propertySummaries || []).forEach((p: any) => {
           propList.push({ property: p.property, displayName: p.displayName, parent: acc.displayName });
         });
@@ -104,6 +115,16 @@ export default function GoogleDataPanel({ projectId }: Props) {
       toast({ title: "Kunde inte hämta listor", description: e.message, variant: "destructive" });
     } finally {
       setLoadingLists(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    try {
+      await reconnectGoogle();
+    } catch (e: any) {
+      setReconnecting(false);
+      toast({ title: "Kunde inte starta Google-anslutning", description: e?.message, variant: "destructive" });
     }
   };
 
