@@ -293,6 +293,25 @@ export default function GoogleDataPanel({ projectId }: Props) {
     );
   }
 
+  if (needsGoogleReconnect) {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="space-y-3 py-6">
+          <div>
+            <p className="text-sm font-medium text-foreground">Google-anslutning krävs</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Koppla Google igen för att hämta och välja Search Console-, GA4- och Ads-konton.
+            </p>
+          </div>
+          <Button size="sm" onClick={handleReconnect} disabled={reconnecting}>
+            {reconnecting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+            {reconnecting ? "Startar…" : "Koppla Google igen"}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Range selector */}
