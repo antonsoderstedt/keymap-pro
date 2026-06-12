@@ -155,15 +155,15 @@ export default function KeywordsHub() {
     };
 
     const tick = async () => {
+      // Poll only the small progress field — never fetch keyword_universe_json
+      // here (it can be megabytes of JSONB and was the #1 disk IO hog).
       const { data } = await supabase
         .from("analyses")
-        .select("universe_progress, keyword_universe_json")
+        .select("universe_progress")
         .eq("id", analysisId)
         .maybeSingle();
       if (cancelled) return;
       const prog = (data as any)?.universe_progress as any;
-      const universe = (data as any)?.keyword_universe_json as any;
-      const hasUniverse = !!universe;
       const running = !!(prog && prog.stage && prog.stage !== "done" && prog.stage !== "error");
 
       if (running) {
@@ -184,8 +184,8 @@ export default function KeywordsHub() {
         return;
       }
 
-      if (wasRunningRef.current && hasUniverse) {
-        const count = universe?.totalKeywords ?? universe?.keywords?.length ?? 0;
+      if (wasRunningRef.current && prog?.stage === "done") {
+        const count = prog?.totalKeywords ?? prog?.total ?? 0;
         fireDoneNotification(count, prog?.scale);
         refetch();
       }
