@@ -101,7 +101,9 @@ export default function GoogleDataPanel({ projectId }: Props) {
       }
       const siteList: GscSite[] = gscData?.siteEntry || [];
       setSites(siteList);
-      if (siteList.length && !selectedSite) setSelectedSite(siteList[0].siteUrl);
+      // Use functional updater so we don't clobber a saved selection that
+      // was loaded in parallel from project_google_settings.
+      if (siteList.length) setSelectedSite((cur) => cur || siteList[0].siteUrl);
 
       const propList: Ga4Property[] = [];
       (ga4Data?.accountSummaries || []).forEach((acc: any) => {
@@ -110,7 +112,7 @@ export default function GoogleDataPanel({ projectId }: Props) {
         });
       });
       setProperties(propList);
-      if (propList.length && !selectedProperty) setSelectedProperty(propList[0].property);
+      if (propList.length) setSelectedProperty((cur) => cur || propList[0].property);
     } catch (e: any) {
       toast({ title: "Kunde inte hämta listor", description: e.message, variant: "destructive" });
     } finally {
